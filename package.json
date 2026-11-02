@@ -1,0 +1,12 @@
+{
+  "name": "nextstep-interview-studio",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test worker/test/*.test.js test/unit.test.js",
+    "test:e2e": "node test/browser.test.js"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^24.15.0"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "nextstep-role-engine",
+  "private": true,
+  "type": "module",
+  "description": "Role extraction and practice API for Next Step Interview Studio. Not deployed from this repo."
+}

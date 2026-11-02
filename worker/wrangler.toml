@@ -1,0 +1,14 @@
+name = "nextstep-role-engine"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+# Do not put an account id, a route, or a key in this file.
+# Deploy stays a manual step: npx wrangler deploy
+# Workers AI uses the account binding. No API key belongs in this file.
+
+[ai]
+binding = "AI"
+
+[vars]
+MODEL_ID = "@cf/meta/llama-3.1-8b-instruct"
+ALLOWED_ORIGINS = "https://shai-mate.github.io"

@@ -1,31 +1,413 @@
-'use strict';
-const $=s=>document.querySelector(s),KEY='nextstep.preparations.v1';
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let records=[],active=null,tab='Overview',draft=null,storageOK=true;
-try{records=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(records)||records.some(p=>p.schema!==1||!p.id||!Array.isArray(p.course)||!p.mock))throw Error('Invalid saved format');}catch{storageOK=false;records=[];notify('Saved data could not be read. It has not been overwritten. Export or recover your browser storage before continuing.');}
-function notify(s){$('#status').textContent=s;}
-function persist(){if(!storageOK){notify('Storage unavailable. Export a backup before leaving.');return false;}try{localStorage.setItem(KEY,JSON.stringify(records));return true;}catch{notify('Could not save: browser storage is full or unavailable. Export a backup before leaving.');return false;}}
-function save(){active.updated=new Date().toISOString();return persist();}
-function field(label,id,value='',type='text'){return `<label>${label}<input id="${id}" type="${type}" value="${esc(value)}" maxlength="${id==='url'?2000:120}"></label>`;}
-function bind(action,fn){document.querySelectorAll(`[data-action="${action}"]`).forEach(el=>el.addEventListener('click',()=>fn(el)));}
-function library(){active=null;draft=null;notify(storageOK?'': 'Storage recovery needed: existing data will not be overwritten.');$('#app').innerHTML=`<section class="hero"><div><p class="eyebrow">YOUR NEXT CHAPTER STARTS HERE</p><h1>Show up ready.<br><em>Sound like yourself.</em></h1><p>Turn a job ad into a focused study plan. Find your evidence. Practise the conversation.</p><button class="primary" id="new">+ New preparation</button></div><div class="hero-art" aria-hidden="true"><div class="orbit"></div><span>ONE ROLE.<br>ONE CLEAR<br>PLAN.</span><small>STUDY → PRACTISE → REFINE</small></div></section><div class="section-title"><h2>Your preparations</h2><span>${records.length} saved locally</span></div><div class="grid">${records.map(p=>`<article class="card"><p class="eyebrow">${esc(p.company)}</p><h3>${esc(p.role)}</h3><p>${esc(p.intake.stage)} · ${esc(p.intake.time)}</p><progress max="${p.course.length}" value="${p.course.filter(x=>x.done).length}"></progress><p>${p.course.filter(x=>x.done).length}/${p.course.length} lessons · mock ${p.mock.finished?'complete':`${p.mock.index}/${p.questions.length}`}</p><button data-action="resume" data-id="${esc(p.id)}">Resume preparation →</button></article>`).join('')||'<article class="card empty"><h3>A clean slate, just for you.</h3><p>No sample identities or private answers. Add your first opportunity to get started.</p></article>'}</div><p class="muted">Local rules-based tailoring. No company research is invented. Keep a backup: browser data does not sync between devices.</p>`;$('#new').onclick=()=>setup();bind('resume',el=>{active=records.find(p=>p.id===el.dataset.id);tab='Overview';render();});}
-function setup(){draft=draft||{company:'',role:'',job:'',url:''};$('#app').innerHTML=`<div class="narrow"><p class="eyebrow">01 / THE OPPORTUNITY</p><h1>What’s the next step?</h1><p>Paste the actual job ad. A URL is optional. Nothing is sent to an AI provider.</p><form id="job-form"><div class="grid">${field('Company','company',draft.company)}${field('Job title','role',draft.role)}</div>${field('Job-ad URL (optional)','url',draft.url,'url')}<button type="button" id="fetch">How to add a job ad</button><p class="muted" id="fetch-status">Free phone edition: paste the actual job-ad text below. The URL is an optional saved reference, not an automatic import.</p><label>Job-ad text <textarea id="job" required minlength="40" maxlength="60000" rows="10" placeholder="Paste responsibilities, requirements and the role description…">${esc(draft.job)}</textarea></label><button class="primary" type="submit">Next: quick setup →</button></form></div>`;
- const capture=()=>{for(const k of ['company','role','job','url'])draft[k]=$('#'+k).value;};$('#fetch').onclick=()=>{capture();$('#fetch-status').textContent='Paste the job text instead: open the job ad, select and copy its responsibilities and requirements, then paste below. This free phone edition cannot import websites automatically. The optional URL is saved only as your reference.';$('#job').focus();};$('#job-form').onsubmit=e=>{e.preventDefault();capture();if(draft.job.trim().length<40){notify('Paste at least 40 characters from the actual ad.');return;}notify('');intake();};}
-const groups={experience:['Early career','Experienced','Career change','Prefer not to say'],stage:['Screening','Technical','Panel','Final','Not sure yet'],focus:['Balanced','Confidence','Role skills','Concise answers'],time:['15 minutes','30 minutes','60 minutes']};
-function intake(){const labels={experience:'Your experience',stage:'Interview stage',focus:'What would help most?',time:'Time available today'};$('#app').innerHTML=`<div class="narrow"><p class="eyebrow">02 / MAKE IT YOURS</p><h1>Four quick choices.</h1><p>Choose what fits. Skip for a balanced starting point. No résumé or long biography needed.</p><form id="intake">${Object.entries(groups).map(([k,opts])=>`<fieldset><legend>${labels[k]}</legend><div class="choices">${opts.map((v,i)=>`<label class="choice"><input type="radio" name="${k}" value="${v}" ${v===(draft.intake?.[k]||({experience:'Prefer not to say',stage:'Not sure yet',focus:'Balanced',time:'30 minutes'})[k])?'checked':''}><span>${v}</span></label>`).join('')}</div></fieldset>`).join('')}<div class="actions"><button type="button" id="back">← Job ad</button><button type="button" id="skip">Skip setup</button><button class="primary" type="submit">Build my preparation →</button></div></form></div>`;
- const build=skip=>{try{draft.intake=skip?{}:Object.fromEntries(new FormData($('#intake')));active=PrepEngine.create(draft);records.unshift(active);persist();draft=null;tab='Overview';render();notify('Preparation created. Tailored locally from your job ad, with no model calls.');}catch(e){notify(e.message);}};$('#intake').onsubmit=e=>{e.preventDefault();build(false);};$('#skip').onclick=()=>build(true);$('#back').onclick=()=>{draft.intake=Object.fromEntries(new FormData($('#intake')));setup();};}
-const tabs=['Overview','Study','Answer bank','Quiz','Mock interview','Role map'];
-function render(){const p=active;$('#app').innerHTML=`<section class="prep-heading"><p class="eyebrow">${esc(p.company)} / ${esc(p.intake.stage)}</p><h1>${esc(p.role)}</h1><p>Your evidence. Your words. One opportunity at a time.</p><div class="actions"><button id="export">Export backup</button><button id="rename">Rename</button><span class="muted">${esc(p.intake.time)} today · local save</span></div></section><nav class="tabs" aria-label="Preparation sections">${tabs.map(t=>`<button data-action="tab" data-tab="${t}" ${t===tab?'aria-current="page"':''}>${t}</button>`).join('')}</nav><section id="content"></section>`;bind('tab',el=>{tab=el.dataset.tab;render();});$('#export').onclick=exportBackup;$('#rename').onclick=()=>{const name=prompt('Job title for this preparation',p.role);if(name?.trim()){p.role=name.trim().slice(0,120);save();render();}};({Overview:overview,Study:study,'Answer bank':answers,Quiz:quiz,'Mock interview':mock,'Role map':rolemap})[tab]();}
-function overview(){const p=active;const budget=parseInt(p.intake.time,10)||30;const picks=p.course.slice(0,Math.max(1,Math.floor(budget/5)));$('#content').innerHTML=`<div class="grid"><article class="card"><p class="eyebrow">YOUR ROUTE TO READY</p><h2>A focused plan, not a script.</h2>${tabs.slice(1).map((t,i)=>`<button class="route" data-action="goto" data-tab="${t}"><span>0${i+1}</span><strong>${t}</strong><span>→</span></button>`).join('')}</article><article class="card"><p class="eyebrow">TODAY’S ${budget}-MINUTE FOCUS</p><h2>Small steps. Real evidence.</h2><p>${esc(p.intake.focus)} · ${esc(p.intake.experience)}</p><ol>${picks.map(c=>`<li>${esc(c.title)}</li>`).join('')}</ol><progress max="${p.course.length}" value="${p.course.filter(c=>c.done).length}"></progress><p>${p.course.filter(c=>c.done).length} of ${p.course.length} lessons complete</p></article></div><article class="card"><h3>What this preparation is based on</h3><p>Only your supplied job ad and quick setup. It does not verify company claims or candidate qualifications. Treat each question as practice, not a prediction.</p><details><summary>Review original job ad</summary><pre>${esc(p.job)}</pre></details></article>`;bind('goto',e=>{tab=e.dataset.tab;render();});}
-function study(){$('#content').innerHTML=`<p class="eyebrow">LEARN / APPLY / RECALL</p><h2>Build understanding before answers.</h2>${active.course.map((c,i)=>`<details class="card lesson" ${i===0?'open':''}><summary>${c.done?'✓':'○'} ${esc(c.title)} <small>~${c.minutes} min</small></summary><p class="preline">${esc(c.body)}</p><div class="exercise"><strong>Try it</strong><p>${esc(c.exercise)}</p></div><label>Your working notes<textarea rows="4" data-note="lesson-${i}">${esc(active.notes['lesson-'+i]||'')}</textarea></label><button data-action="done" data-index="${i}">${c.done?'Mark incomplete':'Mark complete'}</button></details>`).join('')}`;bindNotes();bind('done',el=>{const c=active.course[+el.dataset.index];c.done=!c.done;save();study();});}
-function bindNotes(){document.querySelectorAll('[data-note]').forEach(el=>el.oninput=()=>{active.notes[el.dataset.note]=el.value;save();});}
-function answers(){$('#content').innerHTML=`<p class="eyebrow">MAKE IT YOURS</p><h2>Your answer bank.</h2><p>Use true examples. A gap is something to prepare for, not something to fabricate. Notes save as you type.</p>${active.questions.map((q,i)=>`<details class="card" ${i===0?'open':''}><summary>${esc(q)}</summary><p class="muted">Situation → Task → Your action → Result → What you learned</p><label>Your evidence and answer<textarea rows="6" data-note="answer-${i}" placeholder="Describe something you actually did…">${esc(active.notes['answer-'+i]||'')}</textarea></label></details>`).join('')}`;bindNotes();}
-const quizItems=[{q:'Which answer best demonstrates a job requirement?',options:['A confident claim with no example','A true example with your action and a clear outcome','Someone else’s experience presented as yours'],correct:1,why:'Specific, truthful evidence is more useful than polished claims.'},{q:'The job ad says: “{req}”. What should you prepare?',options:['A relevant example and a question about success','An unrelated memorized speech','An invented company policy'],correct:0,why:'Connect your own evidence to the exact requirement and clarify what success means.'},{q:'You have not done part of this role before. What is the strongest approach?',options:['Pretend you have','Avoid the topic entirely','Be honest, connect transferable skills and explain how you would learn'],correct:2,why:'An honest gap plus a credible learning plan protects your integrity and shows judgment.'}];
-function quiz(){$('#content').innerHTML=`<p class="eyebrow">RECALL / REFINE</p><h2>Check your approach.</h2><p>This checks interview technique, not technical certification or hiring readiness.</p>${quizItems.map((q,i)=>`<article class="card"><h3>${i+1}. ${esc(q.q.replace('{req}',active.requirements[0]))}</h3><div class="choices vertical">${q.options.map((o,j)=>`<button data-action="quiz" data-q="${i}" data-choice="${j}" ${active.quiz.answers[i]!==undefined?'disabled':''}>${esc(o)}</button>`).join('')}</div>${active.quiz.answers[i]!==undefined?`<p>${active.quiz.answers[i]===q.correct?'✓ Correct.':'Try a different approach next time.'} ${q.why}</p>`:''}</article>`).join('')}<button id="retry">Retry quiz</button>`;bind('quiz',el=>{active.quiz.answers[el.dataset.q]=+el.dataset.choice;save();quiz();});$('#retry').onclick=()=>{active.quiz.answers={};save();quiz();};}
-function mock(){const p=active,m=p.mock;$('#content').innerHTML=`<p class="eyebrow">PRACTISE / PAUSE / PICK UP AGAIN</p><h2>Mock interview.</h2><p>Text-based practice with local structure feedback, not an AI interviewer or an assessment of correctness. Speak aloud, then capture your answer.</p>${m.finished?`<article class="card"><h3>Session complete.</h3><p>${m.answers.length} answers saved. Review your evidence and refine one answer before the real conversation.</p><button id="restart">Start another round</button></article>`:`<article class="card"><p class="eyebrow">QUESTION ${m.index+1} OF ${p.questions.length}</p><h3>${esc(p.questions[m.index])}</h3><label>Your answer<textarea id="mock-answer" rows="8" placeholder="Use a real example. What did you do, what happened, and what did you learn?">${esc(m.draft)}</textarea></label><p class="muted">Draft auto-saves. You can leave and resume this exact question.</p><button class="primary" id="submit-answer">Save answer & continue →</button></article>`}<h3>Session log</h3>${m.answers.map((a,i)=>`<details class="card"><summary>${i+1}. ${esc(a.question)}</summary><p class="preline">${esc(a.text)}</p><p class="feedback">${esc(a.feedback)}</p></details>`).join('')||'<p class="muted">Your saved answers will appear here.</p>'}`;if(!m.finished){$('#mock-answer').oninput=e=>{m.draft=e.target.value;save();};$('#submit-answer').onclick=()=>{const text=$('#mock-answer').value.trim();if(text.length<20){notify('Add at least 20 characters so you have an answer to review.');return;}m.answers.push({question:p.questions[m.index],text,feedback:feedback(text),at:new Date().toISOString()});m.draft='';m.index++;m.finished=m.index>=p.questions.length;save();notify('Answer saved. Structure feedback is a writing checklist, not a hiring score.');mock();};}else $('#restart').onclick=()=>{if(confirm('Start another round? Export first to keep the current mock log.')){p.mock={index:0,answers:[],draft:'',finished:false};save();mock();}};}
-function feedback(text){const words=text.trim().split(/\s+/).length;return `Structure checklist: ${words} words. ${words<50?'Try adding context, your specific action and an outcome.':words>250?'Try a shorter first pass, then offer detail if asked.':'A useful length for a first pass.'} ${/\bI\b/i.test(text)?'Make sure your personal contribution is specific.':'Clarify what you personally did.'} ${/\d|result|outcome|improv|learn|reduc|increas/i.test(text)?'Check that your result is truthful and relevant.':'Add an observable result or lesson if you have one.'}`;}
-function rolemap(){$('#content').innerHTML=`<p class="eyebrow">FROM THE AD / NOT ASSUMPTIONS</p><h2>Map the role to your evidence.</h2><p>These are excerpts, not verified facts about the employer. Confirm the priorities with your interviewer.</p>${active.requirements.map((r,i)=>`<article class="card"><p class="eyebrow">AD EXCERPT ${i+1}</p><blockquote>${esc(r)}</blockquote><label>Your transferable evidence / gaps<textarea data-note="map-${i}" rows="3">${esc(active.notes['map-'+i]||'')}</textarea></label><p class="muted">Ask: What would good performance on this look like in the first 90 days?</p></article>`).join('')}`;bindNotes();}
-function exportBackup(){const blob=new Blob([JSON.stringify({schema:1,preparations:active?[active]:records},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='nextstep-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);notify('Backup exported. It includes your job ads, notes and answers. Keep it private.');}
-$('#library').onclick=library;
-$('#privacy').onclick=()=>{$('#app').innerHTML=`<div class="narrow"><p class="eyebrow">YOUR DATA / YOUR CONTROL</p><h1>Local means local.</h1><p>Preparations, job text, notes and mock answers stay in this browser’s local storage. No account, telemetry, remote model or automatic cloud sync. People who can access this browser profile can read them.</p><p>Clearing site data, private browsing or changing browsers can lose your work. Export a backup and keep it private. An exported file contains personal answers. The shareable app package contains none.</p><p>This phone edition does not import websites or send your job ad to a server. Paste job text and optionally keep its URL as a reference. The hosting provider receives normal requests for the app files, not your typed preparations.</p><button id="all-export">Export all preparations</button><h2>Restore a backup</h2><p>Imports append as separate copies, never overwrite existing preparations. Only import backups you trust.</p><label>Backup JSON file<input id="import" type="file" accept="application/json,.json"></label><p class="muted">Phone app v2 · storage schema v1 · rules-based preparation</p></div>`;active=null;$('#all-export').onclick=exportBackup;$('#import').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>2000000)throw Error('Backup exceeds 2 MB');const b=JSON.parse(await f.text());if(b.schema!==1||!Array.isArray(b.preparations)||b.preparations.length>50)throw Error('Unsupported backup');const copies=b.preparations.map(p=>{const fresh=PrepEngine.create(p);if(!p.notes||typeof p.notes!=='object')throw Error('Invalid notes');for(const [k,v] of Object.entries(p.notes)){if(typeof v!=='string'||v.length>60000)throw Error('Invalid note');fresh.notes[k]=v;}if(Array.isArray(p.course))fresh.course.forEach((c,i)=>c.done=p.course[i]?.done===true);if(p.quiz?.answers&&typeof p.quiz.answers==='object'){for(const [k,v] of Object.entries(p.quiz.answers)){if(/^[0-2]$/.test(k)&&Number.isInteger(v)&&v>=0&&v<=2)fresh.quiz.answers[k]=v;}}if(p.mock&&Number.isInteger(p.mock.index)&&p.mock.index>=0&&p.mock.index<=fresh.questions.length&&Array.isArray(p.mock.answers)&&p.mock.answers.length===p.mock.index){fresh.mock={index:p.mock.index,answers:p.mock.answers.map(a=>{if(typeof a.text!=='string'||a.text.length>60000)throw Error('Invalid mock');return {question:String(a.question).slice(0,2000),text:a.text,feedback:feedback(a.text)};}),draft:String(p.mock.draft||'').slice(0,60000),finished:p.mock.index===fresh.questions.length};}return fresh;});records.push(...copies);persist();library();notify(`Restored ${copies.length} preparation(s) as separate copies.`);}catch(err){notify('Could not restore: '+err.message);}};};
+import { esc, radios, downloadJson, seniorityLabel } from './ui.js?v=3';
+import { extractJob, planJob, roleplayTurn, gradeJob, looksLikeUrl, getApiBase, setApiBase, serviceConnected, packs } from './api.js?v=3';
+import { extractUpload } from './files.js?v=3';
+import { renderLegacy } from './legacy.js?v=3';
+import { onboardingQuestions } from './shared/onboarding.js?v=3';
+import { basisLabel } from './shared/plan-path.js?v=3';
+import { parseStore } from './shared/records.js?v=3';
+import { exportEnvelope, importBackup } from './shared/backup.js?v=3';
+
+const KEY = 'nextstep.preparations.v1';
+const $ = selector => document.querySelector(selector);
+
+let records = [];
+let active = null;
+let tab = 'Overview';
+let draft = null;
+let storageOK = true;
+let chosenFile = null;
+
+const loaded = parseStore(localStorage.getItem(KEY));
+if (!loaded.ok) {
+  storageOK = false;
+  records = [];
+} else {
+  records = loaded.records;
+}
+
+function notify(text) {
+  $('#status').textContent = text || '';
+}
+
+function persist() {
+  if (!storageOK) {
+    notify('Storage unavailable. Existing saved data was not overwritten. Export a backup before leaving.');
+    return false;
+  }
+  try {
+    localStorage.setItem(KEY, JSON.stringify(records));
+    return true;
+  } catch {
+    notify('Could not save: browser storage is full or unavailable. Export a backup before leaving.');
+    return false;
+  }
+}
+
+function save() {
+  if (active) active.updated = new Date().toISOString();
+  return persist();
+}
+
+function uid() {
+  return crypto.randomUUID?.() || `prep-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function bind(action, fn) {
+  document.querySelectorAll(`[data-action="${action}"]`).forEach(el => el.addEventListener('click', () => fn(el)));
+}
+
+function exportOne(list) {
+  downloadJson('nextstep-backup.json', exportEnvelope(list));
+  notify('Backup exported. It includes your job text, notes and answers. Keep it private.');
+}
+
+function library() {
+  active = null;
+  draft = null;
+  chosenFile = null;
+  notify(storageOK ? '' : 'Storage recovery needed: existing data will not be overwritten.');
+  const connected = serviceConnected();
+  $('#app').innerHTML = `<section class="hero"><div><p class="eyebrow">YOUR NEXT CHAPTER STARTS HERE</p><h1>Show up ready.<br><em>Sound like yourself.</em></h1><p>Paste a job link or the job ad. You can attach a file. Answer a few choices, then practice the course, a role-play, and a grade.</p><button class="primary" id="new">New preparation</button></div><div class="hero-art" aria-hidden="true"><div class="orbit"></div><span>ONE ROLE.<br>ONE CLEAR<br>PLAN.</span><small>STUDY, PRACTISE, REFINE</small></div></section><div class="section-title"><h2>Your preparations</h2><span>${records.length} saved locally</span></div><div class="grid">${records.map(card).join('') || '<article class="card empty"><h3>A clean slate, just for you.</h3><p>No sample identities or private answers. Add a job, or open a saved practice pack.</p></article>'}</div><p class="muted">${connected ? 'A preparation service is connected. Job text you submit is sent only to that address.' : 'No preparation service connected. Saved practice packs run on this device. v2 preparations still open.'}</p>`;
+  $('#new').onclick = () => inputScreen();
+  bind('resume', el => openRecord(el.dataset.id));
+}
+
+function card(prep) {
+  if (prep.schema === 1) {
+    const done = prep.course.filter(item => item.done).length;
+    return `<article class="card"><p class="eyebrow">v2 rules practice</p><h3>${esc(prep.role)}</h3><p>${esc(prep.company)} · ${esc(prep.intake?.stage)}</p><progress max="${prep.course.length}" value="${done}"></progress><p>${done}/${prep.course.length} lessons · mock ${prep.mock.finished ? 'complete' : `${prep.mock.index}/${prep.questions.length}`}</p><button data-action="resume" data-id="${esc(prep.id)}">Resume preparation</button></article>`;
+  }
+  const lessons = prep.plan?.lessons || [];
+  const done = lessons.filter(item => prep.courseDone?.[item.id]).length;
+  return `<article class="card"><p class="eyebrow">v3 role practice</p><h3>${esc(prep.profile.title)}</h3><p>${esc(prep.profile.company)} · ${prep.plan ? `${done}/${lessons.length} lessons` : 'Questions not finished'}</p>${lessons.length ? `<progress max="${lessons.length}" value="${done}"></progress>` : ''}<button data-action="resume" data-id="${esc(prep.id)}">Resume preparation</button></article>`;
+}
+
+function openRecord(id) {
+  active = records.find(item => item.id === id) || null;
+  if (!active) return library();
+  tab = 'Overview';
+  if (active.schema === 1) {
+    renderLegacy(active, { notify, save, exportOne: () => exportOne([active]), tab });
+    return;
+  }
+  if (!active.plan) return questions();
+  render();
+}
+
+function inputScreen() {
+  active = null;
+  $('#app').innerHTML = `<div class="narrow"><p class="eyebrow">01 / THE JOB</p><h1>What job are you preparing for?</h1><p>Paste a link or the job ad. You can also attach a PDF, Word, or text file. One of those is enough.</p><form id="job-form"><label>Job link or job ad<textarea id="job-input" rows="8" maxlength="60000" placeholder="https://… or the job description"></textarea></label><div class="actions"><label class="file-button">Attach a file<input id="file" type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"></label><button class="primary" id="analyze" type="submit">Analyze this job</button></div><p id="file-name" class="muted"></p><p class="muted" id="mode-note">${serviceConnected() ? 'A preparation service is connected. The link or text is sent there to read the job.' : 'No preparation service connected. A link or pasted ad opens a saved practice pack only when it matches one.'}</p></form><h2>Saved practice packs</h2><p>These three packs are on this device. They are here so you can practice without a service, and so different jobs stay different.</p><div class="actions vertical">${packs.map(pack => `<button data-action="pack" data-pack="${esc(pack.id)}">${esc(pack.title)}</button>`).join('')}</div></div>`;
+  $('#file').onchange = () => {
+    chosenFile = $('#file').files[0] || null;
+    $('#file-name').textContent = chosenFile ? chosenFile.name : '';
+  };
+  $('#job-form').onsubmit = event => {
+    event.preventDefault();
+    analyze();
+  };
+  bind('pack', el => analyzePack(el.dataset.pack));
+}
+
+async function analyze() {
+  const raw = $('#job-input').value.trim();
+  notify('Reading the job…');
+  try {
+    let input;
+    if (chosenFile) {
+      const text = await extractUpload(chosenFile);
+      input = { source: 'file', filename: chosenFile.name.slice(0, 80), text };
+    } else if (looksLikeUrl(raw)) {
+      input = { source: 'url', url: raw };
+    } else if (raw.length >= 40) {
+      input = { source: 'text', text: raw };
+    } else {
+      notify('Paste a job link, at least a short job ad, or attach a file.');
+      return;
+    }
+    const result = await extractJob(input);
+    startDraft(result);
+  } catch (error) {
+    notify(error.message || 'That job could not be read.');
+  }
+}
+
+async function analyzePack(packId) {
+  notify('');
+  try {
+    const result = await extractJob({ source: 'pack', packId });
+    startDraft(result);
+  } catch (error) {
+    notify(error.message || 'That pack could not be opened.');
+  }
+}
+
+function startDraft(result) {
+  draft = {
+    profile: result.profile,
+    sourceText: result.text || '',
+    mode: result.mode,
+    packId: result.packId,
+    banner: result.banner,
+    answers: {}
+  };
+  notify('');
+  questions();
+}
+
+function questions() {
+  const profile = draft?.profile || active?.profile;
+  if (!profile) return inputScreen();
+  const questionsForRole = onboardingQuestions(profile);
+  const selected = draft?.answers || active?.onboardingAnswers || {};
+  const fallback = { weak: 'unsure', experience: 'prefer-not', stage: 'unsure', time: '30' };
+  $('#app').innerHTML = `<div class="narrow"><p class="eyebrow">02 / MAKE IT FIT</p><h1>A few choices for this role.</h1><p class="banner">${esc(draft?.banner || active?.banner || '')}</p><p><strong>${esc(profile.title)}</strong> at ${esc(profile.company)}. ${esc(seniorityLabel(profile.seniority))}.</p><form id="onboarding">${questionsForRole.map(question => `<fieldset><legend>${esc(question.prompt)}</legend>${radios(question.id, question.options, selected[question.id] || fallback[question.id] || question.options[0].value)}</fieldset>`).join('')}<div class="actions"><button type="button" id="back-input">Back</button><button class="primary" id="build" type="submit">Build my practice</button></div></form></div>`;
+  $('#back-input').onclick = () => inputScreen();
+  $('#onboarding').onsubmit = event => {
+    event.preventDefault();
+    const data = new FormData(event.target);
+    const answers = {};
+    for (const question of questionsForRole) {
+      const value = data.get(question.id);
+      if (!value) {
+        notify('Choose an answer for each question.');
+        return;
+      }
+      answers[question.id] = String(value);
+    }
+    if (!answers.tool) answers.tool = null;
+    build(profile, answers);
+  };
+}
+
+async function build(profile, answers) {
+  notify('Building the practice from this role…');
+  try {
+    const plan = await planJob(profile, answers);
+    const now = new Date().toISOString();
+    if (!active || active.profile !== profile) {
+      active = {
+        schema: 2,
+        engineVersion: 3,
+        id: uid(),
+        created: now,
+        updated: now,
+        mode: draft?.mode || 'pack',
+        packId: draft?.packId || null,
+        banner: draft?.banner || '',
+        profile,
+        sourceText: draft?.sourceText || '',
+        onboardingAnswers: answers,
+        plan,
+        notes: {},
+        quiz: { answers: {} },
+        roleplay: { scenarioId: plan.scenarios[0]?.id || null, messages: [], draft: '' },
+        grade: null,
+        courseDone: {}
+      };
+      records.unshift(active);
+    } else {
+      active.onboardingAnswers = answers;
+      active.plan = plan;
+      active.quiz = { answers: {} };
+      active.roleplay = { scenarioId: plan.scenarios[0]?.id || null, messages: [], draft: '' };
+      active.grade = null;
+    }
+    draft = null;
+    tab = 'Overview';
+    save();
+    notify(active.mode === 'pack' ? 'Practice pack ready on this device.' : 'Practice ready. It was checked against the job text.');
+    render();
+  } catch (error) {
+    notify(error.message || 'The practice could not be built.');
+  }
+}
+
+const v3Tabs = ['Overview', 'Study', 'Quiz', 'Role-play', 'Grade', 'Role map'];
+
+function render() {
+  const prep = active;
+  $('#app').innerHTML = `<section class="prep-heading"><p class="eyebrow">${esc(prep.profile.company)} · v3 role practice</p><h1>${esc(prep.profile.title)}</h1><p>${esc(prep.banner)}</p><div class="actions"><button id="export">Export backup</button><button id="retune">Change my choices</button><span class="muted">${esc(prep.plan.answers?.time || '')} min path · local save</span></div></section><nav class="tabs" aria-label="Preparation sections">${v3Tabs.map(name => `<button data-action="tab" data-tab="${name}" ${name === tab ? 'aria-current="page"' : ''}>${name}</button>`).join('')}</nav><section id="content"></section>`;
+  bind('tab', el => {
+    tab = el.dataset.tab;
+    render();
+  });
+  $('#export').onclick = () => exportOne([prep]);
+  $('#retune').onclick = () => {
+    draft = { profile: prep.profile, sourceText: prep.sourceText, mode: prep.mode, packId: prep.packId, banner: prep.banner, answers: prep.onboardingAnswers };
+    questions();
+  };
+  ({ Overview: overview, Study: study, Quiz: quiz, 'Role-play': roleplay, Grade: grade, 'Role map': rolemap })[tab]();
+}
+
+function overview() {
+  const prep = active;
+  const lessons = prep.plan.lessons;
+  const done = lessons.filter(item => prep.courseDone?.[item.id]).length;
+  $('#content').innerHTML = `<div class="grid"><article class="card"><p class="eyebrow">THIS ROLE</p><h2>${esc(prep.profile.roleFamily)}</h2><p>${esc(seniorityLabel(prep.profile.seniority))}. ${esc(prep.profile.workArrangement || '')} ${esc(prep.profile.location || '')}</p>${prep.plan.assumedTool ? `<p>Examples assume <strong>${esc(prep.plan.assumedTool)}</strong>, because you chose it.</p>` : ''}<p>${esc(prep.profile.generalGuidanceNotClaimedAsEmployerPolicy?.[0] || '')}</p></article><article class="card"><p class="eyebrow">TODAY</p><h2>Your path for this sitting</h2><ol>${lessons.map(item => `<li>${esc(item.title)}</li>`).join('')}</ol><progress max="${lessons.length}" value="${done}"></progress><p>${done} of ${lessons.length} lessons marked done</p></article></div><article class="card"><h3>What was read</h3><p>Facts tied to the ad stay with a competency. General practice notes are labeled. This is not a prediction of the interview.</p><details><summary>Review the text this pack or service used</summary><pre>${esc(prep.sourceText || '')}</pre></details></article>`;
+}
+
+function study() {
+  const prep = active;
+  $('#content').innerHTML = `<p class="eyebrow">THE WORK OF THIS ROLE</p><h2>Lessons for ${esc(prep.profile.title)}</h2>${prep.plan.lessons.map((item, index) => `<details class="card lesson" ${index === 0 ? 'open' : ''}><summary>${prep.courseDone?.[item.id] ? 'Done' : 'Open'} · ${esc(item.title)} <small>~${item.minutes} min</small></summary><p class="badge">${esc(basisLabel(item))}</p><p><strong>Aim:</strong> ${esc(item.objective)}</p><p class="preline">${esc(item.body)}</p>${item.adClaims?.[0] ? `<blockquote>${esc(item.adClaims[0])}</blockquote>` : ''}<div class="exercise"><strong>A concrete example</strong><p>${esc(item.example)}</p><strong>Try it</strong><p>${esc(item.exercise)}</p></div><label>Your notes<textarea rows="4" data-note="lesson-${item.id}">${esc(prep.notes['lesson-' + item.id] || '')}</textarea></label><button data-action="done" data-id="${esc(item.id)}">${prep.courseDone?.[item.id] ? 'Mark not done' : 'Mark done'}</button></details>`).join('')}`;
+  document.querySelectorAll('[data-note]').forEach(el => {
+    el.oninput = () => {
+      prep.notes[el.dataset.note] = el.value;
+      save();
+    };
+  });
+  bind('done', el => {
+    prep.courseDone[el.dataset.id] = !prep.courseDone[el.dataset.id];
+    save();
+    study();
+  });
+}
+
+function quiz() {
+  const prep = active;
+  $('#content').innerHTML = `<p class="eyebrow">CHECK THE ROLE, NOT A GENERIC SCRIPT</p><h2>Questions for this job</h2><p>Wrong answers are plausible. This is practice, not a certificate and not the employer’s question list.</p>${prep.plan.quiz.map((item, index) => `<article class="card"><h3>${index + 1}. ${esc(item.question)}</h3><div class="choices vertical">${item.options.map((option, choice) => `<button data-action="quiz" data-q="${esc(item.id)}" data-choice="${choice}" ${prep.quiz.answers[item.id] !== undefined ? 'disabled' : ''}>${esc(option)}</button>`).join('')}</div>${prep.quiz.answers[item.id] !== undefined ? `<p>${prep.quiz.answers[item.id] === item.correctIndex ? 'That matches the role.' : 'Not that one.'} ${esc(item.why)}</p>` : ''}</article>`).join('')}<button id="retry">Retry quiz</button>`;
+  bind('quiz', el => {
+    prep.quiz.answers[el.dataset.q] = +el.dataset.choice;
+    save();
+    quiz();
+  });
+  $('#retry').onclick = () => {
+    prep.quiz.answers = {};
+    save();
+    quiz();
+  };
+}
+
+function currentScenario(prep) {
+  return prep.plan.scenarios.find(item => item.id === prep.roleplay.scenarioId) || prep.plan.scenarios[0];
+}
+
+function roleplay() {
+  const prep = active;
+  const scenario = currentScenario(prep);
+  if (!scenario) {
+    $('#content').innerHTML = '<p>This path has no practice scene.</p>';
+    return;
+  }
+  const messages = prep.roleplay.messages.length ? prep.roleplay.messages : [{ role: 'interviewer', content: scenario.opening }];
+  $('#content').innerHTML = `<p class="eyebrow">PRACTICE CONVERSATION</p><h2>Role-play</h2><p>The interviewer stays on this scene. It is practice, not a prediction of their questions.</p><div class="actions">${prep.plan.scenarios.map(item => `<button data-action="scene" data-id="${esc(item.id)}" ${item.id === scenario.id ? 'aria-current="page"' : ''}>${esc(item.competencyId)}</button>`).join('')}</div><div class="chat" id="chat">${messages.map(message => `<p class="bubble ${message.role === 'candidate' ? 'candidate' : 'interviewer'}"><strong>${message.role === 'candidate' ? 'You' : 'Interviewer'}</strong><br>${esc(message.content)}</p>`).join('')}</div><label>Your reply<textarea id="roleplay-answer" rows="6" placeholder="Say what you would actually do.">${esc(prep.roleplay.draft || '')}</textarea></label><div class="actions"><button class="primary" id="send-turn">Send</button><button id="grade-answer" type="button">Grade this answer</button></div>`;
+  bind('scene', el => {
+    prep.roleplay.scenarioId = el.dataset.id;
+    prep.roleplay.messages = [];
+    prep.roleplay.draft = '';
+    save();
+    roleplay();
+  });
+  $('#roleplay-answer').oninput = event => {
+    prep.roleplay.draft = event.target.value;
+    save();
+  };
+  $('#send-turn').onclick = () => sendTurn(scenario);
+  $('#grade-answer').onclick = () => gradeLatest(scenario);
+}
+
+async function sendTurn(scenario) {
+  const prep = active;
+  const text = $('#roleplay-answer').value.trim();
+  if (text.length < 20) {
+    notify('Add at least 20 characters so there is an answer to follow up on.');
+    return;
+  }
+  if (!prep.roleplay.messages.length) prep.roleplay.messages.push({ role: 'interviewer', content: scenario.opening });
+  prep.roleplay.messages.push({ role: 'candidate', content: text });
+  prep.roleplay.draft = '';
+  save();
+  notify('Asking a follow-up…');
+  try {
+    const turn = await roleplayTurn(prep.profile, scenario, prep.roleplay.messages);
+    prep.roleplay.messages.push({ role: 'interviewer', content: turn.question });
+    save();
+    notify('');
+    roleplay();
+  } catch (error) {
+    prep.roleplay.messages.pop();
+    save();
+    notify(error.message || 'No follow-up was saved.');
+    roleplay();
+  }
+}
+
+async function gradeLatest(scenario) {
+  const prep = active;
+  const answer = [...prep.roleplay.messages].reverse().find(message => message.role === 'candidate')?.content || $('#roleplay-answer')?.value?.trim();
+  if (!answer || answer.length < 20) {
+    notify('Send an answer before asking for a grade.');
+    return;
+  }
+  notify('Grading against this competency…');
+  try {
+    prep.grade = await gradeJob(prep.profile, scenario.competencyId, answer, scenario.opening);
+    prep.grade.question = scenario.opening;
+    save();
+    tab = 'Grade';
+    notify('Grade saved on this device. It is practice feedback, not a hiring decision.');
+    render();
+  } catch (error) {
+    notify(error.message || 'No grade was saved.');
+  }
+}
+
+function grade() {
+  const prep = active;
+  const report = prep.grade;
+  if (!report) {
+    $('#content').innerHTML = '<article class="card"><h2>No grade yet</h2><p>Answer a role-play scene, then ask for a grade. The score uses your words and the competency from the ad.</p></article>';
+    return;
+  }
+  $('#content').innerHTML = `<p class="eyebrow">PRACTICE GRADE</p><h2>How this answer sits against the role</h2><p>${esc(report.overallNote || 'Practice feedback, not a hiring decision.')}</p>${(report.competencies || []).map(item => `<article class="card"><p class="eyebrow">${esc(item.competencyId)}</p><p class="score">${esc(item.score)}<span> / ${esc(item.max || 4)}</span></p><blockquote>${esc(item.evidenceQuote || '')}</blockquote><p class="feedback">${esc(item.feedback)}</p></article>`).join('')}`;
+}
+
+function rolemap() {
+  const prep = active;
+  const rows = prep.plan.roleMap?.length ? prep.plan.roleMap : prep.profile.competencies.map(item => ({ competencyId: item.id, evidence: item.evidence, objective: item.learningObjective, priority: item.priority }));
+  $('#content').innerHTML = `<p class="eyebrow">FROM THE AD</p><h2>Competencies and your evidence</h2><p>Each row is a competency from the role profile. The quote is from the ad, not a guess about the employer.</p>${rows.map(item => `<article class="card"><p class="eyebrow">${esc(item.priority || 'core')} · ${esc(item.competencyId)}</p><blockquote>${esc(item.evidence)}</blockquote><p>${esc(item.objective || '')}</p><label>Your evidence or gap<textarea data-note="map-${item.competencyId}" rows="3">${esc(prep.notes['map-' + item.competencyId] || '')}</textarea></label></article>`).join('')}`;
+  document.querySelectorAll('[data-note]').forEach(el => {
+    el.oninput = () => {
+      prep.notes[el.dataset.note] = el.value;
+      save();
+    };
+  });
+}
+
+function privacy() {
+  active = null;
+  $('#app').innerHTML = `<div class="narrow"><p class="eyebrow">YOUR DATA</p><h1>What stays here</h1><p>Preparations, notes, and answers stay in this browser. If you save a preparation service address, the job text and the answers you submit are sent only to that address. Nothing is sent when the address is empty.</p><p>Storage is not encrypted. Anyone who can open this browser profile can read it. Exports contain your answers. Keep them private.</p><p>v2 preparations stay v2. They are not rewritten into v3. Imports are added as separate copies.</p><label>Preparation service address<input id="api-base" type="url" placeholder="https://your-name.workers.dev" value="${esc(getApiBase())}"></label><button id="save-api" type="button">Save service address</button><p class="muted">Leave this empty to use saved practice packs only. Sign in to Cloudflare and run wrangler deploy yourself before you paste an address. This app does not deploy anything.</p><button id="all-export">Export all preparations</button><h2>Restore a backup</h2><label>Backup JSON file<input id="import" type="file" accept="application/json,.json"></label><p class="muted">App v3 · v2 storage still loads · role practice is schema 2</p></div>`;
+  $('#save-api').onclick = () => {
+    try {
+      const saved = setApiBase($('#api-base').value);
+      notify(saved ? 'Preparation service saved on this device.' : 'Preparation service cleared. Saved packs stay on this device.');
+      privacy();
+    } catch (error) {
+      notify(error.message);
+    }
+  };
+  $('#all-export').onclick = () => exportOne(records);
+  $('#import').onchange = async event => {
+    try {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (file.size > 2_000_000) throw new Error('Backup exceeds 2 MB');
+      const data = JSON.parse(await file.text());
+      const copies = importBackup(data, input => globalThis.PrepEngine.create(input));
+      records.push(...copies);
+      if (!persist()) return;
+      library();
+      notify(`Restored ${copies.length} preparation(s) as separate copies.`);
+    } catch (error) {
+      notify(`Could not restore: ${error.message}`);
+    }
+  };
+}
+
+if (!storageOK) notify('Saved data could not be read. It has not been overwritten. Export or recover your browser storage before continuing.');
+$('#library').onclick = library;
+$('#home').onclick = event => {
+  event.preventDefault();
+  library();
+};
+$('#privacy').onclick = privacy;
 library();
