@@ -1,0 +1,39 @@
+{
+  "schema": "nextstep.role-profile.v1",
+  "status": "reviewed-extraction-fixture-not-live-app-output",
+  "source": {
+    "submittedUrl": "https://ca.indeed.com/m/jobs?q=AI&l=Vancouver%2C+BC&radius=25&from=searchOnSerp&sameL=1&vjk=4cc1eae081ce53ed",
+    "confirmedShareUrl": "https://ca.indeed.com/viewjob?jk=4cc1eae081ce53ed&from=appshareandroid",
+    "canonicalUrl": "https://ca.indeed.com/viewjob?jk=4cc1eae081ce53ed",
+    "provider": "indeed",
+    "externalJobId": "4cc1eae081ce53ed",
+    "retrieval": "web_extract of submitted search URL and direct vacancy; both returned the same selected job description",
+    "contaminationObserved": "Search result included an unrelated Founding Engineer advert before selected Job Post Details. Do not use search-page title or first vacancy as the selected role."
+  },
+  "company": "TRNT Educational Institute",
+  "title": "AI Innovation & Entrepreneurship Mentor",
+  "location": "Vancouver, BC V6E 2S1",
+  "workArrangement": "In person",
+  "compensation": "From CAD $45 per hour",
+  "employmentTypes": ["Freelance", "Part-time", "Contract"],
+  "audience": "Students aged 8–18",
+  "roleFamily": "Youth AI innovation mentoring and project-based workshop instruction",
+  "seniority": null,
+  "competencies": [
+    {"id":"workshop-design","priority":"core","evidence":"Design and deliver engaging, hands-on AI and innovation workshops for students aged 8–18.","learningObjective":"Design an age-appropriate, hands-on workshop with a tangible output, clear success criteria and a workable timebox."},
+    {"id":"prototype-coaching","priority":"core","evidence":"Help students transform their ideas into functional prototypes, digital creations, or real-world solutions.","learningObjective":"Help a learner scope an idea into a small testable prototype, identify the next step, and check whether it solves the intended problem."},
+    {"id":"accessible-explanation","priority":"core","evidence":"Ability to explain technical or creative concepts in an engaging and accessible way.","learningObjective":"Explain the same AI concept at different levels, check understanding and avoid unexplained jargon."},
+    {"id":"learner-adaptation","priority":"core","evidence":"Ability to work collaboratively and adapt to students with different skill levels.","learningObjective":"Use scaffolds, paired roles and extension tasks to support mixed-experience learners without doing the work for them."},
+    {"id":"product-entrepreneurship","priority":"core","evidence":"Introduce practical applications of AI, creative problem-solving, product development, and entrepreneurship.","learningObjective":"Teach a learner to identify a user/problem, test an idea and explain its value, rather than building technology without a purpose."},
+    {"id":"student-reasoning","priority":"core","evidence":"Support students in understanding and explaining their design decisions, how they used AI, and how they solved challenges.","learningObjective":"Coach students to explain decisions, AI use and troubleshooting in their own words."},
+    {"id":"mentoring-feedback","priority":"core","evidence":"Provide mentorship and constructive feedback throughout the students' learning journeys.","learningObjective":"Give specific, actionable feedback that preserves learner agency, confidence and reflection."},
+    {"id":"team-collaboration","priority":"core","evidence":"Collaborate with the TRNT team to develop innovative workshop concepts and project-based learning experiences.","learningObjective":"Explain how to plan workshops with colleagues, share constraints and revise a session based on evidence."}
+  ],
+  "projectExamplesFromAd": ["AI-powered chatbots or personal assistants", "Websites, apps, games or interactive digital experiences", "AI-generated animations, videos, stories or digital artwork", "AI-powered tools solving everyday problems", "Business concepts, digital products or entrepreneurial projects", "Robotics and automation"],
+  "namedRequiredTools": [],
+  "teachingCredentialRequired": false,
+  "teachingExperience": {"classification":"asset-not-required","evidence":"Previous teaching experience is an asset, but not required."},
+  "candidateEvidenceNeeded": ["One real AI or creative technology project and what the candidate actually built", "An example of explaining a difficult concept or helping someone learn", "A credible workshop concept appropriate for a stated age group", "A plan for adapting to different skill levels and setbacks"],
+  "generalGuidanceNotClaimedAsEmployerPolicy": ["Youth privacy and safeguarding practices should be discussed with the employer; the ad does not specify its policies.", "AI output verification and responsible tool use are relevant instructional guidance, not asserted employer interview criteria.", "Proposed interview scenarios are practice exercises, not predictions of actual questions."],
+  "exclusionChecks": ["Do not import the unrelated Founding Engineer role or its salary", "Do not frame the role as a generic software engineering job", "Do not invent a required programming language, cloud stack or teaching certificate", "Do not invent candidate experience, employer policies or actual interview questions"]
+}
