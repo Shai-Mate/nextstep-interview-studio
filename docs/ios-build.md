@@ -1,6 +1,6 @@
 # iOS compilation and signing handoff
 
-The `Momentum iOS compile` workflow compiles an **unsigned Release build for a generic iOS device**. It does not sign, install, archive, export an IPA, or upload anything to Apple. A green run closes the native compilation check only; retain its run URL and artifacts as evidence. Until that run has completed, compilation remains unverified.
+The `Momentum iOS compile` workflow compiles an **unsigned Release build for a generic iOS device**. It does not sign, install on a physical device, archive, export an IPA, or upload anything to Apple. The subsequent simulator step builds a separate simulator target, launches it in a temporary iPhone simulator, checks that the process stays alive, and captures its screen. A green run establishes compilation and simulator startup only; retain its run URL and artifacts as evidence, and visually inspect the screenshot. Until that run has completed, compilation remains unverified.
 
 ## Repeat the CI build
 
@@ -12,7 +12,8 @@ On a Mac with that toolchain:
 export DEVELOPER_DIR=/Applications/Xcode_26.6.app/Contents/Developer
 npm ci
 npm run native:sync
-bash scripts/ios-validate.sh
+MOMENTUM_IOS_OUTPUT="$PWD/test-results/ios" bash scripts/ios-validate.sh
+MOMENTUM_IOS_OUTPUT="$PWD/test-results/ios" bash scripts/ios-simulator-smoke.sh
 ```
 
 To select another reviewed Xcode version, set both `DEVELOPER_DIR` and `MOMENTUM_XCODE_VERSION`. The script requires an iOS SDK of at least 26. Local results default to a new timestamped directory under `test-results/`; `MOMENTUM_IOS_OUTPUT` can select a different directory. Existing build evidence is not overwritten.
@@ -26,6 +27,7 @@ The shared `App` scheme is committed. Capacitor is configured to generate its Sw
 - [ ] `build.log` ends in `BUILD SUCCEEDED`; inspect warnings and the Xcode result bundle.
 - [ ] Bundle checks find the executable, packaged `public/index.html`, and `PrivacyInfo.xcprivacy`; the identifier and minimum OS match the chosen app record and supported devices.
 - [ ] Review `Package.resolved` and framework/privacy manifests after dependency changes. Retain the resolution file with the release source for repeatable future builds.
+- [ ] Inspect `simulator-startup.png` for the actual Momentum interface, inspect simulator logs, and record the runtime/device from `simulator-device.json`. A successful process launch alone does not establish that the web interface rendered correctly. The temporary simulator is deleted after the test.
 - [ ] Run the separate physical-device and TestFlight checks in [release.md](release.md). Compilation alone does not verify keyboard behavior, native file picking/sharing, offline launch, VoiceOver, or App Review acceptance.
 
 ## Signed archive on the owner's Mac

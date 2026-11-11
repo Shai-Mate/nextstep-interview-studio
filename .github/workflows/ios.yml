@@ -37,6 +37,9 @@ jobs:
         run: npm run native:sync
       - name: Compile unsigned iOS Release app
         run: bash scripts/ios-validate.sh
+      - name: Launch native iPhone simulator smoke test
+        timeout-minutes: 8
+        run: bash scripts/ios-simulator-smoke.sh
       - name: Retain native build evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -52,3 +55,12 @@ jobs:
             test-results/ios/bundle-validation.log
             test-results/ios/Build.xcresult
             test-results/ios/Momentum-unsigned-iphoneos.zip
+            test-results/ios/simulator-build.log
+            test-results/ios/SimulatorBuild.xcresult
+            test-results/ios/simulator-device.json
+            test-results/ios/simulator-boot.log
+            test-results/ios/simulator-launch.log
+            test-results/ios/simulator-process.txt
+            test-results/ios/simulator-system.log
+            test-results/ios/simulator-startup.png
+            test-results/ios/Momentum-unsigned-simulator.zip
