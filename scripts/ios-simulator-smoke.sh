@@ -22,6 +22,9 @@ if [[ -e "$output/simulator-build.log" || -e "$output/SimulatorBuild.xcresult" ]
   exit 1
 fi
 
+xcrun swiftc scripts/ios-screen-check.swift -o "$output/ios-screen-check" \
+  -framework Vision -framework ImageIO
+
 xcodebuild build \
   -project ios/App/App.xcodeproj \
   -scheme App \
@@ -72,11 +75,31 @@ app_pid="$(awk -F ': ' 'END { print $NF }' "$output/simulator-launch.log")"
 case "$app_pid" in
   ''|*[!0-9]*) echo 'Simulator launch did not return a valid process ID.' >&2; exit 1 ;;
 esac
-sleep 5
+# The observed cold WebKit process first painted after 9.3 seconds. Wait for a
+# real WebKit paint milestone instead of treating a live process as rendered UI.
+paint_deadline=$((SECONDS + 60))
+paint_ready=false
+while (( SECONDS < paint_deadline )); do
+  kill -0 "$app_pid"
+  xcrun simctl spawn "$simulator_udid" log show --last 2m --style compact \
+    --predicate 'process == "App"' > "$output/simulator-readiness.log" 2>&1 || true
+  if grep -q 'milestones=DidFirstMeaningfulPaint' "$output/simulator-readiness.log"; then
+    paint_ready=true
+    break
+  fi
+  sleep 2
+done
+if [[ "$paint_ready" != true ]]; then
+  xcrun simctl io "$simulator_udid" screenshot --type=png "$output/simulator-startup.png" || true
+  echo 'WebKit did not reach meaningful paint within 60 seconds; native UI is unverified.' >&2
+  exit 1
+fi
+sleep 2
 kill -0 "$app_pid"
 ps -p "$app_pid" -o pid,etime,comm > "$output/simulator-process.txt"
 xcrun simctl io "$simulator_udid" screenshot --type=png "$output/simulator-startup.png"
 xcrun simctl spawn "$simulator_udid" log show --last 2m --style compact \
   --predicate 'process == "App"' > "$output/simulator-system.log" 2>&1 || true
+"$output/ios-screen-check" "$output/simulator-startup.png" 2>&1 | tee "$output/simulator-screen-text.txt"
 ditto -c -k --sequesterRsrc --keepParent "$app" "$output/Momentum-unsigned-simulator.zip"
-echo "Simulator app launched and remained running. Review $output/simulator-startup.png."
+echo "Simulator app launched and its home screen was verified by pixel text recognition. Review $output/simulator-startup.png."

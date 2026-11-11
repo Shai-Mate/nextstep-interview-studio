@@ -38,7 +38,9 @@ jobs:
       - name: Compile unsigned iOS Release app
         run: bash scripts/ios-validate.sh
       - name: Launch native iPhone simulator smoke test
-        timeout-minutes: 8
+        # Observed cold-runner data migration took 4m49s; first install took ~75s.
+        # App rendering itself still has a separate bounded 60-second wait.
+        timeout-minutes: 12
         run: bash scripts/ios-simulator-smoke.sh
       - name: Retain native build evidence
         if: always()
@@ -62,5 +64,7 @@ jobs:
             test-results/ios/simulator-launch.log
             test-results/ios/simulator-process.txt
             test-results/ios/simulator-system.log
+            test-results/ios/simulator-readiness.log
+            test-results/ios/simulator-screen-text.txt
             test-results/ios/simulator-startup.png
             test-results/ios/Momentum-unsigned-simulator.zip
