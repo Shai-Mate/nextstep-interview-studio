@@ -65,7 +65,7 @@ npm run build
 
 The Node tests cover the preparation engine, truthful drafts and feedback, legacy migration, backup validation, malformed storage, offer persistence, URL import boundaries, consent, rate limits and the model request/response contract.
 
-The current engineering pass includes **82 passing Node tests**, production build/native sync, hardened-container smoke checks, full Chromium and online WebKit journeys, focused concurrent-edit/import regressions and saved-AI/profile contracts using fixture responses. Automated accessibility checks found no violations in 31 tested states. See [docs/verification.md](docs/verification.md) for evidence and limits, including pending native validation of the latest head; fixtures do not establish live model-provider success.
+The engineering pass includes **82 passing Node tests**, production build/native sync, hardened-container smoke checks, full Chromium and online WebKit journeys, focused concurrent-edit/import regressions and saved-AI/profile contracts using fixture responses. Automated accessibility checks found no violations in 31 tested states. See [docs/verification.md](docs/verification.md) for source-scoped evidence and limits, and [PR #2 checks](https://github.com/Shai-Mate/nextstep-interview-studio/pull/2/checks) for revision-specific native results. Fixtures do not establish live model-provider success.
 
 The browser suite uses Python Playwright and Chromium. With a built app running through `npm run preview`:
 
@@ -86,7 +86,7 @@ Sync rebuilds the web app and copies it into the iOS project. Opening and buildi
 
 Use Xcode 26 or later with the iOS 26 SDK or later under Apple's current upload requirements. Configure the correct signing team, archive a Release build, test on supported physical devices and through TestFlight, and complete the release checklist. Browser emulation and static plist validation do not replace native-device testing.
 
-The [iOS compile workflow](.github/workflows/ios.yml) runs an unsigned generic-device Release build on GitHub macOS. [Run 43003354634](https://github.com/Shai-Mate/nextstep-interview-studio/actions/runs/43003354634) passed for `ea7b1da` with Xcode 26.6; the final delivery revision still needs its own result. Follow [docs/ios-build.md](docs/ios-build.md) to repeat it and inspect its evidence. A green unsigned build is not a signed archive or App Store upload.
+The [iOS compile workflow](.github/workflows/ios.yml) runs an unsigned generic-device Release build and separate iPhone-simulator startup check on GitHub macOS. [Run 43003354634](https://github.com/Shai-Mate/nextstep-interview-studio/actions/runs/43003354634) passed device compilation for `ea7b1da` with Xcode 26.6. Check [PR #2](https://github.com/Shai-Mate/nextstep-interview-studio/pull/2/checks) for the intended release revision's current results and artifacts, and use [docs/ios-build.md](docs/ios-build.md) to repeat the procedure. A green unsigned build or simulator launch is not a signed archive, physical-device test or App Store upload.
 
 - [Engineering verification record](docs/verification.md)
 - [Release gates and native acceptance checklist](docs/release.md)
