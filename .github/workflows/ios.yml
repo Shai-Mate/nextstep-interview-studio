@@ -1,0 +1,54 @@
+name: Momentum iOS compile
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: momentum-ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unsigned-device-build:
+    name: Unsigned iOS · Xcode 26.6
+    runs-on: macos-26
+    timeout-minutes: 35
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      MOMENTUM_XCODE_VERSION: '26.6'
+      MOMENTUM_IOS_OUTPUT: test-results/ios
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Confirm selected toolchain
+        run: |
+          test -d "$DEVELOPER_DIR"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+      - name: Install locked JavaScript dependencies
+        run: npm ci
+      - name: Build and sync bundled iOS app
+        run: npm run native:sync
+      - name: Compile unsigned iOS Release app
+        run: bash scripts/ios-validate.sh
+      - name: Retain native build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: momentum-ios-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            test-results/ios/environment.txt
+            test-results/ios/package-resolution.log
+            test-results/ios/Package.resolved
+            test-results/ios/build.log
+            test-results/ios/bundle-validation.log
+            test-results/ios/Build.xcresult
+            test-results/ios/Momentum-unsigned-iphoneos.zip
