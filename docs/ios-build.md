@@ -17,7 +17,7 @@ bash scripts/ios-validate.sh
 
 To select another reviewed Xcode version, set both `DEVELOPER_DIR` and `MOMENTUM_XCODE_VERSION`. The script requires an iOS SDK of at least 26. Local results default to a new timestamped directory under `test-results/`; `MOMENTUM_IOS_OUTPUT` can select a different directory. Existing build evidence is not overwritten.
 
-The shared `App` scheme is committed. JavaScript dependencies come from `package-lock.json`; Swift package resolution is saved with the build evidence. CI artifacts contain the environment/toolchain record, package-resolution log, `Package.resolved`, build log, Xcode result bundle, bundle checks, and a zipped **unsigned** `App.app`. The zip is for inspection and cannot be installed on a normal iPhone as a signed distribution build.
+The shared `App` scheme is committed. Capacitor is configured to generate its Swift package using tools version 6.0: the iOS 18 platform constant requires PackageDescription 6.0 or newer. This setting is retained on every native sync. JavaScript dependencies come from `package-lock.json`; Swift package resolution is saved with the build evidence. CI artifacts contain the environment/toolchain record, package-resolution log, `Package.resolved`, build log, Xcode result bundle, bundle checks, and a zipped **unsigned** `App.app`. The zip is for inspection and cannot be installed on a normal iPhone as a signed distribution build.
 
 ## Verify the result
 

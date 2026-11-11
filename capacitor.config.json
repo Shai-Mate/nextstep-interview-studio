@@ -14,5 +14,12 @@
       "backgroundColor": "#f6f7f3",
       "overlaysWebView": true
     }
+  },
+  "experimental": {
+    "ios": {
+      "spm": {
+        "swiftToolsVersion": "6.0"
+      }
+    }
   }
 }
