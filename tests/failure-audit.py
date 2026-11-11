@@ -111,10 +111,43 @@ def conflict_and_delete(browser):
     c.close()
 
 
+def inline_offer_conflict(browser):
+    c=browser.new_context(viewport={'width':1200,'height':900},accept_downloads=True)
+    a=c.new_page();a.goto(BASE+'/#offers');settle(a)
+    fixture=json.loads((Path(__file__).resolve().parents[1]/'test-results/workspace-backup.json').read_text())
+    a.evaluate('([key,value])=>localStorage.setItem(key,value)',[KEY,json.dumps(fixture)])
+    a.reload();expect(a.locator('.offer-summary')).to_be_visible()
+    b=c.new_page();b.goto(BASE+'/#offers');settle(b)
+    a.get_by_role('button',name='Edit offer',exact=True).click()
+    a.get_by_role('spinbutton',name=__import__('re').compile('^Base salary')).fill('6500')
+    a.get_by_role('textbox',name='Private notes',exact=True).fill('Unsaved inline offer decision notes that must survive an external deletion.')
+    a.get_by_role('button',name='Save changes',exact=False).focus()
+    b.get_by_role('button',name='Delete this offer',exact=True).click()
+    b.get_by_role('button',name='Delete offer',exact=True).click()
+    expect(b.locator('.save-indicator')).to_have_text('Saved on this device')
+    expect(a.get_by_role('alert')).to_contain_text('Saving is paused')
+    expect(a.get_by_role('spinbutton',name=__import__('re').compile('^Base salary'))).to_have_value('6500')
+    expect(a.get_by_role('textbox',name='Private notes',exact=True)).to_have_value('Unsaved inline offer decision notes that must survive an external deletion.')
+    a.screenshot(path=str(ART/'inline-offer-conflict-preserves-draft.png'),full_page=True)
+    a.get_by_role('button',name='Save changes',exact=False).click()
+    expect(a.locator('.save-indicator')).to_have_text('Unsaved changes')
+    assert a.evaluate('key=>JSON.parse(localStorage.getItem(key)).offers.length',KEY)==0
+    a.goto(BASE+'/#settings')
+    with a.expect_download() as download:
+        a.get_by_role('button',name='Export my workspace',exact=True).click()
+    path=ART/'inline-offer-conflict-backup.json';download.value.save_as(path)
+    exported=json.loads(path.read_text())
+    assert exported['offers'][0]['base']==6500
+    assert exported['offers'][0]['notes'].startswith('Unsaved inline offer decision notes')
+    print('PASS INLINE_OFFER_FORM_EXTERNAL_DELETE_PRESERVES_EXPORT',flush=True)
+    c.close()
+
+
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox'])
     cross_tab(browser)
     conflict_and_delete(browser)
+    inline_offer_conflict(browser)
     delayed_research(browser)
     cancelled_export(browser)
     browser.close()

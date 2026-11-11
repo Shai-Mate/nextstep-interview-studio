@@ -65,7 +65,7 @@ npm run build
 
 The Node tests cover the preparation engine, truthful drafts and feedback, legacy migration, backup validation, malformed storage, offer persistence, URL import boundaries, consent, rate limits and the model request/response contract.
 
-The current engineering pass includes **82 passing Node tests**, production build/native sync, hardened-container smoke checks and saved-AI/profile browser contracts using fixture responses. The complete current regression and native CI status are tracked in [docs/verification.md](docs/verification.md); no live model-provider success is implied by fixtures.
+The current engineering pass includes **82 passing Node tests**, production build/native sync, hardened-container smoke checks, full Chromium and online WebKit journeys, focused concurrent-edit/import regressions and saved-AI/profile contracts using fixture responses. Automated accessibility checks found no violations in 31 tested states. See [docs/verification.md](docs/verification.md) for evidence and limits, including pending native validation of the latest head; fixtures do not establish live model-provider success.
 
 The browser suite uses Python Playwright and Chromium. With a built app running through `npm run preview`:
 
@@ -99,6 +99,8 @@ The [iOS compile workflow](.github/workflows/ios.yml) runs an unsigned generic-d
 
 Workspace data is local to this installation and is not independently encrypted by Momentum. Device backups may include it. Exported files contain private candidate information. Restoring a backup replaces the current workspace after confirmation; keep a separate copy first. Clearing data cannot delete exports or information already shared with other services. The storage key retains its original internal name, `prism.workspace.v1`, to preserve existing work; the current workspace schema is version 3.
 
+Separate browser windows share this installation's storage. Newer saved changes are adopted when safe; competing drafts trigger a recovery notice with export/reload controls instead of silently overwriting work. This does not sync between devices or unrelated browser profiles.
+
 Each opportunity keeps the current practice round and up to 10 previous rounds. Each opportunity or offer can hold up to 12 saved coaching notes, subject to a size bound; new notes are refused at the limit rather than silently replacing valid saved notes. Workspace exports include those saved notes and sources.
 
-DM Sans and Manrope are bundled locally from the Google Fonts projects under the SIL Open Font License 1.1. Their license texts are in `public/fonts/` and are also included in `public/third-party-notices.txt`. The build generates notices for installed production dependencies and bundled fonts. These licenses apply to the named third-party components; no license for Momentum's original application code is implied.
+DM Sans and Manrope are bundled locally from the Google Fonts projects under the SIL Open Font License 1.1. Their license texts are in `public/fonts/` and are also included in `public/third-party-notices.txt`. The build generates notices for installed production dependencies and bundled fonts, plus `public/licenses.html` for readable in-app notices with a return link. These licenses apply to the named third-party components; no license for Momentum's original application code is implied.

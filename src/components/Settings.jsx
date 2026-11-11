@@ -294,28 +294,13 @@ export default function Settings({
             <span className="eyebrow">MOMENTUM BY PRISM</span>
             <h3>For what comes next.</h3>
             <p className="muted">Version 1.0.0 · Your career, in focus.</p>
-            <a
-              className="text-link"
-              href="./privacy.html"
-              target="_blank"
-              rel="noreferrer"
-            >
+            <a className="text-link" href="./privacy.html">
               Privacy policy <ArrowUpRight size={15} />
             </a>
-            <a
-              className="text-link"
-              href="./support.html"
-              target="_blank"
-              rel="noreferrer"
-            >
+            <a className="text-link" href="./support.html">
               Support & help <ArrowUpRight size={15} />
             </a>
-            <a
-              className="text-link"
-              href="./third-party-notices.txt"
-              target="_blank"
-              rel="noreferrer"
-            >
+            <a className="text-link" href="./licenses.html">
               Open-source licenses <ArrowUpRight size={15} />
             </a>
           </section>

@@ -210,7 +210,7 @@ export default function App() {
       const editing =
         document.activeElement?.matches(
           "input,textarea,select,[contenteditable='true']",
-        ) || document.querySelector('[role="dialog"]');
+        ) || document.querySelector('[role="dialog"], form');
       if (dirty.current || conflict.current || editing) {
         pauseForConflict();
         return;
@@ -705,13 +705,9 @@ export default function App() {
           <span>Made for your next chapter.</span>
           <span>
             By Prism <span className="footer-dot">·</span>{" "}
-            <a href="./privacy.html" target="_blank" rel="noreferrer">
-              Privacy
-            </a>{" "}
+            <a href="./privacy.html">Privacy</a>{" "}
             <span className="footer-dot">·</span>{" "}
-            <a href="./support.html" target="_blank" rel="noreferrer">
-              Help
-            </a>
+            <a href="./support.html">Help</a>
           </span>
         </footer>
       </div>

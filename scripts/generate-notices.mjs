@@ -108,10 +108,49 @@ for (const [name, filename] of [
 sections.sort((a, b) => a.identity.localeCompare(b.identity, "en"));
 const header = `MOMENTUM BY PRISM — THIRD-PARTY NOTICES\n\nMomentum is built with open-source software. The notices below retain the\ncopyright and license information supplied by the installed production\ndependencies, including supporting libraries that may not be used by every\nplatform edition. These licenses apply to the named components, not to\nMomentum's original application code.\n\nGenerated from the installed dependency lockfile by:\n  node scripts/generate-notices.mjs\n\n`;
 mkdirSync(join(root, "public"), { recursive: true });
+const noticeText = header + sections.map((section) => section.text).join("\n");
+writeFileSync(join(root, "public/third-party-notices.txt"), noticeText);
+const escapeHTML = (value) =>
+  value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        character
+      ],
+  );
 writeFileSync(
-  join(root, "public/third-party-notices.txt"),
-  header + sections.map((section) => section.text).join("\n"),
+  join(root, "public/licenses.html"),
+  `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f5f6f0">
+  <meta name="description" content="Open-source software and font licenses included with Momentum by Prism.">
+  <title>Open-source licenses · Momentum</title>
+  <link rel="stylesheet" href="./legal.css">
+  <style>h1{font-size:clamp(30px,6vw,62px)}.notices{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px;margin:28px 0 36px;tab-size:2}@media(max-width:600px){.notices{padding:16px;font-size:12px}}</style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="Momentum home">momentum</a>
+    <a class="header-link" href="./">Back to Momentum →</a>
+  </header>
+  <main class="page" id="main">
+    <div class="intro">
+      <p class="eyebrow">Built with open-source software.</p>
+      <h1>Acknowledgments<br>and licenses.</h1>
+      <p class="lede">Momentum includes work from open-source projects and font designers. Their copyright notices and license terms are preserved below.</p>
+    </div>
+    <pre class="notices" aria-label="Third-party copyright notices and license terms">${escapeHTML(noticeText)}</pre>
+    <a class="button-link" href="./">Back to Momentum <span aria-hidden="true">→</span></a>
+  </main>
+  <footer class="site-footer"><span>Momentum by Prism</span><a href="./support.html">Support</a><a href="./privacy.html">Privacy</a><a href="./licenses.html" aria-current="page">Open-source licenses</a></footer>
+</body>
+</html>
+`,
 );
 console.log(
-  `Generated notices for ${seen.size} production dependencies and 2 bundled fonts.`,
+  `Generated plain-text and HTML notices for ${seen.size} production dependencies and 2 bundled fonts.`,
 );
