@@ -748,7 +748,7 @@ test("HTTP service rejects malformed, wrong-type, oversized and unknown requests
         await fetch(`${base}/api/import-job`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: "a".repeat(160001) }),
+          body: JSON.stringify({ text: "a".repeat(450001) }),
         })
       ).status,
       413,

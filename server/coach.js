@@ -12,7 +12,7 @@ export const COACH_ACTIONS = [
 
 const actionInstructions = {
   course:
-    "Create a focused interview preparation course for this exact role. Explain likely competencies, practical study steps, honest evidence exercises, and knowledge checks. Adapt to the candidate background and available time. Do not claim these are the employer’s actual interview questions.",
+    "Create focused interview preparation for this exact role. If context.lesson is supplied, extend that selected lesson with practical explanation, exercises and knowledge checks instead of generating an unrelated whole course. Otherwise provide a focused course outline. Respect the supplied intake, experience, focus and available time. Connect exercises to the candidate’s actual supplied evidence. Treat company and interviewer research as unverified candidate notes unless sources are explicitly provided; do not present them as independently known facts. Explain likely competencies and honest evidence exercises. Do not claim these are the employer’s actual interview questions.",
   "interview-feedback":
     "Coach the candidate’s answer to the supplied practice question. Quote brief specific evidence from their answer; explain relevance, clarity, personal contribution, and what is missing. Give an improved outline using their facts only and one realistic follow-up question. Do not invent results, qualifications, metrics, or a hiring probability.",
   application:
@@ -63,7 +63,8 @@ function stringValue(value, max, field) {
 function cleanContext(value, depth = 0, counter = { fields: 0 }) {
   if (value == null || typeof value === "boolean") return value;
   if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") return stringValue(value, 40000, "Context");
+  if (typeof value === "string")
+    return stringValue(value, 60000, "Profile or supporting context");
   if (depth > 5 || ++counter.fields > 100)
     throw new ServiceError(
       "INVALID_INPUT",
@@ -133,14 +134,14 @@ export function validateCoachInput(input) {
     },
     profile: cleanContext(input.profile || {}),
     question: stringValue(input.question, 4000, "Question"),
-    answer: stringValue(input.answer, 12000, "Answer"),
+    answer: stringValue(input.answer, 20000, "Answer"),
     context: cleanContext(input.context || {}),
     webResearch: input.webResearch === true,
   };
-  if (JSON.stringify(result).length > 110000)
+  if (JSON.stringify(result).length > 140000)
     throw new ServiceError(
       "INVALID_INPUT",
-      "This coaching request is too long. Shorten the job description or supporting notes.",
+      "Keep the combined job description, résumé and supporting notes below 140,000 characters. Shorten one of these fields and try again; nothing has been truncated or sent.",
     );
   if (
     result.action === "interview-feedback" &&

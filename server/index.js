@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { importJob } from "./import-job.js";
 import { coach, aiAvailable, webResearchAvailable } from "./coach.js";
 import { ServiceError, publicError } from "./errors.js";
+import { createStaticHandler } from "./static.js";
 
 export function readConfig(env = process.env) {
   const origins = (env.PRISM_ALLOWED_ORIGINS || "")
@@ -41,6 +42,7 @@ export function readConfig(env = process.env) {
     serviceToken: env.PRISM_SERVICE_TOKEN || "",
     allowedOrigins: origins,
     enableWebResearch: env.PRISM_ENABLE_WEB_RESEARCH === "true",
+    staticDir: env.PRISM_STATIC_DIR || "",
     operatorName: env.PRISM_OPERATOR_NAME || "",
     privacyUrl: env.PRISM_PRIVACY_URL || "",
     contactConfigured: Boolean(
@@ -99,7 +101,7 @@ function authorized(request, token) {
   );
 }
 
-function readJson(request, maxBytes = 160000) {
+function readJson(request, maxBytes = 450000) {
   if (
     !/^application\/json(?:\s*;|$)/i.test(request.headers["content-type"] || "")
   )
@@ -184,12 +186,38 @@ export function createRateLimiter({
   };
 }
 
+export function createConcurrencyLimiter(limit) {
+  let active = 0;
+  return async (operation) => {
+    if (active >= limit)
+      throw new ServiceError(
+        "SERVICE_BUSY",
+        "The online service is busy. Please try again in a moment; your local tools are still available.",
+        503,
+      );
+    active++;
+    try {
+      return await operation();
+    } finally {
+      active--;
+    }
+  };
+}
+
 export function createServer({
   config = readConfig(),
   importer = importJob,
   coaching = coach,
   limiter = createRateLimiter(),
 } = {}) {
+  const staticState = config.staticDir
+    ? createStaticHandler(config.staticDir).then(
+        (handler) => ({ ready: true, handler }),
+        () => ({ ready: false, handler: null }),
+      )
+    : Promise.resolve({ ready: true, handler: null });
+  const limitImports = createConcurrencyLimiter(4);
+  const limitCoaching = createConcurrencyLimiter(2);
   const server = http.createServer(async (request, response) => {
     const headers = {
       "Content-Type": "application/json; charset=utf-8",
@@ -235,9 +263,15 @@ export function createServer({
         response.end();
         return;
       }
-      if (pathname === "/api/health" && request.method === "GET") {
-        send(200, {
+      if (
+        ["/api/health", "/api/ready"].includes(pathname) &&
+        request.method === "GET"
+      ) {
+        const staticAssets = await staticState;
+        const ready = staticAssets.ready;
+        send(pathname === "/api/ready" && !ready ? 503 : 200, {
           ok: true,
+          ready,
           version: "1.0.0",
           capabilities: {
             jobImport: true,
@@ -252,8 +286,23 @@ export function createServer({
             contactConfigured: config.contactConfigured,
           },
           model: config.model,
+          deployment: { servesApp: Boolean(config.staticDir), appReady: ready },
         });
         return;
+      }
+      if (
+        !pathname.startsWith("/api/") &&
+        pathname !== "/api" &&
+        config.staticDir
+      ) {
+        const assets = await staticState;
+        if (!assets.ready)
+          throw new ServiceError(
+            "APP_NOT_READY",
+            "The app is starting or its build is unavailable. Please try again shortly.",
+            503,
+          );
+        if (await assets.handler(request, response, pathname)) return;
       }
       if (!["/api/import-job", "/api/coach"].includes(pathname))
         throw new ServiceError(
@@ -279,10 +328,12 @@ export function createServer({
       const isCoach = pathname === "/api/coach";
       limiter(`${address}:${isCoach ? "coach" : "import"}`, isCoach ? 10 : 25);
       limiter(isCoach ? "global:coach" : "global:import", isCoach ? 60 : 300);
-      const body = await readJson(request);
-      const result = isCoach
-        ? await coaching(body, config)
-        : await importer(body);
+      const result = await (isCoach ? limitCoaching : limitImports)(
+        async () => {
+          const body = await readJson(request);
+          return isCoach ? coaching(body, config) : importer(body);
+        },
+      );
       send(200, result);
     } catch (error) {
       const output = publicError(error);
@@ -292,6 +343,8 @@ export function createServer({
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
   server.keepAliveTimeout = 5000;
+  server.maxHeadersCount = 100;
+  server.maxRequestsPerSocket = 100;
   return server;
 }
 
@@ -306,7 +359,14 @@ if (
       `Momentum service listening on http://${config.host}:${config.port}. Online coaching: ${aiAvailable(config) ? "enabled" : "not configured"}.`,
     );
   });
-  const shutdown = () => server.close(() => process.exit(0));
+  const shutdown = () => {
+    server.close(() => process.exit(0));
+    server.closeIdleConnections();
+    setTimeout(() => {
+      server.closeAllConnections();
+      process.exit(0);
+    }, 10000).unref();
+  };
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
 }
