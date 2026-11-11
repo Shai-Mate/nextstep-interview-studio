@@ -1,0 +1,6 @@
+node_modules/
+dist/
+ios/
+test-results/
+package-lock.json
+public/third-party-notices.txt
