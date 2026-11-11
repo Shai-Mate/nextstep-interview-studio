@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   CheckCircle2,
@@ -84,6 +84,7 @@ export default function Profile({ profile = {}, onChange, notify = () => {} }) {
   const [panel, setPanel] = useState("story");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [pendingImport, setPendingImport] = useState(null);
   const [example, setExample] = useState({
     situation: "",
     action: "",
@@ -95,6 +96,15 @@ export default function Profile({ profile = {}, onChange, notify = () => {} }) {
   const fileInput = useRef(null);
   const profileRef = useRef(profile);
   profileRef.current = profile;
+  const mounted = useRef(false);
+  const uploadSequence = useRef(0);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      uploadSequence.current += 1;
+    };
+  }, []);
   const preferences =
     profile.preferences && typeof profile.preferences === "object"
       ? profile.preferences
@@ -203,29 +213,55 @@ export default function Profile({ profile = {}, onChange, notify = () => {} }) {
     });
   };
   const uploadResume = async (event) => {
-    const file = event.target.files?.[0];
+    const input = event.target;
+    const file = input.files?.[0];
     if (!file) return;
+    const sequence = ++uploadSequence.current;
+    const resumeBeforeImport = asText(profileRef.current.resume);
+    const isCurrent = () =>
+      mounted.current && uploadSequence.current === sequence;
     setUploading(true);
     setUploadError("");
+    setPendingImport(null);
     try {
       const text = await extractDocument(file);
+      if (!isCurrent()) return;
       if (text.trim().length < 20)
         throw new Error(
           "There isn’t enough readable text in this file. Try a text-based document or paste your résumé below.",
         );
-      onChange({ ...profileRef.current, resume: text.slice(0, 60000) });
-      notify(
-        `Résumé text imported from ${file.name}. Check the formatting below.`,
-      );
+      const imported = text.slice(0, 60000);
+      if (asText(profileRef.current.resume) !== resumeBeforeImport) {
+        setPendingImport({ text: imported, filename: file.name });
+        notify(
+          "Your résumé changed while the file was being read. Review the import before replacing your edits.",
+        );
+      } else {
+        onChange({ ...profileRef.current, resume: imported });
+        notify(
+          `Résumé text imported from ${file.name}. Check the formatting below.`,
+        );
+      }
     } catch (error) {
-      setUploadError(
-        error.message ||
-          "This document could not be read. You can paste the text below.",
-      );
+      if (isCurrent())
+        setUploadError(
+          error.message ||
+            "This document could not be read. You can paste the text below.",
+        );
     } finally {
-      setUploading(false);
-      event.target.value = "";
+      if (isCurrent()) {
+        setUploading(false);
+        input.value = "";
+      }
     }
+  };
+  const acceptImportedResume = () => {
+    if (!pendingImport) return;
+    onChange({ ...profileRef.current, resume: pendingImport.text });
+    setPendingImport(null);
+    notify(
+      "Imported résumé applied. Your other profile details are unchanged.",
+    );
   };
   const switchTab = (event) => {
     const tabs = ["story", "kit"];
@@ -412,6 +448,53 @@ export default function Profile({ profile = {}, onChange, notify = () => {} }) {
                 <p className="form-error" role="alert">
                   {uploadError}
                 </p>
+              )}
+              {pendingImport && (
+                <div
+                  className="callout resume-import-review"
+                  role="group"
+                  aria-label="Review imported résumé"
+                >
+                  <FileText size={20} aria-hidden="true" />
+                  <div>
+                    <strong>Your edits are still here.</strong>
+                    <p>
+                      Your résumé changed while {pendingImport.filename} was
+                      being read. Review the imported text, then choose which
+                      version to keep.
+                    </p>
+                    <details>
+                      <summary>Review imported text</summary>
+                      <label className="field">
+                        Imported résumé preview
+                        <textarea
+                          rows={7}
+                          value={pendingImport.text}
+                          readOnly
+                        />
+                      </label>
+                    </details>
+                    <div className="inline-actions">
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={acceptImportedResume}
+                      >
+                        Use imported résumé
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setPendingImport(null);
+                          notify("Your current résumé was kept.");
+                        }}
+                      >
+                        Keep my current résumé
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
               <label className="field">
                 Résumé or career notes

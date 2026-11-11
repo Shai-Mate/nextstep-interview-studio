@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Sparkles,
-  ArrowRight,
+  RotateCcw,
   LoaderCircle,
   ShieldCheck,
   Check,
-  X,
   ExternalLink,
   Clipboard,
   Download,
@@ -24,6 +23,8 @@ export default function AiCoach({
   notify,
   label = "Get another perspective",
   onSave,
+  onSaveNote,
+  contextKey,
 }) {
   const [webResearch, setWebResearch] = useState(false),
     [sources, setSources] = useState([]);
@@ -32,6 +33,29 @@ export default function AiCoach({
     [result, setResult] = useState(null),
     [error, setError] = useState(""),
     [consent, setConsent] = useState(false);
+  const pending = useRef(null);
+  const requestKey = JSON.stringify({
+    action,
+    job: job && {
+      id: job.id,
+      role: job.role,
+      company: job.company,
+      text: job.job,
+    },
+    profile,
+    question,
+    answer,
+    context,
+  });
+  useEffect(() => {
+    setResult(null);
+    setSources([]);
+    setError("");
+    setConsent(false);
+    setBusy(false);
+    setWebResearch(false);
+    return () => pending.current?.abort();
+  }, [requestKey]);
   if (!capabilities?.aiCoach) return null;
   const resultText = () =>
     [
@@ -67,27 +91,39 @@ export default function AiCoach({
     }
   }
   async function generate() {
+    if (!consent || busy) return;
+    const controller = new AbortController();
+    pending.current = controller;
     setBusy(true);
     setError("");
     try {
-      const data = await requestAPI("coach", {
-        action,
-        job: job
-          ? { role: job.role, company: job.company, text: job.job }
-          : undefined,
-        profile,
-        question,
-        answer,
-        context,
-        consent: true,
-        webResearch: action === "research" && webResearch,
-      });
+      const data = await requestAPI(
+        "coach",
+        {
+          action,
+          job: job
+            ? { role: job.role, company: job.company, text: job.job }
+            : undefined,
+          profile,
+          question,
+          answer,
+          context,
+          consent: true,
+          webResearch: action === "research" && webResearch,
+        },
+        { signal: controller.signal },
+      );
+      if (controller.signal.aborted) return;
+      if (!data.result?.title || !Array.isArray(data.result.sections))
+        throw new Error(
+          "The coach returned an incomplete response. Please try again.",
+        );
       setResult(data.result);
-      setSources(data.sources || []);
+      setSources((data.sources || []).filter((source) => safeURL(source.url)));
     } catch (e) {
-      setError(e.message);
+      if (!controller.signal.aborted) setError(e.message);
     } finally {
-      setBusy(false);
+      if (pending.current === controller) setBusy(false);
     }
   }
   return (
@@ -100,7 +136,10 @@ export default function AiCoach({
         <Modal
           title="An extra perspective"
           onClose={() => {
-            if (!busy) setOpen(false);
+            pending.current?.abort();
+            setBusy(false);
+            setConsent(false);
+            setOpen(false);
           }}
           wide
         >
@@ -136,8 +175,8 @@ export default function AiCoach({
                       {answer && !webResearch && <li>The answer you wrote.</li>}
                       {context && (
                         <li>
-                          The research notes or context included for this
-                          action.
+                          The selected lesson, research notes, application
+                          drafts or offer details included for this action.
                         </li>
                       )}
                     </ul>
@@ -273,6 +312,27 @@ export default function AiCoach({
                   </section>
                 )}
                 <div className="inline-actions ai-result-actions">
+                  {onSaveNote && (
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => {
+                        if (
+                          onSaveNote({
+                            action,
+                            title: result.title,
+                            text: resultText(),
+                            sources,
+                            contextKey,
+                          }) === false
+                        )
+                          return;
+                        notify("Coaching note saved on this device.");
+                        setOpen(false);
+                      }}
+                    >
+                      Save coaching note <Check size={16} />
+                    </button>
+                  )}
                   {onSave && (
                     <button
                       className="btn btn-primary"
@@ -290,6 +350,16 @@ export default function AiCoach({
                   </button>
                   <button className="btn btn-ghost" onClick={exportResult}>
                     <Download size={16} /> Export
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => {
+                      setResult(null);
+                      setSources([]);
+                      setConsent(false);
+                    }}
+                  >
+                    <RotateCcw size={16} /> Start a new request
                   </button>
                 </div>
                 <p className="muted small-text">

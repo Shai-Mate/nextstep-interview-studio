@@ -17,6 +17,8 @@ Use this copy only after the implemented features, native release build and prod
 
 Confirm name availability and trademark rights before reserving the name. The app name and subtitle are each within Apple's 30-character limits; the keyword draft is within the 100-character limit.
 
+The support and privacy URL cells are required owner inputs, not publishable URLs. Follow [deployment.md](deployment.md) to publish the completed pages with a real operator identity and contact. Keep screenshots and description aligned with the capabilities enabled in the submitted build; a local-only build should not advertise connected AI or public web research.
+
 ## Description
 
 Your next career move starts with one clear step.

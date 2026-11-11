@@ -23,7 +23,13 @@ import {
   Compass,
 } from "lucide-react";
 import { createPreparation } from "../engine.js";
-import { loadWorkspace, writeWorkspace, MAX_RECORDS } from "./lib/storage.js";
+import {
+  loadWorkspace,
+  emptyWorkspace,
+  validateWorkspace,
+  STORAGE_KEY,
+  MAX_RECORDS,
+} from "./lib/storage.js";
 import { requestAPI } from "./lib/api.js";
 import { sampleJob } from "./lib/sample.js";
 import { lightHaptic } from "./lib/native.js";
@@ -75,10 +81,37 @@ export function EmptyWorkspace({
     </div>
   );
 }
+function initialWorkspaceSnapshot() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const legacy = raw
+      ? null
+      : localStorage.getItem("nextstep.preparations.v1");
+    const loaded = loadWorkspace({
+      getItem: (key) =>
+        key === STORAGE_KEY
+          ? raw
+          : key === "nextstep.preparations.v1"
+            ? legacy
+            : null,
+    });
+    return { ...loaded, raw };
+  } catch {
+    return {
+      ...loadWorkspace({
+        getItem() {
+          throw new Error("Storage unavailable");
+        },
+      }),
+      raw: null,
+    };
+  }
+}
+
 export default function App() {
   const initial = useRef(null);
-  if (!initial.current) initial.current = loadWorkspace();
-  const [workspace, setWorkspace] = useState(initial.current.state),
+  if (!initial.current) initial.current = initialWorkspaceSnapshot();
+  const [workspace, setWorkspaceState] = useState(initial.current.state),
     [storageError, setStorageError] = useState(initial.current.error);
   const [route, setRoute] = useState(
     validRoutes.includes(location.hash.slice(1))
@@ -98,6 +131,26 @@ export default function App() {
       aiCoach: false,
     });
   const [saved, setSaved] = useState(!initial.current.error);
+  const [storageConflict, setStorageConflict] = useState(false);
+  const storedSnapshot = useRef(initial.current.raw);
+  const dirty = useRef(false);
+  const conflict = useRef(false);
+  const saveGeneration = useRef(0);
+  const adoptedWorkspace = useRef(null);
+  const setWorkspace = (update) => {
+    dirty.current = true;
+    setSaved(false);
+    setWorkspaceState(update);
+  };
+  const pauseForConflict = () => {
+    conflict.current = true;
+    saveGeneration.current += 1;
+    setStorageConflict(true);
+    setSaved(false);
+    setStorageError(
+      "Another window changed or cleared this workspace. Saving is paused here to protect your work. Finish any open forms, then export a backup in Settings before reloading the latest workspace.",
+    );
+  };
   const toastTimer = useRef();
   const notify = (message) => {
     setToast(message);
@@ -105,18 +158,88 @@ export default function App() {
     toastTimer.current = setTimeout(() => setToast(""), 6500);
   };
   useEffect(() => {
-    if (initial.current.error) return;
-    try {
-      writeWorkspace(workspace);
-      setSaved(true);
-      setStorageError(null);
-    } catch {
-      setSaved(false);
-      setStorageError(
-        "Your latest changes couldn’t be saved on this device. Export a backup in Settings before leaving.",
-      );
+    const generation = ++saveGeneration.current;
+    if (initial.current.error || conflict.current) return;
+    if (adoptedWorkspace.current === workspace) {
+      adoptedWorkspace.current = null;
+      return;
     }
+    const save = () => {
+      if (
+        generation !== saveGeneration.current ||
+        conflict.current ||
+        initial.current.error
+      )
+        return;
+      try {
+        if (localStorage.getItem(STORAGE_KEY) !== storedSnapshot.current) {
+          pauseForConflict();
+          return;
+        }
+        const serialized = JSON.stringify(workspace);
+        localStorage.setItem(STORAGE_KEY, serialized);
+        storedSnapshot.current = serialized;
+        dirty.current = false;
+        setSaved(true);
+        setStorageError(null);
+      } catch {
+        dirty.current = true;
+        setSaved(false);
+        setStorageError(
+          "Your latest changes couldn’t be saved on this device. Export a backup in Settings before leaving.",
+        );
+      }
+    };
+    // A lock keeps the snapshot comparison and write together across supported browser windows.
+    if (navigator.locks?.request) {
+      navigator.locks.request("momentum-workspace-write", save).catch(() => {
+        if (generation !== saveGeneration.current) return;
+        dirty.current = true;
+        setSaved(false);
+        setStorageError(
+          "Your latest changes couldn’t be saved on this device. Export a backup in Settings before leaving.",
+        );
+      });
+    } else save();
   }, [workspace]);
+  useEffect(() => {
+    const changedElsewhere = (event) => {
+      if (event.key !== STORAGE_KEY && event.key !== null) return;
+      const incoming = event.key === null ? null : event.newValue;
+      if (incoming === storedSnapshot.current) return;
+      const editing =
+        document.activeElement?.matches(
+          "input,textarea,select,[contenteditable='true']",
+        ) || document.querySelector('[role="dialog"]');
+      if (dirty.current || conflict.current || editing) {
+        pauseForConflict();
+        return;
+      }
+      try {
+        const next =
+          incoming === null
+            ? emptyWorkspace()
+            : validateWorkspace(JSON.parse(incoming));
+        saveGeneration.current += 1;
+        storedSnapshot.current = incoming;
+        adoptedWorkspace.current = next;
+        dirty.current = false;
+        initial.current.error = null;
+        setStorageError(null);
+        setSaved(true);
+        setWorkspaceState(next);
+        notify(
+          incoming === null
+            ? "Workspace cleared in another window."
+            : "Workspace updated from another window.",
+        );
+      } catch {
+        pauseForConflict();
+      }
+    };
+    window.addEventListener("storage", changedElsewhere);
+    return () => window.removeEventListener("storage", changedElsewhere);
+  }, []);
   useEffect(() => {
     const change = () => setOnline(navigator.onLine);
     const hash = () => {
@@ -259,6 +382,17 @@ export default function App() {
     notify("Opportunity removed from this device.");
   };
   const restore = (newState) => {
+    try {
+      storedSnapshot.current = localStorage.getItem(STORAGE_KEY);
+    } catch {
+      setStorageError(
+        "Storage is unavailable. Export your current workspace before leaving.",
+      );
+      return;
+    }
+    conflict.current = false;
+    setStorageConflict(false);
+    saveGeneration.current += 1;
     initial.current.error = null;
     setStorageError(null);
     setWorkspace(newState);
@@ -266,6 +400,10 @@ export default function App() {
     notify("Your workspace has been restored.");
   };
   const clear = () => {
+    storedSnapshot.current = null;
+    conflict.current = false;
+    setStorageConflict(false);
+    saveGeneration.current += 1;
     initial.current.error = null;
     setStorageError(null);
     setWorkspace({
@@ -432,6 +570,21 @@ export default function App() {
               >
                 Open Settings
               </button>
+              {storageConflict && (
+                <button
+                  className="text-link"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Reload the latest workspace? Unsaved changes in this window will be discarded. Export a backup in Settings first if you want to keep them.",
+                      )
+                    )
+                      location.reload();
+                  }}
+                >
+                  Reload latest workspace
+                </button>
+              )}
             </div>
           )}
           {route === "home" && (
@@ -535,6 +688,7 @@ export default function App() {
               opportunities={workspace.opportunities}
               onChange={(offers) => setWorkspace((w) => ({ ...w, offers }))}
               notify={notify}
+              capabilities={capabilities}
             />
           )}
           {route === "settings" && (

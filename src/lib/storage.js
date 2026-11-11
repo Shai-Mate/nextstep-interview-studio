@@ -1,4 +1,5 @@
 import { createPreparation } from "../../engine.js";
+import { normalizeCoachingNotes } from "./coaching.js";
 
 export const STORAGE_KEY = "prism.workspace.v1";
 export const emptyProfile = {
@@ -92,6 +93,7 @@ export function normalizeOpportunity(record) {
   };
   fresh.companyNotes = string(record.companyNotes, 20000);
   fresh.applicationNotes = string(record.applicationNotes, 20000);
+  fresh.coaching = normalizeCoachingNotes(record.coaching);
   fresh.notes = {};
   if (isObject(record.notes)) {
     Object.entries(record.notes)
@@ -164,6 +166,7 @@ export function normalizeOpportunity(record) {
 function normalizeOffer(record) {
   if (!isObject(record)) throw new Error("An offer in this backup is invalid.");
   const offer = { id: string(record.id, 100) || uid() };
+  offer.coaching = normalizeCoachingNotes(record.coaching);
   for (const key of ["company", "role", "benefits", "notes", "priorities"])
     offer[key] = string(
       record[key],

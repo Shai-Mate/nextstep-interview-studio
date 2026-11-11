@@ -5807,6 +5807,64 @@ details > summary:hover {
 .sidebar {
   overflow-y: auto;
 }
+.coaching-library {
+  margin-top: 28px;
+  overflow-wrap: anywhere;
+}
+.coaching-library-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.coaching-library-heading > svg {
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+.coaching-library-heading > div {
+  flex: 1;
+}
+.coaching-library-heading h2 {
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+.coaching-library-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.coaching-note {
+  border-top: 1px solid var(--line);
+  padding: 18px 0;
+}
+.coaching-note summary {
+  cursor: pointer;
+  line-height: 1.6;
+}
+.coaching-note summary strong {
+  font-size: 15px;
+}
+.coaching-note summary span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 5px 0 0 18px;
+}
+.coaching-note-text {
+  font-size: 14px;
+  line-height: 1.8;
+}
+.coaching-note-sources {
+  font-size: 13px;
+  padding-left: 20px;
+}
+.coaching-note-sources li {
+  margin-bottom: 8px;
+}
+.coaching-delete {
+  margin-top: 16px;
+}
 @media (max-width: 360px) {
   .save-indicator > span:last-child {
     position: absolute;

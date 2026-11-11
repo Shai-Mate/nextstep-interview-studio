@@ -2,6 +2,8 @@ import { useEffect, useRef, useId } from "react";
 import { X } from "lucide-react";
 export default function Modal({ title, children, onClose, wide = false }) {
   const ref = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   const titleId = useId();
   useEffect(() => {
     const previous = document.activeElement;
@@ -15,7 +17,7 @@ export default function Modal({ title, children, onClose, wide = false }) {
       ].filter((el) => !el.disabled && el.offsetParent !== null);
     (ref.current.querySelector("[data-autofocus]") || focusable()[0])?.focus();
     function key(event) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") closeRef.current();
       if (event.key === "Tab") {
         const items = focusable(),
           first = items[0],

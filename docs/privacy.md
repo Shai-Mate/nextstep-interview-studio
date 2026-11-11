@@ -1,6 +1,6 @@
 # Momentum data inventory and privacy release review
 
-This is an engineering handoff. The public user policy is `public/privacy.html`. Reconcile both against the actual deployment before launch; configuration can change the data flow without changing the visible app.
+This is an engineering handoff. The public user policy is `public/privacy.html`. Reconcile both against the actual deployment before launch; configuration can change the data flow without changing the visible app. Use [deployment.md](deployment.md) for the operator preflight and the files that must be configured together.
 
 ## Data map
 
@@ -11,9 +11,10 @@ This is an engineering handoff. The public user policy is `public/privacy.html`.
 | Company/interviewer notes and sources | User-supplied context for preparation | Local app/browser storage | Use public professional information or information the user has permission to use; do not invent private facts |
 | Answers, notes, course progress and mock sessions | Resumable learning and practice | Local app/browser storage | No analytics or remote transmission in local-only flows |
 | Application and offer drafts | User-reviewed career correspondence | Local app/browser storage | Editing or exporting a draft is not authorization to submit or send it |
+| Saved AI coaching notes and citations | User-selected guidance kept for later review | Local opportunity/offer records and user-exported backups | Explicit save; up to 12 notes per record with a separate size bound. New saves are blocked at the limit rather than silently replacing existing valid notes |
 | Backups and exports | User-controlled portability and recovery | Temporary native app cache, then user-selected download/share destination | Exported files can include all candidate content and are not encrypted by Momentum |
 | Optional public URL import | Fetch text from a user-selected public page | Configured import server and destination website | Consent, SSRF protection, redirect checks, size/time limits and logging review required |
-| Optional model requests | Requested remote generation or feedback | Configured server and named model provider | Explicit opt-in; disclose the exact data and provider; check retention, geography and provider terms |
+| Optional model requests | Requested remote generation or feedback | Configured server and named model provider | Explicit opt-in; payload can include job/profile/answer data, selected lesson context, application drafts or offer amounts/priorities. Disclose the exact data and provider; check retention, geography and provider terms |
 | Optional public professional research | A company/interviewer brief from public professional sources | Configured server, OpenAI and its web-search providers | Separate consent per request; job description and research context go to OpenAI, professional search terms may reach search providers; candidate profile and practice answer are excluded from this provider payload |
 | Read question aloud | User-requested spoken practice prompt | Browser/operating-system speech service | Only the question is supplied; no microphone or camera recording. Voice availability and local/network processing depend on the platform; do not promise all voices are offline |
 | Ordinary web requests | Deliver app, policy and support pages | Hosting provider | IP address, request metadata and access logs may be processed under the host's policy |
@@ -24,7 +25,11 @@ Momentum's local data is not independently encrypted by the application. Browser
 
 The local delete control removes Momentum's active local records. It cannot delete a backup the user exported, an OS backup, a downloaded file, a third-party message they sent or service-provider logs. Explain the scope before deletion. There is no Momentum account to close in a local-only release.
 
+Restoring a backup replaces the current workspace after confirmation; it is not a merge. For each opportunity, the app keeps the current mock-interview round and up to 10 previous rounds. Starting a new round beyond this limit removes the oldest history entry. The public retention explanation must include this limit rather than promising every local record remains until an explicit deletion. A workspace supports up to 100 opportunities and 100 offers, including archived opportunities; creation is blocked at the limit rather than silently removing records.
+
 Native sharing writes a temporary export to the app's `Cache/momentum-exports` directory, opens the system share sheet, then attempts to delete the temporary file after completion, cancellation or failure. If the process terminates during sharing, the temporary file can remain until app/OS cleanup. Do not claim that sharing creates no local file. Copies saved by the selected destination remain outside Momentum's control.
+
+Optional AI responses are not automatically a permanent local record. A user can explicitly save a coaching note, append a research brief to their notes, copy text or export a response. Saved notes and sources become workspace data and are included in backup/delete behavior. Closing an in-flight client request aborts the client's wait; it does not prove that an already-received request has stopped on the service/provider or erase previously shared data.
 
 ## Online feature release conditions
 

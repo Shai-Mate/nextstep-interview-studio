@@ -48,14 +48,15 @@ export default function Settings({
         momentum: localStorage.getItem(STORAGE_KEY),
         previousApp: localStorage.getItem("nextstep.preparations.v1"),
       };
-      await shareDocument({
+      const result = await shareDocument({
         filename: "momentum-storage-recovery.json",
         text: JSON.stringify(raw, null, 2),
         mimeType: "application/json",
       });
-      notify(
-        "Original storage exported for recovery. It may contain personal information.",
-      );
+      if (!result.cancelled)
+        notify(
+          "Original storage exported for recovery. It may contain personal information.",
+        );
     } catch (e) {
       setError(e.message);
     }

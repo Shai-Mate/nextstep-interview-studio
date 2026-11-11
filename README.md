@@ -12,6 +12,7 @@ This is a web release candidate with a native scaffold. It has **not** been sign
 - Work through eight tailored preparation lessons and their knowledge checks, collect evidence, and keep sourced company/interviewer research notes.
 - Practise eight interview questions with saved answers, structure feedback, resumable drafts and previous-session history.
 - Compare annualized offer inputs, separate base pay from uncertain bonus/equity, edit a negotiation draft and track a signing checklist.
+- When online coaching is configured, save reviewed suggestions with the relevant opportunity or offer, revisit them offline, and copy, export or remove individual notes. Model responses are still subject to your review.
 - Export, restore or delete the local workspace. Previous Next Step backups are supported. Native exports use the iOS share sheet.
 
 Core courses, drafts and feedback use local rules and templates; they are not live LLM output or verified employer research. Optional OpenAI coaching and separately enabled public professional web research are implemented behind explicit consent and service configuration, but no live AI/search request has been verified in this environment. Search results require provider citations and should still be checked against the original sources. Momentum does not connect LinkedIn/Indeed accounts, edit external profiles, submit applications, send messages or sign offers.
@@ -38,6 +39,8 @@ The build regenerates third-party notices, bundles the app into `dist/`, and cre
 
 Deploy the contents of `dist/` to an HTTPS static host. Relative asset paths support a subdirectory. The privacy, support and license pages are included. The public support route currently points to this repository's GitHub issue tracker; do not post candidate documents there.
 
+For the app and public job-link importer on one origin, the repository also includes a multi-stage [Dockerfile](Dockerfile), non-root runtime and [Compose/Caddy deployment](deploy/compose.yaml). The image build, local read-only container, readiness probe and route/header smoke checks passed. This is local deployment evidence, not a publicly hosted service. Use [docs/deployment.md](docs/deployment.md) for real domain/operator setup and launch commands.
+
 ## Optional online service
 
 In a second terminal:
@@ -62,6 +65,8 @@ npm run build
 
 The Node tests cover the preparation engine, truthful drafts and feedback, legacy migration, backup validation, malformed storage, offer persistence, URL import boundaries, consent, rate limits and the model request/response contract.
 
+The current engineering pass includes **82 passing Node tests**, production build/native sync, hardened-container smoke checks and saved-AI/profile browser contracts using fixture responses. The complete current regression and native CI status are tracked in [docs/verification.md](docs/verification.md); no live model-provider success is implied by fixtures.
+
 The browser suite uses Python Playwright and Chromium. With a built app running through `npm run preview`:
 
 ```sh
@@ -81,14 +86,19 @@ Sync rebuilds the web app and copies it into the iOS project. Opening and buildi
 
 Use Xcode 26 or later with the iOS 26 SDK or later under Apple's current upload requirements. Configure the correct signing team, archive a Release build, test on supported physical devices and through TestFlight, and complete the release checklist. Browser emulation and static plist validation do not replace native-device testing.
 
+The [iOS compile workflow](.github/workflows/ios.yml) runs an unsigned generic-device Release build on GitHub macOS. [Run 43003354634](https://github.com/Shai-Mate/nextstep-interview-studio/actions/runs/43003354634) passed for `ea7b1da` with Xcode 26.6; the final delivery revision still needs its own result. Follow [docs/ios-build.md](docs/ios-build.md) to repeat it and inspect its evidence. A green unsigned build is not a signed archive or App Store upload.
+
 - [Engineering verification record](docs/verification.md)
 - [Release gates and native acceptance checklist](docs/release.md)
 - [App Store listing and review-note draft](docs/app-store.md)
 - [Data inventory and privacy review](docs/privacy.md)
+- [Deployment and operator preflight](docs/deployment.md)
 - [Optional service deployment guide](server/README.md)
 
 ## Data and dependencies
 
 Workspace data is local to this installation and is not independently encrypted by Momentum. Device backups may include it. Exported files contain private candidate information. Restoring a backup replaces the current workspace after confirmation; keep a separate copy first. Clearing data cannot delete exports or information already shared with other services. The storage key retains its original internal name, `prism.workspace.v1`, to preserve existing work; the current workspace schema is version 3.
+
+Each opportunity keeps the current practice round and up to 10 previous rounds. Each opportunity or offer can hold up to 12 saved coaching notes, subject to a size bound; new notes are refused at the limit rather than silently replacing valid saved notes. Workspace exports include those saved notes and sources.
 
 DM Sans and Manrope are bundled locally from the Google Fonts projects under the SIL Open Font License 1.1. Their license texts are in `public/fonts/` and are also included in `public/third-party-notices.txt`. The build generates notices for installed production dependencies and bundled fonts. These licenses apply to the named third-party components; no license for Momentum's original application code is implied.

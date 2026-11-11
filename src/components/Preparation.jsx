@@ -33,6 +33,8 @@ import { copyText, safeURL, requestAPI } from "../lib/api.js";
 import { shareDocument, lightHaptic } from "../lib/native.js";
 import { CompanyMark } from "../App.jsx";
 import AiCoach from "./AiCoach.jsx";
+import CoachingNotes from "./CoachingNotes.jsx";
+import { appendCoachingNote } from "../lib/coaching.js";
 import Modal from "./Modal.jsx";
 const sections = [
   { id: "plan", label: "Your learning path", icon: BookOpen },
@@ -53,6 +55,15 @@ export default function Preparation({
   const percent = Math.round((complete / prep.course.length) * 100);
   const updateNote = (key, text) =>
     onChange({ ...prep, notes: { ...prep.notes, [key]: text } });
+  const saveCoaching = (note) => {
+    try {
+      onChange({ ...prep, coaching: appendCoachingNote(prep.coaching, note) });
+      return true;
+    } catch (error) {
+      notify(error.message);
+      return false;
+    }
+  };
   return (
     <>
       <header className="preparation-heading">
@@ -136,6 +147,7 @@ export default function Preparation({
             onPractice={() => setSection("practice")}
             capabilities={capabilities}
             profile={profile}
+            onSaveCoaching={saveCoaching}
           />
         )}
         {section === "stories" && (
@@ -156,6 +168,7 @@ export default function Preparation({
             notify={notify}
             profile={profile}
             capabilities={capabilities}
+            onSaveCoaching={saveCoaching}
           />
         )}
         {section === "day" && (
@@ -167,6 +180,11 @@ export default function Preparation({
           />
         )}
       </div>
+      <CoachingNotes
+        notes={prep.coaching}
+        onChange={(coaching) => onChange({ ...prep, coaching })}
+        notify={notify}
+      />
     </>
   );
 }
@@ -178,6 +196,7 @@ function LearningPath({
   onPractice,
   capabilities,
   profile,
+  onSaveCoaching,
 }) {
   const [selected, setSelected] = useState(
     prep.course.findIndex((l) => !l.done) >= 0
@@ -358,6 +377,21 @@ function LearningPath({
           action="course"
           job={prep}
           profile={profile}
+          context={{
+            intake: prep.intake,
+            lesson: {
+              title: lesson.title,
+              purpose: lesson.takeaway,
+              exercise: lesson.exercise,
+              content: lesson.body,
+              steps: lesson.steps,
+            },
+            lessonNotes: prep.notes[lesson.id] || "",
+            companyNotes: prep.companyNotes,
+            interviewer: prep.interviewer,
+          }}
+          contextKey={`course:${lesson.id}`}
+          onSaveNote={onSaveCoaching}
           capabilities={capabilities}
           notify={notify}
           label="Personalize with AI"
@@ -371,12 +405,12 @@ function StoryBank({ prep, updateNote, notify }) {
   async function exportStories() {
     const text = `MOMENTUM · STORY BANK\n${prep.role} at ${prep.company}\n\n${prep.questions.map((q) => `${q.question}\n\n${prep.notes[`answer-${q.id}`] || "(Your answer is still taking shape.)"}`).join("\n\n———\n\n")}`;
     try {
-      await shareDocument({
+      const result = await shareDocument({
         filename: "momentum-story-bank.txt",
         text,
         mimeType: "text/plain",
       });
-      notify("Your story bank is ready to keep.");
+      if (!result.cancelled) notify("Your story bank is ready to keep.");
     } catch (e) {
       notify(e.message);
     }
@@ -483,6 +517,10 @@ function StoryBank({ prep, updateNote, notify }) {
 }
 function Research({ prep, onChange, notify, capabilities }) {
   const person = prep.interviewer || { name: "", role: "", url: "", notes: "" };
+  const latest = useRef({ prep, onChange });
+  latest.current = { prep, onChange };
+  const pendingImport = useRef(null);
+  useEffect(() => () => pendingImport.current?.abort(), [prep.id]);
   const [researchURL, setResearchURL] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -497,11 +535,20 @@ function Research({ prep, onChange, notify, capabilities }) {
     }
     setBusy(true);
     setError("");
+    const controller = new AbortController();
+    pendingImport.current = controller;
+    const importedURL = researchURL;
     try {
-      const data = await requestAPI("import-job", { url: researchURL });
+      const data = await requestAPI(
+        "import-job",
+        { url: importedURL },
+        { signal: controller.signal },
+      );
+      if (controller.signal.aborted) return;
+      const current = latest.current.prep;
       const companyNotes = [
-        prep.companyNotes,
-        `Source: ${researchURL}\nImported ${new Date().toLocaleDateString()}\n${data.job.text.slice(0, 12000)}`,
+        current.companyNotes,
+        `Source: ${importedURL}\nImported ${new Date().toLocaleDateString()}\n${data.job.text.slice(0, 12000)}`,
       ]
         .filter(Boolean)
         .join("\n\n");
@@ -509,15 +556,15 @@ function Research({ prep, onChange, notify, capabilities }) {
         throw new Error(
           "Your research notes are nearly full. Export or shorten them before importing another page.",
         );
-      onChange({ ...prep, companyNotes });
+      latest.current.onChange({ ...current, companyNotes });
       setResearchURL("");
       notify(
         "Public page added to your notes. Review the source and keep what is relevant.",
       );
     } catch (e) {
-      setError(e.message);
+      if (!controller.signal.aborted) setError(e.message);
     } finally {
-      setBusy(false);
+      if (!controller.signal.aborted) setBusy(false);
     }
   }
   return (
@@ -779,7 +826,14 @@ function Feedback({ text, question }) {
     </div>
   );
 }
-function MockPractice({ prep, onChange, notify, profile, capabilities }) {
+function MockPractice({
+  prep,
+  onChange,
+  notify,
+  profile,
+  capabilities,
+  onSaveCoaching,
+}) {
   const mock = prep.mock;
   const [started, setStarted] = useState(mock.index > 0 || Boolean(mock.draft)),
     [feedbackIndex, setFeedbackIndex] = useState(null),
@@ -867,12 +921,12 @@ function MockPractice({ prep, onChange, notify, profile, capabilities }) {
   }
   async function exportPractice() {
     try {
-      await shareDocument({
+      const result = await shareDocument({
         filename: "momentum-interview-practice.txt",
         mimeType: "text/plain",
         text: `MOMENTUM · INTERVIEW PRACTICE\n${prep.role} at ${prep.company}\n\n${mock.answers.map((a, i) => `${i + 1}. ${a.question}\n\n${a.text}\n\nReflection: ${evaluateAnswer(a.text).summary}`).join("\n\n———\n\n")}`,
       });
-      notify("Practice transcript ready to keep.");
+      if (!result.cancelled) notify("Practice transcript ready to keep.");
     } catch (e) {
       notify(e.message);
     }
@@ -965,6 +1019,13 @@ function MockPractice({ prep, onChange, notify, profile, capabilities }) {
               profile={profile}
               question={mock.answers[feedbackIndex]?.question}
               answer={mock.answers[feedbackIndex]?.text}
+              context={{
+                intake: prep.intake,
+                interviewer: prep.interviewer,
+                companyNotes: prep.companyNotes,
+              }}
+              contextKey={`interview-feedback:${prep.questions[feedbackIndex]?.id}`}
+              onSaveNote={onSaveCoaching}
               capabilities={capabilities}
               notify={notify}
               label="Get AI feedback"
@@ -1190,12 +1251,12 @@ function InterviewDay({ prep, onChange, updateNote, notify }) {
         "\n\n",
       )}\n\nQUESTIONS TO ASK\n${prep.notes["research-questions"] || ""}\n\nCOMPANY NOTES\n${prep.companyNotes || ""}\n\nAFTER THE INTERVIEW\n${prep.notes["day-reflection"] || ""}`;
     try {
-      await shareDocument({
+      const result = await shareDocument({
         filename: "momentum-interview-brief.txt",
         text,
         mimeType: "text/plain",
       });
-      notify("Your interview brief is ready.");
+      if (!result.cancelled) notify("Your interview brief is ready.");
     } catch (e) {
       notify(e.message);
     }

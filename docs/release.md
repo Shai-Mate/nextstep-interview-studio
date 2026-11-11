@@ -6,13 +6,14 @@ This repository is a release candidate, not an App Store submission. A web build
 
 | Gate | Required evidence | Current status |
 | --- | --- | --- |
-| Production web build | Clean dependency install, automated checks, production build, browser smoke test | Build, Node checks and production Chromium end-to-end journey passed |
-| Native scaffold | Packaged assets, native project configuration, icon, manifests and plugin sync | Capacitor build/sync and static project/plist validation passed; this is not an Xcode compile |
+| Production web build | Clean dependency install, automated checks, production build, browser smoke test | 82 Node tests and production build/native sync passed; latest full browser regression is in progress after the earlier passing baseline |
+| Native scaffold and compilation | Packaged assets, project/icon/manifests, plugin sync and successful Xcode compile | Unsigned device Release compile passed on Xcode 26.6 for `ea7b1da`; final delivery revision's compile remains pending |
+| Deployable container | Built non-root image, readiness, static/API smoke checks and proxy configuration | Local read-only container build/run/smoke/health passed; Caddy/Compose config validated; no public deployment or certificate issuance verified |
 | Real-device quality | Current iPhone, supported older iPhone/iOS, iPad if distributed as universal, VoiceOver, text size, keyboard, resume after backgrounding, offline launch | Requires a physical-device pass |
 | Native archive | Release archive built with current required Xcode/SDK, validated in Organizer | Requires macOS and Xcode |
 | Apple identity | Prism-owned Developer Program membership, registered bundle ID, correct signing team, distribution profile | Requires the owner's Apple account |
 | Public support and privacy | Live HTTPS pages, working support route, private privacy contact, policy matching deployed services | Public pages are included; production URLs and private contact must be finalized |
-| Network service | Production HTTPS service, rate limits, abuse protection, provider contract/retention review, declared provider in consent | Live public-page import verified in development; AI has no configured live key; production authenticated gateway and operator details remain required |
+| Network service | Production HTTPS service, rate limits, abuse protection, provider contract/retention review, declared provider in consent | Live public-page import verified in development; container serving verified locally; AI has no live configured key; production authenticated gateway and operator details remain required |
 | Store metadata | Accurate screenshots, description, age rating, privacy answers, export compliance, rights, review notes | Drafts are in `docs/app-store.md` |
 | TestFlight | Uploaded archive installed and tested from TestFlight; reviewer can reach all advertised features | Requires signed upload |
 
@@ -20,15 +21,17 @@ Apple's [current upload requirements](https://developer.apple.com/news/upcoming-
 
 ## Engineering verification
 
-- The Node suite passed checks covering the preparation engine, storage/migration and optional service security/contract behavior. Run `npm test` for the current test inventory after later changes.
-- The Vite production build and Capacitor iOS sync completed. The native project contains a 1024-pixel opaque app icon, bundled app assets, a privacy manifest and native sharing support. Xcode compilation, signing and archive validation have not run on this Linux host.
+- The Node suite passed 82 tests, including the preparation engine, storage/migration, saved AI notes and service/deployment security contracts. The observed Vite build/native sync generated web release `341fdc49b0e6`. Run `npm test` for the current inventory after later changes.
+- The native project contains a 1024-pixel opaque app icon, bundled app assets, a privacy manifest and native sharing support. [Run 43003354634](https://github.com/Shai-Mate/nextstep-interview-studio/actions/runs/43003354634) passed unsigned device Release compilation on Xcode 26.6 for `ea7b1da`. Newer UI changes require a compile for the final revision. Signing, archive validation and device installation remain separate gates.
+- Docker image build and a non-root, read-only container's smoke/health checks passed locally. Caddy and Compose configuration validated. This did not deploy a public site or issue a public TLS certificate; follow [deployment.md](deployment.md) before launch.
+- Expanded profile and optional-coaching browser contracts passed using fixtures, including saved notes that remain local and reviewable. The latest complete Chromium/WebKit/accessibility and cross-tab regressions are still in progress; earlier completed browser evidence follows.
 - A live public-page import succeeded using the managed environment's policy-enforcing outbound proxy. OpenAI tests use a mock provider; no live model request, public-search request or production AI deployment was verified. Optional professional web research is off by default, requires separate consent, excludes candidate profile/answer from its provider payload and requires provider-generated URL citations.
 - The production Chromium suite in `tests/e2e.py` passed PDF job import, Word résumé import, profile edits and persistence, lessons/knowledge checks, story/research notes, the full eight-question mock with restart/history, application drafts, offer calculations, negotiation drafts, export/deletion/restore and saved-draft reload while offline.
 - Corrected mobile testing seeded the workspace and reloaded the app before checking all seven populated views at 390 pixels; they showed no horizontal page overflow or runtime errors. Privacy and support pages passed 320-, 390- and 1440-pixel layout checks; the license page returned successfully. Damaged-storage originals were preserved. Screenshots are saved to `test-results/`.
 - A production-dependency audit reported no known vulnerabilities at the time of the handoff. This does not replace security review or future dependency updates.
 - Physical iPhone/iPad, Safari, VoiceOver and TestFlight validation remain open. An automated Chromium run cannot close these gates.
 
-The shipped default experience uses local templates and writing checklists. The optional server does not include user authentication or an authorized production gateway; never embed its shared service token in the distributed client. Production online assistance is a separate release gate, not a hidden prerequisite for the local app.
+The shipped default experience uses local templates and writing checklists. Optional AI can produce user-reviewed coaching notes that the user explicitly saves to an opportunity or offer; it has not been verified against a live provider. The optional server does not include user authentication or an authorized production gateway; never embed its shared service token in the distributed client. Production online assistance is a separate release gate, not a hidden prerequisite for the local app. LinkedIn/Indeed connections and automatic job applications remain unimplemented.
 
 ## Native release procedure
 

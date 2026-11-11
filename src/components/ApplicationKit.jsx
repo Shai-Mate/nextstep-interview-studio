@@ -21,6 +21,8 @@ import { generateApplicationKit } from "../../engine.js";
 import { copyText, safeURL } from "../lib/api.js";
 import { shareDocument } from "../lib/native.js";
 import AiCoach from "./AiCoach.jsx";
+import CoachingNotes from "./CoachingNotes.jsx";
+import { appendCoachingNote } from "../lib/coaching.js";
 const tabs = [
   ["resume", "Résumé focus", FileText],
   ["letter", "Cover letter", Mail],
@@ -64,6 +66,63 @@ export default function ApplicationKit({
       ...prep,
       notes: { ...prep.notes, [`application-${key}`]: value },
     });
+  const saveCoachingNote = (noteDraft) => {
+    try {
+      onChange({
+        ...prep,
+        coaching: appendCoachingNote(prep.coaching, noteDraft),
+      });
+      return true;
+    } catch (error) {
+      notify(
+        error.message ||
+          "These coaching notes could not be saved. Copy or export them before closing.",
+      );
+      return false;
+    }
+  };
+  const candidateProfile = Object.fromEntries(
+    [
+      "name",
+      "targetRole",
+      "location",
+      "experience",
+      "resume",
+      "skills",
+      "achievements",
+      "preferences",
+    ]
+      .filter((key) => profile[key] !== undefined)
+      .map((key) => [key, profile[key]]),
+  );
+  const relevantDrafts = {
+    resume: {
+      resumeSummary: draft("summary"),
+      evidenceBullets: draft("bullets"),
+    },
+    letter: { coverLetter: draft("letter"), resumeSummary: draft("summary") },
+    messages: {
+      introductionMessage: draft("outreach"),
+      followUpMessage: draft("followup"),
+    },
+    apply: { resumeSummary: draft("summary"), coverLetter: draft("letter") },
+  }[tab];
+  const coachingContext = {
+    focus: tab,
+    currentDrafts: relevantDrafts,
+    requirementEvidence: prep.requirements
+      .slice(0, 5)
+      .map((requirement, index) => ({
+        requirement,
+        evidence: prep.notes[`map-${index}`] || "",
+      })),
+    ...(tab === "messages" || tab === "apply"
+      ? {
+          applicationStatus: prep.status,
+          applicationNotes: prep.applicationNotes || "",
+        }
+      : {}),
+  };
   const hasProfile =
     profile.resume?.trim().length > 30 ||
     profile.achievements?.trim().length > 20;
@@ -303,14 +362,6 @@ export default function ApplicationKit({
               </p>
             </div>
           </div>
-          <AiCoach
-            action="application"
-            job={prep}
-            profile={profile}
-            capabilities={capabilities}
-            notify={notify}
-            label="Refine with AI"
-          />
         </div>
       )}
       {tab === "messages" && (
@@ -464,6 +515,25 @@ export default function ApplicationKit({
           </section>
         </div>
       )}
+      <div className="stack">
+        <AiCoach
+          key={`${prep.id}:${tab}`}
+          action="application"
+          contextKey={`application:${tab}`}
+          job={prep}
+          profile={candidateProfile}
+          context={coachingContext}
+          capabilities={capabilities}
+          notify={notify}
+          label="Refine with AI"
+          onSaveNote={saveCoachingNote}
+        />
+        <CoachingNotes
+          notes={prep.coaching}
+          onChange={(notes) => onChange({ ...prep, coaching: notes })}
+          notify={notify}
+        />
+      </div>
     </>
   );
 }

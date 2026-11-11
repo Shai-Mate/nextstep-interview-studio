@@ -20,6 +20,9 @@ import {
 } from "lucide-react";
 import { negotiateOffer } from "../../engine.js";
 import { shareDocument } from "../lib/native.js";
+import { appendCoachingNote } from "../lib/coaching.js";
+import AiCoach from "./AiCoach.jsx";
+import CoachingNotes from "./CoachingNotes.jsx";
 
 const CURRENCIES = ["USD", "CAD", "GBP", "EUR", "AUD", "NZD", "SGD", "INR"];
 const SIGNING_CHECKS = [
@@ -457,6 +460,7 @@ export default function OfferCoach({
   opportunities = [],
   onChange,
   notify = () => {},
+  capabilities,
 }) {
   const [selectedId, setSelectedId] = useState(offers[0]?.id || null);
   const [editing, setEditing] = useState(null);
@@ -482,6 +486,40 @@ export default function OfferCoach({
           : item,
       ),
     );
+  const saveCoachingNote = (noteDraft) => {
+    try {
+      updateOffer({ coaching: appendCoachingNote(offer.coaching, noteDraft) });
+      return true;
+    } catch (error) {
+      notify(
+        error.message ||
+          "These coaching notes could not be saved. Copy or export them before closing.",
+      );
+      return false;
+    }
+  };
+  const negotiationContext = offer
+    ? {
+        offer: {
+          company: offer.company,
+          role: offer.role,
+          currency: offer.currency,
+          annualBase: annualBase(offer),
+          targetAnnualSalary: annualTarget(offer),
+          targetAnnualBonus: amount(offer.bonus),
+          estimatedAnnualEquity: amount(offer.equity),
+          compensationBasis:
+            "Annual amounts before tax. Bonus is conditional; equity is uncertain and separate from cash.",
+          benefits: offer.benefits || "",
+          priorities: offer.priorities || "",
+          responseDeadline: offer.deadline || "",
+          status: offer.status || "Reviewing",
+          decisionNotes: offer.notes || "",
+        },
+        currentNegotiationDraft:
+          offer.counterDraft ?? advice?.counterEmail ?? "",
+      }
+    : undefined;
   const saveOffer = (values) => {
     if (!values.id && offers.length >= MAX_RECORDS) {
       notify(
@@ -924,7 +962,23 @@ export default function OfferCoach({
                 Refreshing replaces edits to this draft.
               </span>
             </div>
+            <AiCoach
+              key={offer.id}
+              action="negotiation"
+              contextKey="negotiation"
+              context={negotiationContext}
+              capabilities={capabilities}
+              notify={notify}
+              label="Prepare my negotiation with AI"
+              onSaveNote={saveCoachingNote}
+            />
           </section>
+          <CoachingNotes
+            key={`coaching-${offer.id}`}
+            notes={offer.coaching}
+            onChange={(notes) => updateOffer({ coaching: notes })}
+            notify={notify}
+          />
           <section className="card">
             <div className="card-header">
               <div>

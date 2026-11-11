@@ -21,6 +21,10 @@ JOB_TEXT = (ROOT / 'tests/fixtures/job.txt').read_text()
 STORAGE_KEY = 'prism.workspace.v1'
 
 
+def wait_for_saved(page):
+    expect(page.locator('.save-indicator')).to_have_text(re.compile(r'^(Saved on this device|Offline · saved here)$'))
+
+
 def wait_for_initial_save(page):
     expect(page.get_by_role('heading',level=1)).to_be_visible()
     saved=page.evaluate("""async key=>{for(let i=0;i<100;i++){if(localStorage.getItem(key)!==null)return true;await new Promise(resolve=>setTimeout(resolve,20));}return false;}""",STORAGE_KEY)
@@ -95,6 +99,7 @@ def add_opportunity_journey(page):
     dialog.get_by_role('button',name='Create my plan',exact=False).click()
     expect(dialog).not_to_be_visible()
     expect(page.locator('#active-opportunity')).to_contain_text('Customer Success Specialist')
+    wait_for_saved(page)
     state=json.loads(page.evaluate('(key)=>localStorage.getItem(key)',STORAGE_KEY))
     assert len(state['opportunities'])==1
     assert len(state['opportunities'][0]['course'])>=6
@@ -116,6 +121,7 @@ def profile_journey(page):
     page.get_by_label('What matters most right now?').select_option(label='Learning and growth')
     page.get_by_role('tab', name='Profile kit').click()
     page.get_by_label('Edit professional headline').fill('Customer success specialist | Clear communication and practical problem solving')
+    wait_for_saved(page)
     page.reload()
     page.get_by_role('tab', name='Profile kit').click()
     expect(page.get_by_label('Edit professional headline')).to_have_value('Customer success specialist | Clear communication and practical problem solving')
@@ -145,6 +151,7 @@ def offer_journey(page):
     page.get_by_label('Edit your negotiation message').fill('Thank you for the offer. Could we discuss a base salary of CAD 6,500 per month?')
     page.get_by_label('I have the full offer in writing.').check()
     page.get_by_label('Where does this offer stand?').select_option('Negotiating')
+    wait_for_saved(page)
     page.reload()
     expect(page.get_by_label('Edit your negotiation message')).to_have_value('Thank you for the offer. Could we discuss a base salary of CAD 6,500 per month?')
     expect(page.get_by_label('I have the full offer in writing.')).to_be_checked()
@@ -162,6 +169,7 @@ def preparation_journey(page):
     page.locator('.quiz-options button').first.click()
     expect(page.locator('.quiz-feedback')).to_be_visible()
     page.get_by_role('button',name='Complete this lesson').click()
+    wait_for_saved(page)
     page.reload()
     page.locator('.lesson-list button').first.click()
     expect(page.get_by_label('Your working notes',exact=False)).to_have_value('I can explain the role through customer outcomes and clear handovers.')
@@ -177,6 +185,7 @@ def preparation_journey(page):
     page.get_by_role('button',name='Start practice interview').click()
     draft='I helped our team improve handovers by writing a shared guide and checking the process with five colleagues.'
     page.get_by_role('textbox',name='Your answer',exact=True).fill(draft)
+    wait_for_saved(page)
     page.reload()
     page.get_by_role('tab',name='Practice interview').click()
     expect(page.get_by_role('textbox',name='Your answer',exact=True)).to_have_value(draft)
@@ -193,6 +202,7 @@ def preparation_journey(page):
     page.get_by_role('dialog').get_by_role('button',name='Start a new round',exact=False).click()
     expect(page.get_by_role('textbox',name='Your answer',exact=True)).to_have_value('')
     expect(page.get_by_text('Previous practice rounds (1)',exact=True)).to_be_visible()
+    wait_for_saved(page)
     state=json.loads(page.evaluate('(key)=>localStorage.getItem(key)',STORAGE_KEY))
     assert len(state['opportunities'][0]['mockHistory'][0]['answers'])==8
     page.get_by_role('textbox',name='Your answer',exact=True).fill('A draft for my next practice round that should survive export and restore.')
@@ -207,6 +217,7 @@ def application_journey(page):
     draft.press_sequentially('My own honest introduction.',delay=20)
     expect(draft).to_have_value('My own honest introduction.')
     expect(draft).to_be_focused()
+    wait_for_saved(page)
     page.reload()
     page.get_by_role('button',name='Cover letter',exact=True).click()
     expect(page.get_by_role('textbox',name='Edit a letter with a reason to read on.',exact=True)).to_have_value('My own honest introduction.')
@@ -214,6 +225,8 @@ def application_journey(page):
     page.get_by_label('Every claim, date, title and qualification is accurate.').check()
     page.get_by_role('textbox',name='Application notes',exact=True).fill('Prepared my résumé and application. I will submit on the employer’s own site.')
     page.get_by_role('button',name='I’ve submitted my application').click()
+    expect(page.locator('.toast')).to_contain_text('Application recorded')
+    wait_for_saved(page)
     state=json.loads(page.evaluate('(key)=>localStorage.getItem(key)',STORAGE_KEY))
     assert state['opportunities'][0]['status']=='Applying'
 
@@ -239,11 +252,15 @@ def backup_journey(page):
     expect(dialog.get_by_role('button',name='Delete all my data',exact=True)).to_be_disabled()
     dialog.get_by_label('Type DELETE to confirm').fill('DELETE')
     dialog.get_by_role('button',name='Delete all my data',exact=True).click()
+    expect(page.get_by_role('heading',level=1)).to_contain_text('Big possibilities')
+    wait_for_saved(page)
     state=json.loads(page.evaluate('(key)=>localStorage.getItem(key)',STORAGE_KEY))
     assert state['opportunities']==[] and state['offers']==[] and state['profile']['name']==''
     route(page,'settings')
     page.get_by_label('Restore workspace backup').set_input_files(str(backup_path))
     page.get_by_role('dialog').get_by_role('button',name='Replace & restore').click()
+    expect(page.locator('.dashboard-role').first).to_be_visible()
+    wait_for_saved(page)
     restored=json.loads(page.evaluate('(key)=>localStorage.getItem(key)',STORAGE_KEY))
     assert restored['profile']['name']=='Avery Morgan'
     assert len(restored['opportunities'][0]['mockHistory'])==1
@@ -274,6 +291,7 @@ def offline_journey(page,context):
     page.get_by_role('tab',name='Practice interview').click()
     expected=page.get_by_role('textbox',name='Your answer',exact=True).input_value()
     context.set_offline(True)
+    wait_for_saved(page)
     page.reload()
     page.get_by_role('tab',name='Practice interview').click()
     expect(page.get_by_role('textbox',name='Your answer',exact=True)).to_have_value(expected)
@@ -294,6 +312,7 @@ def mobile_layout(browser, saved):
     page.goto(BASE)
     wait_for_initial_save(page)
     page.evaluate('([key,value])=>localStorage.setItem(key,value)', [STORAGE_KEY,saved])
+    wait_for_saved(page)
     page.reload()
     expect(page.locator('.dashboard-role').first).to_be_visible()
     for name in ['home','opportunities','profile','applications','prepare','offers','settings']:
@@ -310,8 +329,10 @@ def sample_journey(browser):
     page.goto(BASE)
     page.get_by_role('button',name='Try a sample',exact=True).click()
     expect(page.get_by_text('Sample role',exact=True)).to_be_visible()
+    wait_for_saved(page)
     page.reload()
     expect(page.get_by_text('Sample role',exact=True)).to_be_visible()
+    wait_for_saved(page)
     state=json.loads(page.evaluate('(key)=>localStorage.getItem(key)',STORAGE_KEY))
     assert len(state['opportunities'])==1 and state['opportunities'][0]['sample'] is True
     assert state['profile']['name']==''
@@ -326,6 +347,7 @@ def startup_failure_check(browser):
     wait_for_initial_save(page)
     original='{this is a damaged workspace'
     page.evaluate('([key,value])=>localStorage.setItem(key,value)', [STORAGE_KEY,original])
+    wait_for_saved(page)
     page.reload()
     expect(page.get_by_role('alert')).to_contain_text('saved workspace')
     assert page.evaluate('(key)=>localStorage.getItem(key)',STORAGE_KEY)==original

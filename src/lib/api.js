@@ -1,6 +1,9 @@
 const BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
-export async function requestAPI(path, body) {
+export async function requestAPI(path, body, { signal } = {}) {
   const controller = new AbortController();
+  const cancel = () => controller.abort();
+  signal?.addEventListener("abort", cancel, { once: true });
+  if (signal?.aborted) cancel();
   const timeout = setTimeout(() => controller.abort(), 45000);
   try {
     const response = await fetch(`${BASE}/api/${path}`, {
@@ -17,6 +20,7 @@ export async function requestAPI(path, body) {
       );
     return data;
   } catch (error) {
+    if (signal?.aborted) throw error;
     if (error.name === "AbortError")
       throw new Error(
         "That took too long. Try again or paste the text instead.",
@@ -28,6 +32,7 @@ export async function requestAPI(path, body) {
     throw error;
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", cancel);
   }
 }
 export async function copyText(text) {
