@@ -10,6 +10,16 @@ For a same-origin production build, run `npm run build` and set `PRISM_STATIC_DI
 
 ## Endpoints
 
+### Private phone preview
+
+The Sites phone preview uses `server/worker.js` to serve the app and the job-link API from the same origin. Build it with `npm run build:sites`; `sites-build/server/index.js` is a self-contained Cloudflare Worker, including the existing web assets. The hosting checkout retains its Sites project ID, removes the static-only manifest setting, and publishes this Worker as `dist/server/index.js`. Keep Sites access restricted to the owner. The Worker does not implement its own sign-in and must not be treated as a public authenticated production API.
+
+This preview enables job imports without an AI key. It supports established job boards and hiring platforms listed in `server/worker-import.js`. Arbitrary employer domains and redirects outside that list return an explicit paste-description fallback: Workers cannot use the Node service's DNS-pinned HTTPS transport. Private addresses, URL credentials and custom ports are rejected before fetching. Imports are bounded to three redirects, twelve seconds and 2 MiB, with four concurrent imports and sixty imports per ten minutes per isolate. These limits supplement the platform's owner-only access; they are not distributed per-user quotas.
+
+Blocked job sites, including Indeed pages that require a browser or sign-in, return `SITE_BLOCKED`; expired ads return `JOB_NOT_FOUND`; unsupported domains return `UNSUPPORTED_JOB_HOST`. The app offers the original job page and a paste-description action while preserving the source link. This does not bypass login, CAPTCHA or job-board access controls. AI coaching and professional web research remain disabled in this preview and are reported as unavailable by `/api/health`.
+
+Run `node --test tests/worker.test.js tests/worker-import.test.js tests/api.test.js` for the Worker and client error contracts. A live Lever posting import was verified separately; individual job sites can still refuse an import. Hosted deployment success is separate from browser verification.
+
 `GET /api/health` returns `ok`, `version`, `capabilities: {jobImport, aiCoach, webResearch}`, `model`, and non-secret `privacy` metadata. `privacy.storesContent: false` describes this service's code only, not hosting or provider retention.
 
 `GET /api/ready` returns the same shape, with `ready: true` only after any configured static app build was found. It returns 503 if that build is absent. Health remains a liveness check; readiness does not verify an external website, OpenAI credentials, a gateway, public policies, or Apple distribution. `node server/healthcheck.js` is the container probe. `node server/smoke.mjs https://your-real-host` checks the app, API, headers, asset MIME/cache behavior and denied private paths without calling any external provider.

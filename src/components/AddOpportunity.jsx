@@ -1,5 +1,5 @@
 import { handleTabKeys } from "../lib/accessibility.js";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   FileText,
   Link2,
@@ -10,6 +10,7 @@ import {
   LoaderCircle,
   ShieldCheck,
   Info,
+  ExternalLink,
 } from "lucide-react";
 import Modal from "./Modal.jsx";
 import { analyzeJob } from "../../engine.js";
@@ -24,6 +25,7 @@ export default function AddOpportunity({ onClose, onCreate, capabilities }) {
     [company, setCompany] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
+    [importFailure, setImportFailure] = useState(null),
     [fileName, setFileName] = useState(""),
     [notice, setNotice] = useState("");
   const [intake, setIntake] = useState({
@@ -34,9 +36,13 @@ export default function AddOpportunity({ onClose, onCreate, capabilities }) {
     }),
     [interviewDate, setInterviewDate] = useState(""),
     [interviewerName, setInterviewerName] = useState("");
-  const alive = useRef(true);
+  const descriptionInput = useRef(null);
+  useEffect(() => {
+    if (mode === "text") descriptionInput.current?.focus();
+  }, [mode]);
   async function importLink() {
     setError("");
+    setImportFailure(null);
     setNotice("");
     if (!safeURL(url)) {
       setError("Add a full job link, starting with https://.");
@@ -54,10 +60,19 @@ export default function AddOpportunity({ onClose, onCreate, capabilities }) {
       );
       setMode("text");
     } catch (e) {
-      setError(
-        e.message +
-          " Some job sites block imports; copying the description works just as well.",
-      );
+      if (["INVALID_URL", "UNSAFE_URL"].includes(e.code)) setError(e.message);
+      else
+        setImportFailure({
+          title:
+            e.code === "SERVICE_UNAVAILABLE"
+              ? "Link importing is temporarily unavailable"
+              : e.code === "SITE_BLOCKED"
+                ? "This site needs you to open the job page"
+                : e.code === "JOB_NOT_FOUND"
+                  ? "This job page may have moved or expired"
+                  : "Let’s add this job another way",
+          message: e.message,
+        });
     } finally {
       setBusy(false);
     }
@@ -162,10 +177,12 @@ export default function AddOpportunity({ onClose, onCreate, capabilities }) {
                   role="tab"
                   tabIndex={mode === id ? 0 : -1}
                   aria-selected={mode === id}
+                  disabled={busy}
                   className={mode === id ? "active" : ""}
                   onClick={() => {
                     setMode(id);
                     setError("");
+                    setImportFailure(null);
                   }}
                 >
                   <Icon size={16} />
@@ -178,6 +195,7 @@ export default function AddOpportunity({ onClose, onCreate, capabilities }) {
                 <label className="field">
                   Job description
                   <textarea
+                    ref={descriptionInput}
                     data-autofocus
                     value={job}
                     onChange={(e) => setJob(e.target.value)}
@@ -197,20 +215,27 @@ export default function AddOpportunity({ onClose, onCreate, capabilities }) {
                     Link to the job ad
                     <input
                       type="url"
+                      disabled={busy}
                       value={url}
-                      onChange={(e) => setURL(e.target.value)}
+                      onChange={(e) => {
+                        setURL(e.target.value);
+                        setImportFailure(null);
+                        setError("");
+                      }}
                       maxLength={2000}
-                      placeholder="https://company.com/careers/your-next-role"
+                      placeholder="https://jobs.lever.co/company/your-next-role"
                     />
                   </label>
-                  <div className="callout subtle">
-                    <Link2 size={19} />
-                    <p>
-                      We’ll read this public page through Momentum’s import
-                      service. Some sites require a login or block imports. In
-                      that case, paste the description instead.
-                    </p>
-                  </div>
+                  {!importFailure && (
+                    <div className="callout subtle">
+                      <Link2 size={19} />
+                      <p>
+                        We’ll try to read this public page through Momentum’s
+                        import service. Some sites require a login or block
+                        imports. In that case, paste the description instead.
+                      </p>
+                    </div>
+                  )}
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -224,6 +249,49 @@ export default function AddOpportunity({ onClose, onCreate, capabilities }) {
                     )}{" "}
                     {busy ? "Reading the job ad…" : "Import job description"}
                   </button>
+                  {importFailure && (
+                    <div
+                      className="callout subtle import-recovery"
+                      role="alert"
+                    >
+                      <Info size={19} />
+                      <div>
+                        <strong>{importFailure.title}</strong>
+                        <p>{importFailure.message}</p>
+                        <p>
+                          Open the job ad and copy its responsibilities and
+                          requirements. Then paste them here to create your
+                          plan.
+                        </p>
+                        <div className="import-recovery-actions">
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => {
+                              setMode("text");
+                              setError("");
+                              setImportFailure(null);
+                              setNotice(
+                                "We’ll keep your job link with this opportunity. Paste the job description below.",
+                              );
+                            }}
+                          >
+                            <FileText size={16} /> Paste description instead
+                          </button>
+                          {safeURL(url) && (
+                            <a
+                              className="btn btn-secondary"
+                              href={safeURL(url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Open job page <ExternalLink size={15} />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {mode === "file" && (

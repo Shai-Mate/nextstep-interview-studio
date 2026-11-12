@@ -1,4 +1,4 @@
-const BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+const BASE = (import.meta.env?.VITE_API_BASE_URL || "").replace(/\/$/, "");
 export async function requestAPI(path, body, { signal } = {}) {
   const controller = new AbortController();
   const cancel = () => controller.abort();
@@ -13,21 +13,29 @@ export async function requestAPI(path, body, { signal } = {}) {
       signal: controller.signal,
     });
     const data = await response.json().catch(() => null);
-    if (!response.ok || !data)
-      throw new Error(
+    if (!response.ok || !data) {
+      const error = new Error(
         data?.error?.message ||
-          "This service isn’t connected right now. You can continue with the tools on this device.",
+          "The online service isn’t available right now. Please try again shortly.",
       );
+      error.code = data?.error?.code || "SERVICE_UNAVAILABLE";
+      error.status = response.status;
+      throw error;
+    }
     return data;
   } catch (error) {
     if (signal?.aborted) throw error;
     if (error.name === "AbortError")
-      throw new Error(
-        "That took too long. Try again or paste the text instead.",
+      throw Object.assign(
+        new Error("That took too long. Try again or paste the text instead."),
+        { code: "REQUEST_TIMEOUT" },
       );
     if (error instanceof TypeError)
-      throw new Error(
-        "The online service isn’t available. Check your connection, or paste the text instead.",
+      throw Object.assign(
+        new Error(
+          "The online service isn’t available. Check your connection, or paste the text instead.",
+        ),
+        { code: "SERVICE_UNAVAILABLE" },
       );
     throw error;
   } finally {
