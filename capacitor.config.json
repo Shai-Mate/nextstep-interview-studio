@@ -1,0 +1,25 @@
+{
+  "appId": "com.prism.momentum",
+  "appName": "Momentum",
+  "webDir": "dist",
+  "backgroundColor": "#f6f7f3",
+  "ios": {
+    "contentInset": "never",
+    "allowsLinkPreview": false,
+    "preferredContentMode": "mobile"
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "LIGHT",
+      "backgroundColor": "#f6f7f3",
+      "overlaysWebView": true
+    }
+  },
+  "experimental": {
+    "ios": {
+      "spm": {
+        "swiftToolsVersion": "6.0"
+      }
+    }
+  }
+}

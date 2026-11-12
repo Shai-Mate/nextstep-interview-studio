@@ -1,0 +1,43 @@
+{
+  "name": "momentum-career",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Momentum by Prism — a clear path from opportunity to offer.",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "node scripts/generate-notices.mjs && vite build && node scripts/build-offline.mjs",
+    "build:sites": "npm run build && node scripts/build-sites.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test tests/*.test.js",
+    "server": "node server/index.js",
+    "native:sync": "npm run build && cap sync ios",
+    "format:check": "prettier --check src engine.js server scripts tests/*.test.js index.html vite.config.js package.json capacitor.config.json",
+    "test:e2e": "python tests/e2e.py",
+    "test:a11y": "python tests/accessibility.py"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/filesystem": "^8.0.0",
+    "@capacitor/haptics": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
+    "@capacitor/share": "^8.0.0",
+    "@capacitor/status-bar": "^8.0.0",
+    "lucide-react": "^0.468.0",
+    "mammoth": "^1.13.0",
+    "pdfjs-dist": "^6.5.438",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.0.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "axe-core": "^4.14.0",
+    "esbuild": "^0.25.12",
+    "prettier": "^3.9.10",
+    "vite": "^6.4.0"
+  },
+  "engines": {
+    "node": ">=24.5.0"
+  }
+}
