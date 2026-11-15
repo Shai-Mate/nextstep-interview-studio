@@ -1,16 +1,18 @@
 'use strict';
-const CACHE = 'nextstep-phone-v3';
+const CACHE = 'nextstep-phone-v4';
 const ASSETS = [
   './index.html',
-  './styles.css?v=3',
-  './engine.js?v=3',
-  './orb.js?v=3',
-  './app.js?v=3',
-  './pwa.js?v=3',
-  './manifest.webmanifest?v=3',
-  './icon-192.png?v=3',
-  './icon-512.png?v=3',
-  './apple-touch-icon.png?v=3',
+  './styles.css?v=4',
+  './engine.js?v=4',
+  './orb.js?v=4',
+  './app.js?v=4',
+  './pwa.js?v=4',
+  './manifest.webmanifest?v=4',
+  './favicon.png?v=4',
+  './icon-192.png?v=4',
+  './icon-512.png?v=4',
+  './apple-touch-icon.png?v=4',
+  './nextstep_icon_1024.png?v=4',
   './noise.png',
   './fonts/dm-sans-400.woff2',
   './fonts/dm-sans-500.woff2',
