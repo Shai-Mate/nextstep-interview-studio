@@ -509,7 +509,7 @@ The hosting provider receives normal requests for the app files, not your typed 
       <label class="field" for="import">Restore a backup</label>
       <input class="file" id="import" type="file" accept="application/json,.json">
       <button type="button" class="text-btn danger" id="delete-all">Delete all data</button>
-      <p class="version">Phone app v6 · storage schema v1 · rules-based preparation</p>
+      <p class="version">Phone app v7 · storage schema v1 · rules-based preparation</p>
     </div>`;
   }
 };

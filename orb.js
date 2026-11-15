@@ -232,7 +232,7 @@
       D = 2 * ss(tau);
       if (tau >= 1) { st = 'gap'; w = 0; }
     } else if (st === 'gap') {
-      if ((w += dt) > 0.45) { st = 'in'; tau = 0; mode = 1; }
+      if ((w += dt) > 0.18) { st = 'in'; tau = 0; mode = 1; }
     }
 
     envA += (envT - envA) * (1 - Math.exp(-dt * 7));
@@ -331,18 +331,17 @@
 
   function drawGlass(x, y, radius, form, beatAmt, voiceAmt) {
     if (form < 0.02 || radius < 4) return;
-    const breathe = reduced ? 0 : Math.sin(t * 0.55) * 0.012 * radius;
+    const breathe = reduced ? 0 : Math.sin(t * 1.7) * 0.008 * radius;
     const r = radius + breathe;
-    const glowA = (0.1 + 0.55 * eA + voiceAmt * 0.35) * form * (0.4 + 0.6 * envA);
+    const glowA = (0.22 + 0.35 * eA) * form;
     cg.save();
-    const glow = cg.createRadialGradient(x, y, r * 0.2, x, y, r * (2.15 + 0.25 * eA));
-    glow.addColorStop(0, 'rgba(255,186,140,' + (0.55 * glowA) + ')');
-    glow.addColorStop(0.35, 'rgba(196,92,150,' + (0.28 * glowA) + ')');
-    glow.addColorStop(0.7, 'rgba(90,40,120,' + (0.12 * glowA) + ')');
-    glow.addColorStop(1, 'rgba(40,10,50,0)');
+    const glow = cg.createRadialGradient(x, y, r * 0.72, x, y, r * 1.45);
+    glow.addColorStop(0, 'rgba(255,176,130,' + (0.28 * glowA) + ')');
+    glow.addColorStop(0.55, 'rgba(180,70,130,' + (0.1 * glowA) + ')');
+    glow.addColorStop(1, 'rgba(80,20,70,0)');
     cg.fillStyle = glow;
     cg.beginPath();
-    cg.arc(x, y, r * 2.4, 0, Math.PI * 2);
+    cg.arc(x, y, r * 1.45, 0, Math.PI * 2);
     cg.fill();
 
     cg.beginPath();
@@ -350,69 +349,46 @@
     cg.clip();
     cg.globalAlpha = form;
 
-    const body = cg.createRadialGradient(x - r * 0.28, y - r * 0.34, r * 0.02, x + r * 0.08, y + r * 0.1, r * 1.05);
-    const core = clamp(0.4 + 0.6 * eA + beatAmt * 0.4 + voiceAmt * 0.9, 0, 1.35);
-    body.addColorStop(0, 'rgba(255,250,246,' + clamp(core, 0, 1) + ')');
-    body.addColorStop(0.1, 'rgba(255,220,196,' + clamp(0.95 + voiceAmt * 0.2, 0, 1) + ')');
-    body.addColorStop(0.22, '#FFB184');
-    body.addColorStop(0.4, '#E36B86');
-    body.addColorStop(0.62, '#8C3D86');
-    body.addColorStop(0.84, '#3A1B4A');
-    body.addColorStop(1, '#1A0C22');
+    const coreShift = reduced ? 0 : Math.sin(t * 1.7) * 0.015;
+    const body = cg.createRadialGradient(x - r * (0.22 + coreShift), y - r * 0.28, r * 0.04, x + r * 0.05, y + r * 0.08, r);
+    const peach = clamp(0.82 + 0.12 * eA + beatAmt * 0.25 + voiceAmt * 0.45, 0, 1);
+    body.addColorStop(0, 'rgba(255,214,176,' + peach + ')');
+    body.addColorStop(0.16, '#FFB184');
+    body.addColorStop(0.34, '#F08A78');
+    body.addColorStop(0.55, '#C45A90');
+    body.addColorStop(0.78, '#6A3478');
+    body.addColorStop(1, '#241228');
     cg.fillStyle = body;
     cg.fillRect(x - r, y - r, r * 2, r * 2);
 
-    cg.globalCompositeOperation = 'lighter';
-    const spin = reduced ? 0.6 : t;
-    const blobs = [
-      { a: spin * 0.35, d: 0.22, col: 'rgba(255,196,140,.55)', s: 0.42 },
-      { a: spin * -0.22 + 2, d: 0.3, col: 'rgba(255,120,150,.28)', s: 0.5 },
-      { a: spin * 0.18 + 4, d: 0.16, col: 'rgba(170,120,255,.22)', s: 0.46 }
-    ];
-    for (const b of blobs) {
-      const bx = x + Math.cos(b.a) * r * b.d + tx * r * 0.04;
-      const by = y + Math.sin(b.a * 1.3) * r * b.d * 0.8 + ty * r * 0.04;
-      const g = cg.createRadialGradient(bx, by, 0, bx, by, r * b.s);
-      g.addColorStop(0, b.col);
-      g.addColorStop(1, 'rgba(255,180,140,0)');
-      cg.fillStyle = g;
-      cg.beginPath();
-      cg.arc(bx, by, r * b.s, 0, Math.PI * 2);
-      cg.fill();
-    }
-    cg.globalCompositeOperation = 'source-over';
-
-    const hx = x - r * 0.32 + tx * r * 0.05;
-    const hy = y - r * 0.36 + ty * r * 0.04;
-    const glint = cg.createRadialGradient(hx, hy, 0, hx, hy, r * 0.34);
-    glint.addColorStop(0, 'rgba(255,255,255,' + (0.92 * form) + ')');
-    glint.addColorStop(0.28, 'rgba(255,236,220,' + (0.35 * form) + ')');
-    glint.addColorStop(1, 'rgba(255,236,220,0)');
-    cg.fillStyle = glint;
+    const spin = reduced ? 0.4 : t * 1.15;
+    const cx1 = x + Math.cos(spin) * r * 0.16;
+    const cy1 = y + Math.sin(spin * 1.2) * r * 0.12;
+    const caustic = cg.createRadialGradient(cx1, cy1, 0, cx1, cy1, r * 0.42);
+    caustic.addColorStop(0, 'rgba(255,186,140,0.22)');
+    caustic.addColorStop(1, 'rgba(255,186,140,0)');
+    cg.fillStyle = caustic;
     cg.beginPath();
-    cg.arc(hx, hy, r * 0.34, 0, Math.PI * 2);
+    cg.arc(cx1, cy1, r * 0.42, 0, Math.PI * 2);
     cg.fill();
 
-    const sheen = cg.createRadialGradient(x - r * 0.1, y - r * 0.2, r * 0.1, x, y, r);
-    sheen.addColorStop(0, 'rgba(255,244,236,.18)');
-    sheen.addColorStop(0.55, 'rgba(255,244,236,0)');
-    sheen.addColorStop(1, 'rgba(20,8,24,.25)');
-    cg.fillStyle = sheen;
+    const hx = x - r * 0.30;
+    const hy = y - r * 0.34;
+    const glint = cg.createRadialGradient(hx, hy, 0, hx, hy, r * 0.16);
+    glint.addColorStop(0, 'rgba(255,252,248,' + (0.85 * form) + ')');
+    glint.addColorStop(0.45, 'rgba(255,228,206,' + (0.28 * form) + ')');
+    glint.addColorStop(1, 'rgba(255,228,206,0)');
+    cg.fillStyle = glint;
+    cg.beginPath();
+    cg.arc(hx, hy, r * 0.16, 0, Math.PI * 2);
+    cg.fill();
+
+    const rim = cg.createRadialGradient(x, y, r * 0.72, x, y, r);
+    rim.addColorStop(0, 'rgba(255,210,180,0)');
+    rim.addColorStop(1, 'rgba(255,196,170,0.22)');
+    cg.fillStyle = rim;
     cg.fillRect(x - r, y - r, r * 2, r * 2);
-
-    cg.globalAlpha = 0.55 * form;
-    cg.strokeStyle = 'rgba(255,196,160,.7)';
-    cg.lineWidth = Math.max(1, r * 0.035);
-    cg.beginPath();
-    cg.arc(x + r * 0.46, y, r * 0.72, -0.9, 0.9);
-    cg.stroke();
     cg.restore();
-
-    cg.beginPath();
-    cg.arc(x, y, r - 0.5, 0, Math.PI * 2);
-    cg.strokeStyle = 'rgba(255,220,200,' + (0.28 * form) + ')';
-    cg.lineWidth = 1.25;
-    cg.stroke();
   }
 
   function drawParticles(x, y, radius) {
@@ -424,7 +400,7 @@
       const u = clamp(D - p.e, 0, 1);
       const s = ss(u);
       let px, py, pz, al, sz;
-      if (p.spark && D < 0.35) {
+      if (p.spark && D > 0.08 && D < 1.15) {
         const ro = 1.18 + 0.55 * p.rnd[1];
         const th = p.rnd[0] * 6.2832 + (reduced ? 0 : t * 0.45) / Math.pow(ro, 1.2);
         const bx = p.x;
@@ -453,10 +429,10 @@
         sz = (1.4 + 2.4 * p.rnd[2]) * k;
       } else {
         const wob = reduced ? 0 : 1;
-        px = p.x * (1 + 0.22 * s) + 0.9 * (0.45 + 2.4 * p.rnd[1]) * s * s + Math.sin(p.y * 3.7 + t * 0.9) * 0.18 * s * wob;
+        px = p.x * (1 + 0.22 * s) + 0.55 * (0.35 + 1.15 * p.rnd[1]) * s * s + Math.sin(p.y * 3.7 + t * 1.4) * 0.22 * s * wob;
         py = p.y * (1 + 0.18 * s) + 0.35 * s * s + Math.cos(p.z * 3.1 + t * 0.7) * 0.14 * s * wob;
         pz = p.z * (1 + 0.2 * s) + 0.25 * s * s;
-        al = sm(0, 0.08, u) * (1 - sm(0.62, 1, u)) * (0.5 + 0.5 * p.rnd[2]);
+        al = sm(0, 0.05, u) * (1 - sm(0.9, 1, u)) * (0.55 + 0.45 * p.rnd[2]);
         sz = (1.3 + 2.2 * p.rnd[2]) * (1 - 0.35 * u) * k;
       }
       if (al < 0.04) continue;
@@ -468,6 +444,23 @@
       const spriteIdx = p.hue < 0.34 ? 0 : p.hue < 0.58 ? 1 : p.hue < 0.8 ? 2 : 3;
       cg.globalAlpha = clamp(al, 0, 0.9);
       cg.drawImage(sprites[spriteIdx], sx - size, sy - size, size * 2, size * 2);
+    }
+    cg.restore();
+  }
+
+  function drawBridge(x, y, radius) {
+    if (D < 1.05) return;
+    cg.save();
+    cg.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 56; i++) {
+      const speed = 2.2 + (i % 5) * 0.7;
+      const a = t * speed + i * 0.67;
+      const rad = radius * (0.18 + (i % 8) * 0.14);
+      const sx = x + Math.cos(a) * rad;
+      const sy = y + Math.sin(a * 1.13 + i * 0.35) * rad;
+      const s = 2.4 + (i % 4) * 0.9;
+      cg.globalAlpha = 0.5 + 0.35 * Math.sin(t * 5 + i);
+      cg.drawImage(sprites[i % 4], sx - s, sy - s, s * 2, s * 2);
     }
     cg.restore();
   }
@@ -509,6 +502,7 @@
     drawGlass(x, y, R, Math.max(form, still ? 1 : form), still ? 0 : beatAmt, still ? 0 : voiceAmt);
     if (!still) {
       drawParticles(x, y, R);
+      drawBridge(x, y, R);
       drawRings(x, y, R);
     }
   }
