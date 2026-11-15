@@ -298,10 +298,7 @@ const screens = {
       <p class="role-name">${esc(p.role)}</p>
       <p class="muted">${esc(p.company)} · ${esc(p.intake.stage)}</p>
       <div class="glass pad">
-        <div class="session-top">
-          <div class="copy"><div class="min-left">${allDone ? 'All lessons complete' : left + ' min left'}</div><div class="session-kicker">Today's ${budgetOf(p)}-minute session</div></div>
-          <div class="orb-slot sm"><div class="orb-anchor sm" data-orb data-env=".4" data-s=".8" data-up="120,50" data-down="40,110" data-energy="${glow(p)}"></div></div>
-        </div>
+        <div class="session-head"><div class="min-left">${allDone ? 'All lessons complete' : left + ' min left'}</div><div class="session-kicker">Today's ${budgetOf(p)}-minute session</div></div>
         <h2 class="session-title">${esc(lesson.title)}</h2>
         <p class="upnow">${allDone ? 'Review any lesson' : 'Up now · Lesson ' + (idx + 1) + ' of ' + p.course.length}</p>
         ${segs(p.course.length, p.course.filter((c) => c.done).length, allDone ? -1 : idx)}
@@ -417,7 +414,7 @@ const screens = {
     return `<div class="screen" data-screen="mock">
       <div class="topbar tight">${iconBtn('close-today', 'Close', I.close)}<span class="center">Mock interview</span><span class="count">${m.index + 1} of ${p.questions.length}</span></div>
       ${segs(p.questions.length, m.index, m.index)}
-      <div class="ask"><p class="italic">The interviewer asks</p><div class="orb-slot md"><div class="orb-anchor md" data-orb data-env=".45" data-s=".7" data-up="100,45" data-down="45,100" data-energy="${glow(p)}" data-voice="1"></div></div></div>
+      <p class="italic ask-line">The interviewer asks</p>
       <p class="question" data-say="1">${esc(q)}</p>
       ${excerpt ? `<div class="glass pad-sm quote"><div class="kicker">From your job ad</div><p>${esc(excerpt)}</p></div>` : ''}
       <div class="chips" role="group" aria-label="Answer shape">${Object.keys(STAR).map((name) => `<button type="button" class="chip" data-star="${name}" aria-pressed="${name === star}">${name}</button>`).join('')}</div>

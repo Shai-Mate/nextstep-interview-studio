@@ -249,11 +249,10 @@ h1 { font-size: 28px; font-weight: 600; letter-spacing: -.035em; line-height: 1.
 .glass.button strong, .row strong { display: block; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
 .glass.button span, .row em { display: block; font-style: normal; font-size: 13px; color: var(--muted); margin-top: 2px; font-weight: 400; }
 
-.session-top { display: flex; align-items: stretch; min-height: 64px; }
-.session-top .copy { flex: 1; display: flex; flex-direction: column; justify-content: space-between; padding: 4px 0; }
+.session-head { display: flex; flex-direction: column; gap: 2px; padding-top: 8px; }
 .min-left { font-size: 13px; font-weight: 500; }
 .session-kicker { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
-.session-title { font-size: 22px; font-weight: 600; letter-spacing: -.03em; line-height: 1.18; margin-top: 8px; }
+.session-title { font-size: 22px; font-weight: 600; letter-spacing: -.03em; line-height: 1.18; margin-top: 14px; }
 .upnow { font-size: 14px; color: var(--soft); margin-top: 8px; }
 .kicker { font-size: 11px; letter-spacing: .08em; color: var(--amber); font-weight: 600; text-transform: uppercase; }
 .quote p { font-size: 15px; line-height: 1.5; color: #E6DBE4; margin-top: 8px; }
@@ -381,6 +380,7 @@ label.field.tight { margin: 8px 0 6px; }
 
 .ask { display: flex; align-items: center; gap: 16px; min-height: 72px; }
 .ask .italic { flex: 1; font-size: 30px; margin: 0; }
+.ask-line { font-size: 30px; margin: 8px 0 10px; }
 .question { font-size: 20px; font-weight: 600; letter-spacing: -.025em; line-height: 1.25; }
 .check { display: flex; gap: 12px; margin-top: 12px; }
 .check svg { flex: none; margin-top: 2px; }
