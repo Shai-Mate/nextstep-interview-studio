@@ -130,12 +130,89 @@ function coreLive(text) {
   const words = wordCount(text);
   return { words, seconds: Math.round((words / 140) * 60), star: null };
 }
+function coreStarPips(star) {
+  if (!star || typeof star !== 'object') return '';
+  const n = ['situation', 'task', 'action', 'result'].filter((k) => star[k]).length;
+  return `<span class="star-pips" role="img" title="Situation, Task, Action, Result" aria-label="Situation, Task, Action, Result: ${n} of 4 covered">${[['situation', 'S'], ['task', 'T'], ['action', 'A'], ['result', 'R']].map(([k, l]) => `<i class="${star[k] ? 'on' : ''}" aria-hidden="true">${l}</i>`).join('')}</span>`;
+}
 function coreLiveHtml(text) {
   const r = coreLive(text);
   const secs = Math.max(0, Math.round(r.seconds || 0));
   const spoken = !r.words ? 'Nothing yet' : r.words + (r.words === 1 ? ' word' : ' words') + ' · about ' + (secs < 60 ? secs + ' s' : Math.floor(secs / 60) + ' min ' + String(secs % 60).padStart(2, '0') + ' s') + ' aloud';
-  const star = r.star && typeof r.star === 'object' ? `<span class="star-pips" role="img" title="Situation, Task, Action, Result" aria-label="Situation, Task, Action, Result: ${['situation', 'task', 'action', 'result'].filter((k) => r.star[k]).length} of 4 covered">${[['situation', 'S'], ['task', 'T'], ['action', 'A'], ['result', 'R']].map(([k, l]) => `<i class="${r.star[k] ? 'on' : ''}" aria-hidden="true">${l}</i>`).join('')}</span>` : '';
-  return `<span>${spoken}</span>${star}`;
+  return `<span>${spoken}</span>${coreStarPips(r.star)}`;
+}
+/* Interview day: one calm page built only from the user's own preparation. */
+let coreDayFrom = 'today';
+const CORE_DAY_CHECKS = [
+  'Know your route, and plan to arrive 10 to 15 minutes early',
+  'Bring what they asked for: ID, your CV or résumé, any certificates, a pen',
+  'Clothes that suit the workplace: clean, neat and comfortable',
+  'Video call? Test the link, camera and sound 15 minutes before',
+  'Read your best stories once, out loud if you can',
+  'Phone on silent before you walk in'
+];
+const CORE_DAY_TIPS = [
+  ['Breathe out slowly before you go in', 'One long breath out, longer than the breath in, tells your body it is safe.'],
+  ['It is fine to pause', 'Take a moment to think, or ask them to repeat the question. Interviewers expect it.'],
+  ['A gap is something you are learning', 'Not something to hide. Say what you would do to learn it, and give an example of learning something fast.']
+];
+function coreBestStories(p) {
+  const best = new Map();
+  const add = (question, text) => {
+    const t = String(text || '').trim();
+    if (!t || typeof question !== 'string' || !question) return;
+    const r = coreLive(t);
+    const parts = r.star && typeof r.star === 'object' ? ['situation', 'task', 'action', 'result'].filter((k) => r.star[k]).length : 0;
+    const score = parts * 1000 + Math.min(r.words || 0, 400);
+    const prev = best.get(question);
+    if (!prev || score > prev.score) best.set(question, { question, text: t, star: r.star, score });
+  };
+  p.questions.forEach((q, i) => add(q, p.notes['answer-' + i]));
+  p.mock.answers.forEach((a) => add(a && a.question, a && a.text));
+  return [...best.values()].sort((x, y) => y.score - x.score).slice(0, 3);
+}
+function coreFirstWords(text, n) {
+  const w = String(text || '').trim().split(/\s+/);
+  return w.slice(0, n).join(' ') + (w.length > n ? '…' : '');
+}
+function coreAdWords(a) {
+  const out = [];
+  const seen = new Set();
+  for (const w of [...(a && Array.isArray(a.skills) ? a.skills : []), ...(a && Array.isArray(a.keywords) ? a.keywords : [])]) {
+    if (typeof w !== 'string') continue;
+    const t = w.trim();
+    const k = t.toLowerCase();
+    if (!t || t.length > 60 || seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+    if (out.length >= 10) break;
+  }
+  return out;
+}
+function coreAskThem(p) {
+  const out = [];
+  (Array.isArray(p.questionInfo) ? p.questionInfo : []).forEach((info) => {
+    if (!info || info.kind !== 'closing' || !Array.isArray(info.include)) return;
+    info.include.forEach((x) => { if (typeof x === 'string' && x.trim().length < 200 && /\?\s*$/.test(x)) out.push(x.trim()); });
+  });
+  const role = String(p.role || '').trim();
+  const who = role && role !== 'New opportunity' ? 'a new ' + role : 'someone new in this job';
+  [`What does a great first month look like for ${who}?`, 'What is the hardest part of this job, and how does the team help with it?', 'What happens after today, and when might I hear back?']
+    .forEach((d) => out.push(d));
+  return [...new Set(out)].slice(0, 3);
+}
+function coreBindDay() {
+  document.querySelectorAll('input[data-day]').forEach((box) => {
+    box.addEventListener('change', () => {
+      if (!active) return;
+      active.notes['day-' + box.dataset.day] = box.checked ? '1' : '';
+      save();
+      box.closest('.tick-row')?.classList.toggle('ticked', box.checked);
+      const n = document.querySelectorAll('input[data-day]:checked').length;
+      const count = $('#day-count');
+      if (count) count.textContent = n === CORE_DAY_CHECKS.length ? 'All set' : n + ' of ' + CORE_DAY_CHECKS.length;
+    });
+  });
 }
 
 let records = [];
@@ -258,7 +335,7 @@ function mockLine(p) {
    canvases, needs no View Transitions support (older iOS Safari included) and is skipped
    under prefers-reduced-motion. show(view, { keep: true }) re-renders in place: scroll kept,
    no entrance motion (used for quiz answers, rename, mark incomplete). */
-const CORE_DEPTH = { welcome: 0, today: 1, learn: 1, practise: 1, progress: 1, lessons: 3, privacy: 3 };
+const CORE_DEPTH = { welcome: 0, today: 1, learn: 1, practise: 1, progress: 1, interviewday: 2, lessons: 3, privacy: 3 };
 function show(next, opts) {
   const from = view;
   view = next;
@@ -403,6 +480,7 @@ const screens = {
         <button type="button" class="primary" data-action="continue"><span>${allDone ? 'Review lessons' : 'Continue'}</span>${I.arrow}</button>
       </div>
       ${decoded}
+      <button type="button" class="glass button day-entry" data-action="open-day"><span class="copy"><strong>Interview day</strong><span>Your best stories, words to use and a calm checklist</span></span>${I.chev}</button>
       <div class="glass flat" aria-label="${pct} percent prepared">
         <div class="stat-row">${ring(pct)}<div><strong>Preparation so far</strong><p class="muted">${st.done} of ${st.total} steps done. ${st.done ? 'Keep going, one small step at a time.' : 'Start with today’s first lesson.'}</p></div></div>
         <div class="stat-grid">
@@ -459,6 +537,7 @@ const screens = {
       ${readyHtml}
       <div class="bars">${rows.map(([name, done, total]) => `<div><div class="bar-row"><span>${name}</span><span>${done} of ${total}</span></div>${bar(total ? (done / total) * 100 : 0)}</div>`).join('')}</div>
       <div class="spacer"></div>
+      <button type="button" class="row" data-action="open-day"><span class="copy"><strong>Interview day</strong><em>One page for the big day</em></span>${I.chev}</button>
       <button type="button" class="row" data-action="privacy"><span class="lock">${I.lock}</span><span class="copy"><strong>Privacy and your data</strong></span>${I.chev}</button>
     `);
   },
@@ -597,6 +676,51 @@ const screens = {
       <p class="italic lg">From the ad, not assumptions.</p>
       <p class="sub">These are excerpts, not verified facts about the employer. Confirm the priorities with your interviewer.</p>
       ${body}
+    </div>`;
+  },
+  interviewday() {
+    const p = active;
+    const a = analysisOf(p);
+    const stories = coreBestStories(p);
+    const words = coreAdWords(a);
+    const ask = coreAskThem(p);
+    const ticked = CORE_DAY_CHECKS.filter((_, n) => p.notes['day-' + n] === '1').length;
+    const role = String(p.role || '').trim();
+    return `<div class="screen day" data-screen="interviewday">
+      <div class="topbar">${iconBtn('day-back', 'Back', I.back)}<span class="label">Interview day</span></div>
+      <h1>Interview day</h1>
+      <p class="italic lg">${stories.length ? 'You’ve done the work.' : 'You know more than you think.'}</p>
+      <p class="sub">${esc(role)}${p.company ? ' · ' + esc(p.company) : ''}. Read this the night before, and again in the last ten minutes.</p>
+      <section class="glass day-card" aria-labelledby="day-stories">
+        <p class="kicker" id="day-stories">Your best stories</p>
+        ${stories.length ? `<ol class="stories">${stories.map((st) => `<li><p class="story-q">${esc(st.question)}</p><p class="story-text">${esc(coreFirstWords(st.text, 25))}</p>${coreStarPips(st.star)}</li>`).join('')}</ol>
+          <p class="hint">Your own words, from your answer bank and mock interview. Tell each one as Situation, Task, Action, Result.</p>`
+        : `<p class="day-empty">You have not written a story yet. One true example is enough to start: a time you helped someone, fixed something or learned fast.</p>
+          <button type="button" class="primary day-go" data-action="open-answers"><span>Write my first story</span>${I.arrow}</button>`}
+      </section>
+      <section class="glass day-card" aria-labelledby="day-words">
+        <p class="kicker" id="day-words">Words from the ad to use naturally</p>
+        ${words.length ? `<div class="tags day-words">${words.map((w) => `<b class="tag">${esc(w)}</b>`).join('')}</div><p class="hint">Use them when they are true for you. Their words, your examples.</p>`
+        : '<p class="day-plain">Read the job ad once more and pick three words they use for the work. Use them when they fit your examples.</p>'}
+      </section>
+      <section class="glass day-card" aria-labelledby="day-ask">
+        <p class="kicker" id="day-ask">Questions to ask them</p>
+        <ul class="ask-list">${ask.map((q) => `<li>${esc(q)}</li>`).join('')}</ul>
+      </section>
+      <section class="glass day-card" aria-labelledby="day-before">
+        <div class="card-head"><p class="kicker" id="day-before">Before you go</p><span class="muted" id="day-count">${ticked === CORE_DAY_CHECKS.length ? 'All set' : ticked + ' of ' + CORE_DAY_CHECKS.length}</span></div>
+        <div class="ticks">${CORE_DAY_CHECKS.map((t, n) => {
+          const on = p.notes['day-' + n] === '1';
+          return `<label class="tick-row${on ? ' ticked' : ''}"><input type="checkbox" data-day="${n}" ${on ? 'checked' : ''}><span class="box" aria-hidden="true">${I.check}</span><span class="tick-text">${esc(t)}</span></label>`;
+        }).join('')}</div>
+      </section>
+      <section class="glass day-card" aria-labelledby="day-calm">
+        <p class="kicker" id="day-calm">If you feel nervous</p>
+        <div class="stack">${CORE_DAY_TIPS.map(([t, d], n) => `<div class="point"><i>${n + 1}</i><div><strong>${esc(t)}</strong><span>${esc(d)}</span></div></div>`).join('')}</div>
+      </section>
+      <div class="spacer"></div>
+      <button type="button" class="primary gap-top" data-action="open-mock"><span>Practise one more answer</span>${I.arrow}</button>
+      ${typeof window.print === 'function' ? '<button type="button" class="text-btn" data-action="print-day">Print or save as PDF</button>' : ''}
     </div>`;
   },
   privacy() {
@@ -777,6 +901,7 @@ function coreBindAnswers() {
 function bindScreen() {
   if (view === 'lesson' || view === 'answers' || view === 'rolemap') bindNotes();
   if (view === 'answers') coreBindAnswers();
+  if (view === 'interviewday') coreBindDay();
   if ($('#rename')) $('#rename').addEventListener('click', () => { renaming = true; show('today', { keep: true }); $('#rename-input')?.focus(); });
   const rename = $('#rename-form');
   if (rename) rename.addEventListener('submit', (e) => {
@@ -847,6 +972,9 @@ document.body.addEventListener('click', (e) => {
   if (action === 'open-answers') { if (needPrep()) show('answers'); return; }
   if (action === 'open-quiz') { if (needPrep()) show('quiz'); return; }
   if (action === 'open-map') { if (needPrep()) show('rolemap'); return; }
+  if (action === 'open-day') { if (needPrep()) { coreDayFrom = view === 'progress' ? 'progress' : 'today'; show('interviewday'); } return; }
+  if (action === 'day-back') { if (needPrep()) show(coreDayFrom || 'today'); return; }
+  if (action === 'print-day') { window.print(); return; }
   if (action === 'quiz') {
     if (active.quiz.answers[el.dataset.q] !== undefined) return;
     active.quiz.answers[el.dataset.q] = +el.dataset.choice;
