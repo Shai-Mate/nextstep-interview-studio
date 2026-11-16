@@ -392,6 +392,24 @@ test('checks and clearances stay requirements but never become questions, lesson
   for (const t of generatedText(care)) assert.ok(!CHECK_WORDS.test(t), 'care aide: ' + t);
 });
 
+test('checks and clearances are never skills, keywords or skill highlights', () => {
+  const NOT_SKILL = /criminal record|vulnerable sector|police (?:check|clearance|information)|security (?:check|clearance|screening)|background (?:check|screening)|references?\b|drug (?:test|screen)|work permit|eligib\w* to work|entitled to work|driver[’']?s abstract|driving (?:record|abstract)/i;
+  const guard = 'Security Guard – Northside Patrol Ltd.\nWhat you need:\n- Valid security worker licence\n- Clear criminal record check and police information check\n- Pass a background check and drug test\n- Two professional references\n- Legally entitled to work in Canada; work permit holders welcome\n- Clean driver\'s abstract and Class 5 licence\n- First Aid and CPR\nWhat you will do:\n- Patrol the site and write clear incident reports\n- Use Microsoft Excel to log hours and incidents';
+  const jobs = [guard, ...files.map((f) => ad(f)), ...reviewFiles.map((f) => rad(f))];
+  for (const job of jobs) {
+    const a = PrepEngine.analyze(job, {});
+    for (const x of a.skills) assert.ok(!NOT_SKILL.test(x), 'skill: ' + x);
+    for (const k of a.keywords) assert.ok(!NOT_SKILL.test(k), 'keyword: ' + k);
+    for (const h of a.highlights) if (h.kind === 'skill' || h.kind === 'keyword') assert.ok(!NOT_SKILL.test(job.slice(h.start, h.end)), h.kind + ' highlight: ' + job.slice(h.start, h.end));
+  }
+  const g = PrepEngine.analyze(guard, {});
+  assert.ok(g.skills.includes('Class 5 licence') && g.skills.some((x) => /First Aid/i.test(x)) && g.skills.some((x) => /Excel/.test(x)), g.skills.join(', '));
+  for (const want of [/criminal record/i, /background check/i, /references/i, /entitled to work/i, /driver's abstract/i]) assert.ok(g.requirements.some((r) => want.test(r.text)), 'still a requirement: ' + want);
+  const care = PrepEngine.analyze(ad('healthcare-care-aide.txt'), {});
+  assert.ok(care.requirements.some((r) => /criminal record/i.test(r.text)) && !care.skills.some((x) => /criminal/i.test(x)), care.skills.join(', '));
+  assert.ok(!PrepEngine.analyze(rad('delivery-driver.txt'), {}).skills.some((x) => /abstract/i.test(x)));
+});
+
 test('duty quotes use a template that fits how the excerpt starts', () => {
   const all = files.map((f) => ad(f)).concat(reviewFiles.map((f) => rad(f)));
   for (const job of all) {
