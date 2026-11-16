@@ -659,6 +659,7 @@ details.block p.source { margin: 12px 0 0 36px; font-size: 13px; color: var(--mu
 /* Role map */
 .map-group .hint { margin-top: 4px; }
 .map-group .glass.pad-sm { margin-top: 12px; }
+.map-tip, .map-group .map-tip { margin: 12px 4px 0; }
 .map-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .map-head .tags { margin-top: 0; }
 .map-card .prose { margin-top: 10px; }

@@ -104,7 +104,7 @@ function coreThemeReadiness(p, a) {
     const qs = p.questions.map((_, i) => i).filter((i) => coreInfo(p, i)?.theme === t.id);
     const done = qs.filter((i) => (p.notes['answer-' + i] || '').trim() || practised.has(p.questions[i])).length;
     return { id: t.id, label: t.label || coreThemeLabel(t.id, a), total: qs.length, done };
-  });
+  }).filter((t) => t.total > 0);
 }
 /* Job ad with the analysis highlights (char ranges into p.job), escaped. */
 function coreHighlightAd(text, a) {
@@ -259,42 +259,70 @@ function coreFirstWords(text, n) {
   const w = String(text || '').trim().split(/\s+/);
   return w.slice(0, n).join(' ') + (w.length > n ? '…' : '');
 }
+/* The question itself, without a lead-in sentence that only quotes the ad:
+   'Part of this job is to “greet …”. Tell me about a time …' -> 'Tell me about a time …'. */
+function coreAsk(q) {
+  const s = String(q || '').trim();
+  const m = s.match(/^[^“”"]{0,60}[“"][^”"]{4,}[”"][.:]\s+(?=[A-Z])/);
+  if (!m) return s;
+  const rest = s.slice(m[0].length);
+  /* Only when the rest stands on its own ('Tell me about a time…'), never 'How would that schedule…'. */
+  return /^(Tell me about a\b|Walk me through a time\b|Describe a time\b|Give (me )?an example\b)/.test(rest) && !/\b(these|those)\b/i.test(rest) ? rest : s;
+}
+/* 'Final' -> 'Final interview'; nothing when the person is not sure yet. */
+function coreQuotes(q, source) {
+  const norm = (x) => String(x || '').toLowerCase().replace(/[“”".]/g, '').replace(/\s+/g, ' ').trim();
+  const src = norm(source);
+  return src.length > 3 && norm(q).includes(src);
+}
+function coreStageLine(p) {
+  const st = String((p.intake && p.intake.stage) || '').trim();
+  if (!st || st === 'Not sure yet') return '';
+  return /interview/i.test(st) ? st : st + ' interview';
+}
 /* Lesson -> story: the answer-bank question that best matches a lesson. Most specific first:
-   the question about the same ad excerpt, then the same topic (undrafted first), then the
-   first undrafted question. Works for old preparations through the quoted excerpt. */
+   a question on the lesson's topic, then the question about the same ad excerpt (this also
+   covers old preparations), then by the lesson's purpose, then the first undrafted question.
+   The question number closest to the lesson number breaks ties, so a lesson keeps opening
+   the same story. */
 let coreOpenAnswer = -1;
 let coreAnswersFrom = 'practise';
 function coreStoryFor(p, li) {
   const c = p.course[li] || {};
   const norm = (x) => String(x || '').toLowerCase().replace(/\s+/g, ' ').trim();
-  const quote = norm(quoteFrom(c.body, ''));
-  const drafted = (i) => !!(p.notes['answer-' + i] || '').trim();
   const all = p.questions.map((_, i) => i);
-  /* Closest question number to the lesson number breaks ties, so the match stays stable
-     (a drafted story keeps opening for its lesson). */
   const closest = (list) => list.reduce((b, i) => (Math.abs(i - li) < Math.abs(b - li) ? i : b), list[0]);
+  if (c.theme) {
+    const same = all.filter((i) => coreInfo(p, i)?.theme === c.theme);
+    if (same.length) return closest(same);
+  }
+  const quote = norm(quoteFrom(c.body, ''));
   if (quote.length > 12) {
     const same = all.filter((i) => norm(coreInfo(p, i)?.source) === quote || norm(p.questions[i]).includes(quote));
     if (same.length) return closest(same);
   }
-  if (c.theme) {
-    const same = all.filter((i) => coreInfo(p, i)?.theme === c.theme);
-    if (same.length) return closest(same.filter((i) => !drafted(i)).length ? same.filter((i) => !drafted(i)) : same);
+  /* Lessons about the opening or the closing of an interview go to that kind of question. */
+  const title = String(c.title || '');
+  const kind = /\bask\b|\bquestions?\b|finish|clos(e|ing)/i.test(title) ? 'closing' : /introduc|yourself|why this job/i.test(title) ? 'motivation' : '';
+  if (kind) {
+    const same = all.filter((i) => coreInfo(p, i)?.kind === kind);
+    if (same.length) return same[0];
   }
-  const open = all.filter((i) => !drafted(i));
+  const open = all.filter((i) => !(p.notes['answer-' + i] || '').trim());
   return open.length ? open[0] : 0;
 }
 function coreAdWords(a) {
   const out = [];
-  const seen = new Set();
+  const seen = [];
   for (const w of [...(a && Array.isArray(a.skills) ? a.skills : []), ...(a && Array.isArray(a.keywords) ? a.keywords : [])]) {
     if (typeof w !== 'string') continue;
     const t = w.trim();
     const k = t.toLowerCase();
-    if (!t || t.length > 60 || seen.has(k)) continue;
-    seen.add(k);
+    /* Skip near-duplicates: 'handle cash accurately' after 'handle cash', 'Square register' after 'Square'. */
+    if (!t || t.length > 60 || seen.some((s) => s === k || s.includes(k) || k.includes(s))) continue;
+    seen.push(k);
     out.push(t);
-    if (out.length >= 10) break;
+    if (out.length >= 8) break;
   }
   return out;
 }
@@ -551,7 +579,7 @@ const screens = {
         const st = stats(p);
         const pct = Math.round(st.ratio * 100);
         const next = p.course.find((c) => !c.done);
-        return `<article class="glass prep-card"><div class="prep-top"><div><p class="kicker">${esc(p.company)}</p><h2>${esc(p.role)}</h2></div><span class="prep-pct">${pct}%</span></div><p class="muted">${esc(p.intake.stage)} · ${esc(p.intake.time)} a day</p>${bar(pct)}${(() => { const w = coreWhen(p); return w ? `<p class="when-line${w.days >= 0 && w.days <= 1 ? ' soon' : ''}">${CORE_CAL}<span>${esc(w.days < 0 ? 'Interview date passed. How did it go?' : w.line)}</span></p>` : ''; })()}<p class="next-up">${next ? 'Up next · ' + esc(next.title) : 'Every lesson done · keep practising'}</p><button type="button" class="primary" data-action="resume" data-id="${esc(p.id)}"><span>Resume preparation</span>${I.arrow}</button></article>`;
+        return `<article class="glass prep-card"><div class="prep-top"><div><p class="kicker">${esc(p.company)}</p><h2>${esc(p.role)}</h2></div><span class="prep-pct">${pct}%</span></div><p class="muted">${esc([coreStageLine(p), p.intake.time ? p.intake.time + ' a day' : ''].filter(Boolean).join(' · '))}</p>${bar(pct)}${(() => { const w = coreWhen(p); return w ? `<p class="when-line${w.days >= 0 && w.days <= 1 ? ' soon' : ''}">${CORE_CAL}<span>${esc(w.days < 0 ? 'Interview date passed. How did it go?' : w.line)}</span></p>` : ''; })()}<p class="next-up">${next ? 'Up next · ' + esc(next.title) : 'Every lesson done · keep practising'}</p><button type="button" class="primary" data-action="resume" data-id="${esc(p.id)}"><span>Resume preparation</span>${I.arrow}</button></article>`;
       }).join('')}</div>
       <div class="spacer"></div>
       <button type="button" class="primary gap-top" data-action="start">New preparation</button>
@@ -587,7 +615,7 @@ const screens = {
       <p class="date">${esc(longDate(now))}</p>
       <h1 class="italic greet">${esc(greeting(now))}</h1>
       <p class="role-name">${esc(p.role)}</p>
-      <p class="muted">${esc(p.company)} · ${esc(p.intake.stage)}</p>
+      ${(() => { const line = [p.company, coreStageLine(p)].filter(Boolean).join(' · '); return line ? `<p class="muted">${esc(line)}</p>` : ''; })()}
       ${coreWhenHtml(p, w)}
       ${dayHero}
       <div class="glass pad session${pop >= 0 ? ' celebrate' : ''}">
@@ -647,7 +675,7 @@ const screens = {
     const readyHtml = ready && ready.length ? `<section class="readiness">
         <div class="section-head"><h2 class="section-title">Ready for each part of the job</h2><span class="muted">${covered} of ${ready.length}</span></div>
         <p class="hint">A part turns green once you write or practise an answer to one of its questions.</p>
-        <div class="theme-grid">${ready.map((t) => `<div class="theme-chip${t.done ? ' covered' : ''}"><span class="name">${t.done ? I.check : ''}${esc(t.label)}</span>${t.total ? `<span class="pips" role="img" aria-label="${t.done} of ${t.total} ${t.total === 1 ? 'question' : 'questions'} answered">${Array.from({ length: t.total }, (_, k) => `<i class="${k < t.done ? 'on' : ''}"></i>`).join('')}</span>` : '<span class="pips"><em>No question for this yet</em></span>'}</div>`).join('')}</div>
+        <div class="theme-grid">${ready.map((t) => `<div class="theme-chip${t.done ? ' covered' : ''}"><span class="name">${t.done ? I.check : ''}${esc(t.label)}</span>${t.total ? `<span class="pips" role="img" aria-label="${t.done} of ${t.total} ${t.total === 1 ? 'question' : 'questions'} answered">${Array.from({ length: t.total }, (_, k) => `<i class="${k < t.done ? 'on' : ''}"></i>`).join('')}</span>` : ''}</div>`).join('')}</div>
       </section>` : '';
     return shell('progress', `
       <h1>Progress</h1>
@@ -691,7 +719,7 @@ const screens = {
         <button type="button" class="quiet" id="next" ${i === p.course.length - 1 ? 'disabled' : ''}>Next</button>
       </div>
       <div class="spacer"></div>
-      <p class="hint story-hint">Your story for: ${esc(coreFirstWords(p.questions[coreStoryFor(p, i)], 14))}</p>
+      <p class="hint story-hint">Your story for: ${esc(coreFirstWords(coreAsk(p.questions[coreStoryFor(p, i)]), 14))}</p>
       <button type="button" class="primary" data-action="lesson-story"><span>Write this story</span>${I.arrow}</button>
       <button type="button" class="text-btn" data-action="lesson-practise">Practise in a mock interview</button>
       <button type="button" class="text-btn mark${c.done ? '' : ' todo'}" id="mark">${c.done ? 'Mark incomplete' : I.check + '<span>Mark lesson done</span>'}</button>
@@ -736,7 +764,7 @@ const screens = {
         const guide = info ? `${kind || theme ? `<div class="tags">${kind ? `<b class="tag kind">${esc(kind)}</b>` : ''}${theme ? `<b class="tag">${esc(theme)}</b>` : ''}</div>` : ''}
           ${info.probe ? `<div class="guide"><p class="kicker">What they want to hear</p><p>${esc(info.probe)}</p></div>` : ''}
           ${include.length ? `<div class="guide"><p class="kicker">A strong answer includes</p><ul class="includes">${include.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
-          ${info.source ? `<p class="source">From the ad: “${esc(info.source)}”</p>` : ''}` : '<p class="muted">Situation, Task, your Action, Result, and what you learned.</p>';
+          ${info.source && !coreQuotes(q, info.source) ? `<p class="source">From the ad: “${esc(info.source)}”</p>` : ''}` : '<p class="muted">Situation, Task, your Action, Result, and what you learned.</p>';
         return `<details class="block qa${drafted(i) ? ' drafted' : ''}" ${i === firstOpen ? 'open' : ''}><summary><span class="qnum" aria-hidden="true">${drafted(i) ? I.check : i + 1}</span><span class="qtext">${drafted(i) ? '<span class="sr">Drafted: </span>' : ''}${esc(q)}</span>${I.chev}</summary>
           ${guide}
           <label class="field" for="answer-${i}">Your evidence and answer</label><textarea id="answer-${i}" rows="6" data-note="answer-${i}" placeholder="Describe something you actually did.">${esc(p.notes['answer-' + i] || '')}</textarea>
@@ -781,25 +809,26 @@ const screens = {
     const p = active;
     const a = analysisOf(p);
     const meta = coreReqMeta(p, a);
-    const hints = {
-      must: 'Ask: What would good performance on this look like in the first 90 days?',
-      duty: 'Think of a time you did something similar, even at a smaller scale.',
+    /* One quiet tip per group; the group blurb already covers the day-to-day duties. */
+    const tips = {
+      must: 'Tip: ask them, “What would good performance look like in the first 90 days?”',
       nice: 'Not there yet? “Here is how I would learn it” is an honest, strong answer.',
-      other: 'Ask: What would good performance on this look like in the first 90 days?'
+      other: 'Tip: ask them, “What would good performance look like in the first 90 days?”'
     };
+    const tip = (kind) => (tips[kind] ? `<p class="hint map-tip">${esc(tips[kind])}</p>` : '');
     const card = (r, i) => {
       const m = meta[i];
       const tags = m ? m.themes.slice(0, 2).map((id) => `<b class="tag">${esc(coreThemeLabel(id, a))}</b>`).join('') : '';
-      return `<article class="glass pad-sm map-card${(p.notes['map-' + i] || '').trim() ? ' has-note' : ''}"><div class="map-head"><p class="kicker">Excerpt ${i + 1}</p>${tags ? `<span class="tags">${tags}</span>` : ''}</div><p class="prose">${esc(r)}</p><label class="field" for="map-${i}">Your example, or how you would learn it</label><textarea id="map-${i}" data-note="map-${i}" rows="3">${esc(p.notes['map-' + i] || '')}</textarea><p class="hint">${esc(hints[(m && m.kind) || 'other'])}</p></article>`;
+      return `<article class="glass pad-sm map-card${(p.notes['map-' + i] || '').trim() ? ' has-note' : ''}"><div class="map-head"><p class="kicker">Excerpt ${i + 1}</p>${tags ? `<span class="tags">${tags}</span>` : ''}</div><p class="prose">${esc(r)}</p><label class="field" for="map-${i}">Your example, or how you would learn it</label><textarea id="map-${i}" data-note="map-${i}" rows="3">${esc(p.notes['map-' + i] || '')}</textarea></article>`;
     };
     let body;
     if (meta.some(Boolean)) {
       body = CORE_REQ_KINDS.map(([kind, title, blurb]) => {
         const idx = p.requirements.map((_, i) => i).filter((i) => ((meta[i] && meta[i].kind) || 'other') === kind);
         if (!idx.length) return '';
-        return `<section class="map-group"><div class="section-head"><h2 class="section-title">${title}</h2><span class="muted">${idx.length}</span></div><p class="hint">${blurb}</p>${idx.map((i) => card(p.requirements[i], i)).join('')}</section>`;
+        return `<section class="map-group"><div class="section-head"><h2 class="section-title">${title}</h2><span class="muted">${idx.length}</span></div><p class="hint">${blurb}</p>${idx.map((i) => card(p.requirements[i], i)).join('')}${tip(kind)}</section>`;
       }).join('');
-    } else body = p.requirements.map(card).join('');
+    } else body = p.requirements.map(card).join('') + tip('other');
     return `<div class="screen" data-screen="rolemap">
       <div class="topbar">${iconBtn('back-practise', 'Back', I.back)}<span class="label">Role map</span><span class="count">${stats(p).mapDone} of ${p.requirements.length}</span></div>
       <h1>Map the role to your evidence</h1>
@@ -823,7 +852,7 @@ const screens = {
       <p class="sub">${esc(role)}${p.company ? ' · ' + esc(p.company) : ''}. Read this the night before, and again in the last ten minutes.</p>
       <section class="glass day-card" aria-labelledby="day-stories">
         <p class="kicker" id="day-stories">Your best stories</p>
-        ${stories.length ? `<ol class="stories">${stories.map((st) => `<li><p class="story-q">${esc(st.question)}</p><p class="story-text">${esc(coreFirstWords(st.text, 25))}</p>${coreStarPips(st.star)}</li>`).join('')}</ol>
+        ${stories.length ? `<ol class="stories">${stories.map((st) => `<li><p class="story-q">${esc(coreAsk(st.question))}</p><p class="story-text">${esc(coreFirstWords(st.text, 25))}</p>${coreStarPips(st.star)}</li>`).join('')}</ol>
           <p class="hint">Your own words, from your answer bank and mock interview. Tell each one as Situation, Task, Action, Result.</p>`
         : `<p class="day-empty">You have not written a story yet. One true example is enough to start: a time you helped someone, fixed something or learned fast.</p>
           <button type="button" class="primary day-go" data-action="open-answers"><span>Write my first story</span>${I.arrow}</button>`}
