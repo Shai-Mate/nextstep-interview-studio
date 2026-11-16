@@ -1,0 +1,17 @@
+Delivery Driver (Class 5) – Swift Parcel Co.
+Swift Parcel Co. is a fictional local courier. We deliver for 200+ small businesses across the region.
+
+Responsibilities
+- Load your van each morning and plan your route with our app
+- Deliver 80-120 parcels a day safely and on time
+- Scan every package and collect signatures or photos
+- Do a daily vehicle check and report any problems
+- Be polite and helpful with customers at the door
+
+Requirements
+- Valid Class 5 licence with a clean driver's abstract
+- Able to lift up to 25 kg and be on your feet all day
+- Comfortable using a smartphone and GPS
+- Good sense of direction and time management
+
+Pay: $21/hour plus fuel card. Company van provided.

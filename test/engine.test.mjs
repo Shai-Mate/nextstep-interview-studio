@@ -318,6 +318,125 @@ test('questions fit the line they quote', () => {
   }
 });
 
+// Ads written by a second reviewer (test/fixtures/review), checked for specific mistakes rather than the full fixture table.
+const REVIEW = join(FIX, 'review');
+const reviewFiles = readdirSync(REVIEW).filter((f) => f.endsWith('.txt')).sort();
+const rad = (name) => readFileSync(join(REVIEW, name), 'utf8');
+const CHECK_WORDS = /criminal record|vulnerable sector|security check|background check|police check|drug test|work permit|driver[’']?s abstract/i;
+const generatedText = (p) => [...p.questions, ...p.questionInfo.flatMap((i) => [i.source || '', ...i.include]), ...p.course.flatMap((c) => [c.body, c.exercise]),
+  ...p.quizItems.flatMap((q) => [q.q, q.why, ...q.options])];
+
+test('review ads: a full, plain plan for every one', () => {
+  assert.ok(reviewFiles.length >= 5);
+  for (const f of reviewFiles) {
+    const job = rad(f);
+    const p = PrepEngine.create({ job });
+    assert.ok(p.questions.length >= 8 && p.questions.length <= 10, f);
+    assert.equal(p.questionInfo.length, p.questions.length, f);
+    assert.ok(p.course.length >= 6 && p.course.length <= 8, f);
+    assert.ok(p.quizItems.length >= 5 && p.quizItems.length <= 6, f);
+    for (const q of [...p.questions, ...p.course.map((c) => c.body)]) for (const x of quotesIn(q)) assert.ok(flat(job).includes(flat(x.replace(/…$/, ''))), f + ': excerpt not in ad: ' + x);
+    for (const b of p.questionInfo.find((x) => x.kind === 'closing').include) assert.match(b, /\?$/, f);
+    for (const t of allText(p)) assert.ok(!/\b(?:competenc\w*|leverage|kpis?|probe)\b/i.test(t), f + ': jargon: ' + t);
+  }
+});
+
+test('the company name is never a skill, keyword or tool in a question; the title line is never a requirement', () => {
+  const job = rad('delivery-driver.txt');
+  const p = PrepEngine.create({ job });
+  assert.equal(p.company, 'Swift Parcel Co.');
+  assert.match(p.role, /^Delivery Driver/);
+  const a = PrepEngine.analyze(job, { role: p.role, company: p.company });
+  assert.ok(!a.skills.some((s) => /swift/i.test(s)), a.skills.join(', '));
+  assert.ok(a.skills.some((s) => /Class 5/.test(s)), 'Class 5 licence stays a skill');
+  assert.ok(!a.keywords.some((k) => /swift|parcel/i.test(k)), a.keywords.join(', '));
+  assert.ok(!a.requirements.some((r) => /Delivery Driver|Swift Parcel/.test(r.text)), 'title line is not a requirement');
+  for (const q of p.questions) assert.ok(!/\bSwift\b(?! Parcel Co)/.test(q), q);
+  assert.ok(a.signals.some((s) => s.label === 'Driving or travel'));
+  const cook = PrepEngine.create({ job: rad('line-cook.txt') });
+  assert.equal(cook.company, 'Harbour Table Bistro');
+  const ca = PrepEngine.analyze(cook.job, { role: cook.role, company: cook.company });
+  assert.ok(!ca.keywords.some((k) => /harbour|bistro/i.test(k)), ca.keywords.join(', '));
+  assert.ok(!ca.requirements.some((r) => /since 2009|Harbour Table/.test(r.text)), 'company history is not a requirement');
+  const short = 'Delivery Driver – Swift Parcel Co.\nWhat you will do:\n- Represent Swift Parcel Co. with a friendly attitude at every stop\n- Learn the Swift routing app and plan your day\n- Deliver parcels safely and on time\nWhat you need:\n- Class 5 licence\n- Comfortable with Kotlin is a bonus';
+  const sa = PrepEngine.analyze(short, { company: 'Swift Parcel Co.' });
+  assert.ok(!sa.skills.some((x) => /swift/i.test(x)), 'the short company name is not a skill: ' + sa.skills.join(', '));
+  assert.ok(sa.skills.includes('Kotlin'));
+  const care = PrepEngine.analyze(ad('healthcare-care-aide.txt'), { company: 'Cedar Grove Care Home' });
+  assert.ok(care.keywords.some((k) => /care/i.test(k)), 'ordinary words that also appear in the company name stay: ' + care.keywords.join(', '));
+});
+
+test('kitchen ads: rotating stock is not a schedule, line work is hands-on, long duty lines quote the part that fits', () => {
+  const job = rad('line-cook.txt');
+  const a = PrepEngine.analyze(job, {});
+  assert.ok(!a.signals.some((s) => /rotating/i.test(s.label)), a.signals.map((s) => s.label).join(' | '));
+  assert.equal(a.themes[0].id, 'physical');
+  const p = PrepEngine.create({ job });
+  const phys = p.questions[p.questionInfo.findIndex((i) => i.kind === 'behavioural' && i.theme === 'physical')];
+  assert.match(phys, /“work the grill|“prep vegetables/, phys);
+  const ea = PrepEngine.create({ job: rad('teaching-assistant.txt') });
+  const calm = ea.course.find((c) => c.theme === 'pressure');
+  assert.ok(calm && /“stay calm and patient when a child is upset”/.test(calm.body), calm && calm.body);
+  assert.ok(PrepEngine.analyze(rad('teaching-assistant.txt'), {}).signals.some((s) => s.label === 'Weekdays'));
+});
+
+test('checks and clearances stay requirements but never become questions, lessons or quiz items', () => {
+  const cases = [['teaching-assistant.txt', /criminal record check/i], ['no-bullets-multiline.txt', /security check/i], ['delivery-driver.txt', /driver's abstract/i]];
+  for (const [name, check] of cases) {
+    const p = PrepEngine.create({ job: rad(name) });
+    assert.ok(p.requirements.some((r) => check.test(r)), name + ': still a requirement');
+    for (const t of generatedText(p)) assert.ok(!CHECK_WORDS.test(t), name + ': ' + t);
+  }
+  const care = PrepEngine.create({ job: ad('healthcare-care-aide.txt') });
+  assert.ok(care.requirements.some((r) => /criminal record/i.test(r)));
+  for (const t of generatedText(care)) assert.ok(!CHECK_WORDS.test(t), 'care aide: ' + t);
+});
+
+test('duty quotes use a template that fits how the excerpt starts', () => {
+  const all = files.map((f) => ad(f)).concat(reviewFiles.map((f) => rad(f)));
+  for (const job of all) {
+    const p = PrepEngine.create({ job });
+    for (const q of p.questions) {
+      const m = q.match(/involves “(\S+)/);
+      if (m) assert.ok(/ing$/.test(m[1]) || /^(?:a|an|the|our|your|their|all|any|some|this|these|those|each|every)$/i.test(m[1]) || /^[A-Z]/.test(m[1]), q);
+      const t = q.match(/Part of this job is to “(\S+)/);
+      if (t) assert.ok(/^[a-z]/.test(t[1]) && !/ing$/.test(t[1]), q);
+    }
+  }
+  assert.ok(!PrepEngine.create({ job: rad('line-cook.txt') }).questions.some((q) => /involves “plate/.test(q)));
+  assert.ok(!PrepEngine.create({ job: rad('no-bullets-multiline.txt') }).questions.some((q) => /involves “vacuum/.test(q)));
+  const ea = PrepEngine.create({ job: rad('teaching-assistant.txt') });
+  assert.ok(ea.questions.some((q) => /“stay calm and patient when a child is upset”/.test(q)), 'the clause that fits the area is quoted');
+});
+
+test('pay, bonus, tips and perks are offer text, even without headings', () => {
+  const a = PrepEngine.analyze(rad('no-bullets-multiline.txt'), {});
+  assert.ok(!a.requirements.some((r) => /we pay|bonus/i.test(r.text)), JSON.stringify(a.requirements));
+  const b = PrepEngine.analyze('Server wanted for our patio. You will take orders and serve food. We pay weekly and offer a bonus for perfect attendance. Tips are shared every night. Must be friendly and available weekends.', {});
+  assert.ok(!b.requirements.some((r) => /\b(?:pay|bonus|tips)\b/i.test(r.text)), JSON.stringify(b.requirements));
+  assert.ok(b.requirements.some((r) => /friendly/.test(r.text)));
+});
+
+test('tiny ads always get 5 or 6 quiz items and a sensible role', () => {
+  const tiny = 'Dishwasher needed. Evenings. Apply today.';
+  assert.equal(tiny.length, 41);
+  for (const job of [tiny, rad('very-short.txt'), 'Cashier wanted for weekend shifts. Apply now!']) {
+    const p = PrepEngine.create({ job });
+    assert.ok(p.quizItems.length >= 5 && p.quizItems.length <= 6, job + ': ' + p.quizItems.length);
+    for (const q of p.quizItems) { assert.equal(new Set(q.options).size, 3); assert.ok(q.correct >= 0 && q.correct <= 2); }
+    assert.ok(p.questions.length >= 8 && p.course.length >= 6);
+  }
+  assert.equal(PrepEngine.create({ job: tiny }).role, 'Dishwasher');
+  assert.equal(PrepEngine.create({ job: rad('very-short.txt') }).role, 'Dishwasher');
+  const hw = PrepEngine.create({ job: 'Help Wanted – Cashier\nPart-time, weekends. Must be friendly and good with cash.' });
+  assert.equal(hw.role, 'Cashier');
+  assert.notEqual(hw.company, 'Cashier');
+  const hw2 = PrepEngine.create({ job: 'Help wanted. Line cook for busy diner. Must be able to stand all shift.' });
+  assert.equal(hw2.role, 'Line cook');
+  assert.ok(!hw2.requirements.some((r) => /^help wanted/i.test(r)), hw2.requirements.join(' / '));
+  assert.ok(!PrepEngine.analyze(rad('very-short.txt'), {}).signals.some((s) => s.label === 'On-site'), '"Apply in person" is not on-site work');
+});
+
 test('validation keeps the same message and fields keep their types', () => {
   assert.throws(() => PrepEngine.create({ job: 'too short' }), { message: 'Paste at least 40 characters from the actual job ad.' });
   assert.throws(() => PrepEngine.create({}), { message: 'Paste at least 40 characters from the actual job ad.' });
