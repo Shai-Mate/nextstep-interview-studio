@@ -55,7 +55,7 @@ vec4 noise(vec2 x) {
   return texture2D(uN, (i + f + 0.5) * 0.015625);
 }
 vec4 fbm(vec2 p) {
-  return noise(p) * 0.62 + noise(p * 2.0 + vec2(17.3, 9.1)) * 0.28 + noise(p * 4.0 + vec2(-5.7, 31.4)) * 0.10;
+  return noise(p) * 0.70 + noise(p * 2.0 + vec2(17.3, 9.1)) * 0.24 + noise(p * 4.0 + vec2(-5.7, 31.4)) * 0.06;
 }
 void main() {
   vec2 q = (gl_FragCoord.xy - uC.xy) / uC.z;
@@ -78,10 +78,10 @@ void main() {
   vec3 n = vec3(q, z);
 
   // liquid of light: domain-warped noise on a lens-shaped mapping of the sphere
-  vec2 uv = q * (0.9 / (0.56 + 0.44 * z));
+  vec2 uv = q * (0.74 / (0.6 + 0.4 * z));
   vec4 w1 = fbm(mat2(uRot.x, uRot.y, -uRot.y, uRot.x) * uv + uO1.xy);
-  vec4 w2 = fbm(mat2(uRot.z, uRot.w, -uRot.w, uRot.z) * uv + 1.5 * (w1.xy - 0.5) + uO1.zw);
-  vec4 f = fbm(uv + 1.3 * (w2.xy - 0.5) + uO2.xy);
+  vec4 w2 = fbm(mat2(uRot.z, uRot.w, -uRot.w, uRot.z) * uv + 1.2 * (w1.xy - 0.5) + uO1.zw);
+  vec4 f = fbm(uv + 1.05 * (w2.xy - 0.5) + uO2.xy);
   float fl = f.x - 0.5;
 
   // body: the 2D two-point gradient (hot core up-left), bent by the liquid
@@ -91,19 +91,19 @@ void main() {
   float a = dot(dc, dc) - 0.9216;
   float b = dot(k, dc) + 0.0384;
   float g = max((b - sqrt(max(b * b - a * (dot(k, k) - 0.0016), 0.0))) / a, 0.0);
-  float gw = g + fl * (0.07 + 0.24 * smoothstep(0.08, 0.6, g));
+  float gw = g + fl * (0.06 + 0.20 * smoothstep(0.08, 0.6, g));
   gw *= 1.0 - 0.12 * en - 0.06 * beat - 0.05 * voice;
   vec3 col = texture2D(uP, vec2(clamp(gw, 0.0, 1.0), 0.5)).rgb;
-  col *= 0.92 + 0.08 * en + 0.20 * (w2.z - 0.5) + 0.06 * beat;
+  col *= 0.92 + 0.08 * en + 0.13 * (w2.z - 0.5) + 0.06 * beat;
 
   // inner light: a soft bloom around the hot core
   col += vec3(1.0, 0.84, 0.70) * exp(-dot(k, k) * 4.5) * (0.04 + 0.05 * en + 0.12 * beat + 0.18 * voice);
 
   // caustic swirl: soft veils of light along a slowly turning contour; shimmer while speaking
-  float veil = 1.0 - smoothstep(0.0, 0.06, abs(w1.z - 0.5));
+  float veil = 1.0 - smoothstep(0.0, 0.095, abs(w1.z - 0.5));
   float sh = 0.5 + 0.5 * (sin(f.z * 27.0) * uSh.x + cos(f.z * 27.0) * uSh.y);
   veil *= smoothstep(0.12, 0.45, g) * (1.0 - smoothstep(0.70, 0.97, d));
-  col += vec3(1.0, 0.78, 0.62) * veil * (0.07 + 0.05 * en + voice * (0.03 + 0.08 * sh));
+  col += vec3(1.0, 0.78, 0.62) * veil * (0.025 + 0.05 * en + voice * (0.03 + 0.08 * sh));
 
   // the plum field seen through the glass, inverted by the lens
   float shell = smoothstep(0.6, 0.99, d);
