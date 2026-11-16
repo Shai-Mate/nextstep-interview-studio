@@ -1009,13 +1009,16 @@ The hosting provider receives normal requests for the app files, not your typed 
 
 function needPrep() { if (!active) { show('welcome'); return false; } return true; }
 function openLesson(i) { if (!needPrep()) return; lessonIndex = i; show('lesson'); }
+/* Used by Export backup and Download saved data as-is. iPhone Safari asks before it downloads, and the link must still
+   work when the person taps Download, so the file stays available for 40 s (as FileSaver.js does), not 1 s. */
 function coreDownload(text, name) {
   const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  a.href = url;
   a.download = name;
   a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  setTimeout(() => URL.revokeObjectURL(url), 40000);
 }
 function exportBackup(all) {
   const payload = { schema: 1, preparations: !all && active ? [active] : records };
