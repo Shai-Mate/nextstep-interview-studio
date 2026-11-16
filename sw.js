@@ -11,6 +11,7 @@ const ASSETS = [
   './launch.css?v=8',
   './engine.js?v=8',
   './coach.js?v=8',
+  './orb-gl.js?v=8',
   './orb.js?v=8',
   './app.js?v=8',
   './flow.js?v=8',
