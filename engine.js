@@ -1035,7 +1035,7 @@ function guessNames(a) {
     if (company && !COMPANY_END.test(company)) {
       const rest = a._items.filter((it) => it.kind !== 'title' && it.kind !== 'meta').map((it) => it.text).join('\n');
       const esc = company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      if (!new RegExp('(?:^|\\n)' + esc + '\\s+(?:\\([^)]*\\)\\s+)?(?:is|are|has|have)\\b|\\bat ' + esc + '\\b').test(rest)) company = '';
+      if (/\b(?:unit|department|dept|ward|floor|regional|route|remote|hybrid|on-?site)\b/i.test(company) || !new RegExp('\\b' + esc + '\\b').test(rest)) company = '';
     }
     // Job sites put the company on the line after the title: "Company · City · 2 weeks ago", "Company – City", "Company | City".
     const after = a._items.find((it) => it.start > title.end);
@@ -1349,13 +1349,14 @@ function create(input) {
   // Each area lesson quotes its best line not already quoted by another lesson; lesson 1 takes a line none of them use.
   const lessonThemes = a.themes.slice(0, 3);
   const lessonQuoted = new Set();
-  const lessonEv = lessonThemes.map((t) => { const ev = t.evidence.find((e) => !lessonQuoted.has(e)); if (ev) lessonQuoted.add(ev); return ev; });
-  const free = ranked.filter((r) => !r._check && !r._cred && !r._fallback && !lessonQuoted.has(r.text));
-  const leadLine = ((free.find((r) => r.kind === 'duty') || free.find((r) => r.kind === 'must') || {}).text) || (lessonThemes.length ? '' : plainLine);
+  const pool = ranked.filter((r) => !r._check && !r._cred && !r._fallback);
+  const topEv = lessonThemes.length ? lessonThemes[0].evidence : [];
+  const leadLine = ((pool.find((r) => r.kind === 'duty' && topEv.includes(r.text)) || pool.find((r) => r.kind === 'duty') || pool.find((r) => r.kind === 'must') || {}).text) || (lessonThemes.length ? '' : plainLine);
   if (leadLine) lessonQuoted.add(leadLine);
+  const lessonEv = lessonThemes.map((t) => { const ev = t.evidence.find((e) => !lessonQuoted.has(e)); if (ev) lessonQuoted.add(ev); return ev; });
   const course = [];
   course.push({ title: 'The heart of this job', minutes: 5,
-    body: `${topLabels.length > 1 ? `This ad keeps coming back to ${topLabels.length === 2 ? 'two' : 'three'} areas: ${topLabels.join('; ')}.` : topLabels.length ? `This ad keeps coming back to one area: ${topLabels[0]}.` : 'Start with what the ad asks for most.'}${leadLine ? ` The ad says “${quoteText(leadLine, 150)}”.` : ''}\n${topLabels.length ? 'Your answers should keep pointing back to these. You do not need to be perfect at all of them: real examples of a few go a long way.' : 'Pick two or three things the ad asks for and have one real example ready for each.'}`,
+    body: `${topLabels.length > 1 ? `This ad keeps coming back to ${topLabels.length === 2 ? 'two' : 'three'} areas: ${topLabels.join('; ')}. Your answers should keep pointing back to these.` : topLabels.length ? `This ad keeps coming back to one area: ${topLabels[0]}. Your answers should keep pointing back to it.` : 'Start with what the ad asks for most.'}${leadLine ? ` The ad says “${quoteText(leadLine, 150)}”.` : ''}\n${topLabels.length > 1 ? 'You do not need to be perfect in every area: real examples of a few go a long way.' : topLabels.length ? 'One or two real examples go a long way.' : 'Pick two or three things the ad asks for and have one real example ready for each.'}`,
     exercise: 'Say in one sentence what this job is for and who it helps. Then write down one true example from your life for each area above.', done: false });
   lessonThemes.forEach((t, ti) => {
     const cat = THEME[t.id];
