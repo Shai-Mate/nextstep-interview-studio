@@ -155,7 +155,10 @@ const flowSettled = () => performance.now() - flowShownAt > 500;
 
 const flowList = (v) => (Array.isArray(v) ? v : []);
 const flowStr = (v) => (typeof v === 'string' ? v.trim() : '');
-const flowPlural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+const flowNum = (n) => (Number(n) || 0).toLocaleString();
+const flowPlural = (n, one, many) => flowNum(n) + ' ' + (n === 1 ? one : many);
+/* Word joiners keep "nice-to-have" on one line. */
+const FLOW_NICE = ['nice-\u2060to-\u2060have', 'nice-\u2060to-\u2060haves'];
 function flowClip(s, max) {
   const t = flowStr(s).replace(/\s+/g, ' ');
   if (t.length <= max) return t;
@@ -213,12 +216,12 @@ function flowFacts(p) {
 }
 function flowSteps(f) {
   const steps = ['Read ' + flowPlural(f.words, 'word', 'words')];
-  if (f.must.length) steps.push('Found ' + flowPlural(f.must.length, 'thing they ask for', 'things they ask for') + (f.nice.length ? ' and ' + flowPlural(f.nice.length, 'nice-to-have', 'nice-to-haves') : ''));
+  if (f.must.length) steps.push('Found ' + flowPlural(f.must.length, 'thing they ask for', 'things they ask for') + (f.nice.length ? ' and ' + flowPlural(f.nice.length, FLOW_NICE[0], FLOW_NICE[1]) : ''));
   else if (f.duty.length) steps.push('Found ' + flowPlural(f.duty.length, 'thing you would do', 'things you would do') + ' day to day');
   else if (f.asks.length) steps.push('Picked out ' + flowPlural(f.asks.length, 'line', 'lines') + ' that matter most');
   if (f.skills.length) steps.push('Spotted ' + flowPlural(f.skills.length, 'skill', 'skills') + ': ' + f.skills.slice(0, 3).join(', ') + (f.skills.length > 3 ? '…' : ''));
   const top = f.themes[0] ? flowStr(f.themes[0].label) : '';
-  steps.push('Worked out what this job is really about' + (top ? ': ' + top.charAt(0).toLowerCase() + top.slice(1) : ''));
+  if (top) steps.push('Worked out what this job is really about: ' + top.charAt(0).toLowerCase() + top.slice(1));
   steps.push('Wrote ' + flowPlural(f.questions, 'practice question', 'practice questions') + ' and ' + flowPlural(f.lessons, 'short lesson', 'short lessons'));
   return steps;
 }
@@ -241,7 +244,15 @@ function flowLikelyQuestions(p) {
   return picked.sort((x, y) => x.i - y.i).map((x) => x.q);
 }
 /* The job ad with the analysis highlights. Ranges index the original text; every segment is escaped. */
+/* The highlighted ad. Core's renderer (app.js) keeps each must or nice line as one band with the
+   skills inside it; the flat marks below are only a fallback if it is missing or fails. */
 function flowMarked(text, a) {
+  if (typeof coreHighlightAd === 'function') {
+    try {
+      const r = coreHighlightAd(text, a);
+      if (r && typeof r.html === 'string' && r.kinds && typeof r.kinds.has === 'function') return r;
+    } catch { /* use the flat marks */ }
+  }
   const src = String(text || '');
   const kinds = new Set();
   let out = '';
@@ -265,11 +276,11 @@ function flowStatsHtml(f) {
   const lead = [
     [f.asks.length, f.asksLabel],
     [f.skills.length, ['skill the ad mentions', 'skills the ad mentions']],
-    [f.nice.length, ['nice-to-have', 'nice-to-haves']],
+    [f.nice.length, FLOW_NICE],
     [f.words, ['word read', 'words read']]
   ].filter(([n]) => n > 0).slice(0, 2);
   const stats = [...lead, [f.questions, ['practice question', 'practice questions']]];
-  return `<div class="glass reveal-stats">${stats.map(([n, [one, many]]) => `<div class="reveal-stat"><b data-count="${n}" aria-hidden="true">${n}</b><span class="flow-sr">${n} </span><span>${n === 1 ? one : many}</span></div>`).join('')}</div>`;
+  return `<div class="glass reveal-stats">${stats.map(([n, [one, many]]) => `<div class="reveal-stat"><b data-count="${n}" aria-hidden="true">${flowNum(n)}</b><span class="flow-sr">${flowNum(n)} </span><span>${n === 1 ? one : many}</span></div>`).join('')}</div>`;
 }
 /* The decoded view shared by the reveal and insights screens. */
 function flowDecodedHtml(p, f) {
@@ -291,12 +302,20 @@ function flowDecodedHtml(p, f) {
         </article>`;
       }).join('')}
     </section>` : '';
-  const asks = f.asks.slice(0, 8);
-  const asksTitle = f.must.length || !f.duty.length ? 'What they ask for' : 'What you would do';
+  const DUTY_NOTE = 'You don’t need to have done all of this before.';
+  /* With must-haves, the duties still get their own short list: for hourly jobs the duties are the job. */
+  const duties = f.must.length ? f.duty.slice(0, 5) : [];
+  const dutyHtml = duties.length ? `<section class="flow-sec" aria-labelledby="flow-duties">
+      <div class="flow-head"><h2 class="flow-title" id="flow-duties">What you would do</h2></div>
+      <ul class="flow-list">${duties.map((x) => `<li>${esc(flowClip(x, 180))}</li>`).join('')}</ul>
+      <p class="italic flow-reassure">${DUTY_NOTE}</p>
+    </section>` : '';
+  const asks = f.asks.slice(0, 12);
+  const asDuties = !f.must.length && f.duty.length > 0;
   const asksHtml = asks.length ? `<section class="flow-sec" aria-labelledby="flow-asks">
-      <div class="flow-head"><h2 class="flow-title" id="flow-asks">${asksTitle}</h2><span class="flow-count">${f.asks.length}</span></div>
+      <div class="flow-head"><h2 class="flow-title" id="flow-asks">${asDuties ? 'What you would do' : 'What they ask for'}</h2><span class="flow-count">${asks.length}</span></div>
       <ul class="flow-list">${asks.map((x) => `<li>${esc(flowClip(x, 180))}</li>`).join('')}</ul>
-      <p class="italic flow-reassure">You don’t need to tick every box. Most people don’t.</p>
+      <p class="italic flow-reassure">${asDuties ? DUTY_NOTE : 'You don’t need to tick every box. Most people don’t.'}</p>
     </section>` : '';
   const niceHtml = f.nice.length ? `<section class="flow-sec" aria-labelledby="flow-nice">
       <div class="flow-head"><h2 class="flow-title" id="flow-nice">Nice to have</h2><span class="flow-count">${f.nice.length}</span></div>
@@ -317,7 +336,7 @@ function flowDecodedHtml(p, f) {
       <ol class="flow-asks">${qs.map((q) => `<li>${esc(q)}</li>`).join('')}</ol>
       <p class="hint">You will practise these in your answer bank and the mock interview.</p>
     </section>` : '';
-  return themeHtml + asksHtml + niceHtml + skillsHtml + signalsHtml + qsHtml;
+  return themeHtml + dutyHtml + asksHtml + niceHtml + skillsHtml + signalsHtml + qsHtml;
 }
 function flowNoPrep() {
   view = 'welcome';
@@ -359,6 +378,10 @@ function flowReadout(text) {
   if (skills) parts.push(flowPlural(skills, 'skill spotted', 'skills spotted'));
   return parts.join(' · ');
 }
+/* The visible line follows every pause in typing; screen readers only hear it after a paste
+   or when the ad grew or shrank by 20 words or more. */
+let flowSaidWords = 0;
+let flowPasted = false;
 function flowUpdateReadout() {
   const box = $('#job');
   const out = $('#ad-readout');
@@ -366,6 +389,13 @@ function flowUpdateReadout() {
   const line = flowReadout(box.value);
   out.textContent = line || FLOW_EMPTY_HINT;
   out.classList.toggle('on', !!line);
+  const live = $('#ad-readout-live');
+  const words = wordCount(box.value);
+  if (live && line && (flowPasted || Math.abs(words - flowSaidWords) >= 20)) {
+    live.textContent = line;
+    flowSaidWords = words;
+  }
+  flowPasted = false;
 }
 
 Object.assign(screens, {
@@ -393,13 +423,14 @@ Object.assign(screens, {
       <label class="field" for="job">Job-ad text</label>
       <textarea class="tall" id="job" name="job" maxlength="60000" placeholder="Paste the full job ad here" aria-describedby="ad-readout">${esc(draft.job || '')}</textarea>
       <div class="readout-row">
-        <p class="readout" id="ad-readout" aria-live="polite">${esc(FLOW_EMPTY_HINT)}</p>
+        <p class="readout" id="ad-readout">${esc(FLOW_EMPTY_HINT)}</p>
+        <p class="flow-sr" id="ad-readout-live" aria-live="polite"></p>
         <button type="button" class="link" id="use-sample" data-action="sample-from-jobad" ${has ? 'hidden' : ''}>Use a sample ad</button>
       </div>
       <label class="field" for="url">Job-ad URL, optional</label>
       <input id="url" name="url" type="url" maxlength="2000" value="${esc(draft.url || '')}" placeholder="Saved as a reference only" inputmode="url">
       <div class="meta"><span id="fetch-status">Stays on this device.</span><button type="button" class="link" id="how-ad">How to add a job ad</button></div>
-      <button class="primary" type="submit">Build my plan</button>
+      <button class="primary" type="submit">Continue</button>
     </form>`;
   },
   setup() {
@@ -460,7 +491,7 @@ Object.assign(screens, {
         ${flowStatsHtml(f)}
         ${flowDecodedHtml(p, f)}
         <div class="flow-links">
-          <button type="button" class="text-btn" data-action="open-insights" data-to="ad">See it highlighted in your ad</button>
+          <button type="button" class="text-btn" data-action="open-insights" data-to="ad">${f.a && flowList(f.a.highlights).length ? 'See it highlighted in your ad' : 'See your job ad'}</button>
           ${p.sample ? '<button type="button" class="text-btn" data-action="start">Try it with your own job ad</button>' : ''}
         </div>
       </div>
@@ -510,7 +541,9 @@ function createPrep(skip) {
     readJob();
     if ((draft.job || '').trim().length < 40) { notify('Paste at least 40 characters from the actual ad.'); show('jobad'); return; }
     draft.intake = skip ? {} : Object.fromEntries(new FormData($('#intake')));
-    flowBuild('');
+    const job = String(draft.job || '').trim();
+    const sample = FLOW_SAMPLES.find((x) => x.job.trim() === job);
+    flowBuild(sample ? sample.id : '');
   } catch (err) { notify(err.message); }
 }
 function flowToReveal() {
@@ -530,7 +563,7 @@ function flowCountUp() {
     if (!els[0].isConnected) return;
     const k = Math.min(1, Math.max(0, (now - start) / dur));
     const ease = 1 - Math.pow(1 - k, 3);
-    els.forEach((el) => { el.textContent = String(Math.round((Number(el.dataset.count) || 0) * ease)); });
+    els.forEach((el) => { el.textContent = flowNum(Math.round((Number(el.dataset.count) || 0) * ease)); });
     if (k < 1) requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -545,8 +578,12 @@ binders.jobad = () => {
   if (!job) return;
   const box = $('#job');
   const pick = $('#use-sample');
+  flowSaidWords = wordCount(box.value);
+  flowPasted = false;
   flowUpdateReadout();
-  box.addEventListener('input', () => {
+  box.addEventListener('paste', () => { flowPasted = true; });
+  box.addEventListener('input', (e) => {
+    if (e && /^insertFrom(Paste|Drop)/.test(e.inputType || '')) flowPasted = true;
     if (pick) pick.hidden = !!box.value.trim();
     clearTimeout(flowReadTimer);
     flowReadTimer = setTimeout(flowUpdateReadout, 250);
@@ -570,7 +607,7 @@ binders.setup = () => {
   intake.addEventListener('submit', (e) => { e.preventDefault(); createPrep(false); });
   $('#skip').addEventListener('click', () => createPrep(true));
 };
-binders.samples = () => flowFocusTitle();
+binders.samples = () => { flowShownAt = performance.now(); flowFocusTitle(); };
 binders.decode = () => {
   const el = document.querySelector('#app .screen.decode');
   clearTimeout(flowDecodeTimer);
@@ -597,7 +634,7 @@ Object.assign(actions, {
   'samples-back': () => show(flowSamplesFrom === 'jobad' ? 'jobad' : 'welcome'),
   'use-sample': (el) => {
     const s = FLOW_SAMPLES.find((x) => x.id === el.dataset.sample);
-    if (!s) return;
+    if (!s || !flowSettled()) return;
     if (flowSamplesFrom === 'jobad') {
       draft = draft || {};
       draft.job = s.job;
@@ -613,7 +650,11 @@ Object.assign(actions, {
     } catch (err) { notify(err.message); }
   },
   'decode-skip': () => { if (flowSettled()) flowToReveal(); },
-  'reveal-next': () => { clearTimeout(flowDecodeTimer); if (needPrep()) show('reveal'); },
+  'reveal-next': () => {
+    if (!flowSettled()) return;
+    clearTimeout(flowDecodeTimer);
+    if (needPrep()) show('reveal');
+  },
   'go-today': () => {
     if (view === 'reveal' && !flowSettled()) return;
     clearTimeout(flowDecodeTimer);
