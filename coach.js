@@ -604,17 +604,26 @@
     items.sort((a, b) => b.score - a.score || a.order - b.order);
     return items.slice(0, 24);
   }
-  function relevance(toks, question, info, analysis) {
+  function relevance(toks, question, info, analysis, kind) {
     const items = pool(question, info, analysis);
     const idx = answerIndex(toks);
     const hit = [];
+    const rest = [];
     const missing = [];
     const related = items.some((it) => it.score >= 2);
     for (const it of items) {
       const h = termHits(it.label, idx);
       if (h.all) hit.push(it);
-      // Suggest only words tied to this question when there are some, and never ones the answer half-uses already.
-      else if (h.part < 0.5 && missing.length < 3 && (!related || it.score >= 2) && !missing.some((m) => overlaps(m.key, it.key))) missing.push(it);
+      else if (h.part < 0.5) rest.push(it);
+    }
+    // Suggest only words tied to this question when there are some, never ones the answer half-uses already or
+    // that overlap a phrase it echoes ("product" next to "product usage data"). For a "what would you do" or
+    // "why this job" question with nothing tied to it, the ad's top skills are beside the point: suggest nothing.
+    const open = !related && (kind === 'situational' || kind === 'motivation');
+    for (const it of rest) {
+      if (open || missing.length >= 3 || (related && it.score < 2)) continue;
+      if (missing.some((m) => overlaps(m.key, it.key)) || hit.some((m) => overlaps(m.key, it.key))) continue;
+      missing.push(it);
     }
     // Drop an echoed word when a longer echoed phrase already contains it ("POS" inside "POS system").
     const shown = hit.filter((it) => !hit.some((o) => o !== it && o.key.length > it.key.length && ` ${o.key} `.includes(` ${it.key} `)));
@@ -765,7 +774,7 @@
     const title = 'Your part in it';
     const r = a.acts;
     if (!a.words) return { ok: false, title, detail: 'Say what you did yourself, starting with “I …”.' };
-    if (!a.english) return { ok: false, title, detail: 'Not checked: this coach reads English answers for now.' };
+    if (!a.english) return { ok: true, title, detail: 'Not checked: this coach reads English answers for now.' };
     if (kind === 'closing') return { ok: true, title, detail: 'Nothing to add here: this is your turn to ask.' };
     if (r.weCount >= 3 && r.weCount > r.iCount) {
       return { ok: false, title, detail: r.iCount ? `You said “we” ${times(r.weCount)} and “I” ${times(r.iCount)}; try saying what you did yourself.` : `You said “we” ${times(r.weCount)} but never “I”; try saying what you did yourself.` };
@@ -794,19 +803,19 @@
     if (soft) {
       const first = e.nums[0] || names[0] || (kind === 'motivation' ? rel.echoed[0] : '');
       if (first) return { ok: true, title, detail: `You mention real details, like ${quote(first)}.` };
-      if (!a.english) return { ok: false, title, detail: 'Not checked: this coach reads English answers for now.' };
+      if (!a.english) return { ok: true, title, detail: 'Not checked: this coach reads English answers for now.' };
       if (e.said) return { ok: true, title, detail: 'You mention how people reacted, which makes it feel real.' };
       return { ok: false, title, detail: kind === 'motivation' ? 'Add one real detail, like something from the ad or a past job, that shows why it fits you.' : 'Add one real detail, like a time you did something similar, to show you can do it.' };
     }
     if (e.nums.length) return { ok: true, title, detail: `You back it up with numbers like ${list(e.nums.slice(0, 2).map(quote))}.` };
-    if (!a.english) return { ok: false, title, detail: 'Not checked: this coach reads English answers for now.' };
+    if (!a.english) return { ok: true, title, detail: 'Not checked: this coach reads English answers for now.' };
     const more = 'a number, like how many or how long, would make it even stronger';
     const outcome = findPhrase(a.toks, OUTCOME);
     if (outcome) return { ok: true, title, detail: `You show how it turned out (${quote(outcome)}); ${more}.` };
-    if (e.said && a.star.result) return { ok: true, title, detail: `You say how people reacted, which is good proof; ${more}.` };
-    if (names.length >= 2 || (names.length && a.star.result)) return { ok: true, title, detail: `You name real details like ${list(names.slice(0, 2).map(quote))}; ${more}.` };
     if (e.said) return { ok: true, title, detail: `You say how people reacted, which is good proof; ${more}.` };
-    if (names.length === 1) return { ok: false, title, detail: `You mention ${quote(names[0])}; add how you know it worked, like how many, how long, or what someone said.` };
+    if (names.length && a.star.result) return { ok: true, title, detail: `You name real details like ${list(names.slice(0, 2).map(quote))}; ${more}.` };
+    // Tool or place names alone do not show it worked ("I use React and TypeScript").
+    if (names.length) return { ok: false, title, detail: `You mention ${list(names.slice(0, 2).map(quote))}; add how you know it worked, like how many, how long, or what someone said.` };
     return { ok: false, title, detail: 'Add one detail that shows it worked, like how many, how long, or what someone said afterwards.' };
   }
 
@@ -814,6 +823,7 @@
     const title = 'Matches the job ad';
     if (!a.words) return { ok: false, title, detail: 'Use the job ad’s own words where they are true for you.' };
     if (!rel.size) return { ok: true, title, detail: 'Nothing from the job ad to compare with for this question.' };
+    if (!a.english && !rel.echoed.length) return { ok: true, title, detail: 'Not checked: this coach reads English answers for now.' };
     const miss = rel.missing.slice(0, 2).map(quote);
     const used = `You use the ad’s own words, like ${list(rel.echoed.slice(0, 2).map(quote))}`;
     if (kind === 'closing') {
@@ -889,7 +899,7 @@
     const analysis = c.analysis && typeof c.analysis === 'object' && !Array.isArray(c.analysis) ? c.analysis : null;
     const a = analyse(s, true);
     const kind = kindOf(question, info);
-    const rel = relevance(a.toks, question, info, analysis);
+    const rel = relevance(a.toks, question, info, analysis, kind);
     const checks = [
       { id: 'structure', ...structureCheck(a, kind, s) },
       { id: 'ownership', ...ownershipCheck(a, kind) },
@@ -906,7 +916,7 @@
       starScore,
       checks,
       echoed: rel.echoed,
-      missing: rel.missing.slice(0, 3),
+      missing: a.english ? rel.missing.slice(0, 3) : [],
       summary: summary(a, kind, starScore, rel)
     };
   }
@@ -914,12 +924,12 @@
   function summary(a, kind, starScore, rel) {
     if (!a.words) return 'No answer yet';
     const bits = [];
-    if (kind !== 'closing' && kind !== 'motivation' && a.english) {
+    if (kind !== 'closing' && kind !== 'motivation' && kind !== 'situational' && kind !== 'gap' && a.english) {
       const lack = PARTS.filter((p) => !a.star[p]);
       bits.push(starScore === 4 ? 'All 4 parts' : starScore === 0 ? 'No story parts yet' : `${starScore} of 4 parts (no ${list(lack, 'or')} yet)`);
     }
     bits.push(`${plural(a.words, 'word')}, about ${spoken(a.seconds)}`);
-    if (rel.size) bits.push(rel.echoed.length ? `uses ${plural(rel.echoed.length, 'word')} from the ad` : 'no words from the ad yet');
+    if (rel.size && (a.english || rel.echoed.length)) bits.push(rel.echoed.length ? `uses ${plural(rel.echoed.length, 'word')} from the ad` : 'no words from the ad yet');
     return bits.join(' · ');
   }
 

@@ -395,3 +395,44 @@ test('"make sure it is safe" and "would be happy" are hopes, not how it turned o
   assert.equal(Coach.live('I found her size and she left happy.').star.result, true);
   assert.equal(Coach.live('We finished the panel change safely.').star.result, true);
 });
+
+test('tool names alone are not proof it worked', () => {
+  const r = Coach.review('I fix bugs all the time. I use React and TypeScript and Git. I am a fast learner.', tech);
+  const ev = check(r, 'evidence');
+  assert.equal(ev.ok, false);
+  assert.equal(ev.detail, 'You mention “React” and “TypeScript”; add how you know it worked, like how many, how long, or what someone said.');
+  // With a result, the same names are real detail.
+  const done = Coach.review('In my bootcamp project I rebuilt the booking form in React and TypeScript, and after that the bug reports went down.', tech);
+  assert.equal(check(done, 'evidence').ok, true, check(done, 'evidence').detail);
+});
+
+test('situational and learning answers get a summary without story parts', () => {
+  const sit = Coach.review('I would stay calm and ask her why she does not want it. I would offer a different time or a sponge bath instead, and respect her choice. Then I would tell the nurse and write it in the chart.', { question: 'What would you do if a resident refused their bath?', info: { kind: 'situational', source: null }, analysis: care.analysis });
+  assert.doesNotMatch(sit.summary, /parts/);
+  assert.match(sit.summary, /^\d+ words, about \d+ seconds/);
+  const gap = Coach.review('I would ask my journeyperson to let me watch the first few, read the code on the evenings and practise at school.', { question: 'How would you learn to work on commercial panels?', info: { kind: 'gap', source: null }, analysis: trades.analysis });
+  assert.doesNotMatch(gap.summary, /parts/);
+});
+
+test('missing words stay on topic and never repeat what the answer already said', () => {
+  // Nothing in the question is tied to one line of the ad: no unrelated tool names.
+  const sit = Coach.review('I would stay calm and ask her why she does not want it, then offer a sponge bath instead and tell the nurse.', { question: 'What would you do if a resident refused their bath?', info: { kind: 'situational', source: null }, analysis: care.analysis });
+  assert.deepEqual(sit.missing, []);
+  assert.doesNotMatch(check(sit, 'relevance').detail, /PointClickCare|mechanical lifts/);
+  const why = Coach.review('I love making coffee and I enjoy a busy morning. At my last job at a bakery I opened every Saturday.', { question: 'Why do you want to work at Little Fern Coffee?', info: { kind: 'motivation', source: null }, analysis: cafe.analysis });
+  assert.deepEqual(why.missing, []);
+  // A word already used inside an echoed phrase is not suggested again.
+  const office = Coach.review(TYPED.office.replace('Usage data showed', 'Product usage data showed'), { ...OFFICE, analysis: { ...OFFICE.analysis, keywords: [...OFFICE.analysis.keywords, 'product'] } });
+  assert.ok(office.echoed.includes('product usage data'), JSON.stringify(office.echoed));
+  assert.ok(!office.missing.includes('product'), JSON.stringify(office.missing));
+});
+
+test('answers in other languages are not flagged on English-only checks', () => {
+  const es = Coach.review('En mi último trabajo en una tienda, una clienta estaba molesta porque no encontraba su talla. La escuché, revisé el almacén y encontré la última chaqueta. Volvió la semana siguiente con su hermana.', retail);
+  for (const id of ['ownership', 'evidence', 'relevance']) {
+    assert.equal(check(es, id).ok, true, id);
+    assert.match(check(es, id).detail, /^Not checked: this coach reads English answers for now\.$/);
+  }
+  assert.match(check(es, 'structure').detail, /reads English answers/);
+  assert.deepEqual(es.missing, []);
+});
