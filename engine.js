@@ -655,15 +655,15 @@ const SIGNALS = [
   ['Part-time', /\bpart[- ]time\b/i],
   ['Full-time', /\bfull[- ]time\b/i],
   ['Physical work', /\blift(?:ing)?\b[^.]{0,40}\b(?:kg|lbs?|pounds)\b|\bstanding for long|\bon your feet\b|\bladders?\b|\bcrawl spaces?\b|\boutdoors\b|\ball weather\b|\bphysically (?:demanding|active)\b|\bheavy lifting\b|\bmechanical lifts\b/i],
-  ['Customer-facing', /\bcustomers?\b|\bclients?\b|\bguests?\b|\bclient-facing\b|\bcustomer-facing\b|\bhomeowners?\b|\bthe public\b|\bshoppers?\b|\bpatrons?\b/i],
-  ['Hands-on care', /\bresidents?\b|\bpatients\b|\bpersonal care\b/i],
+  ['Customer-facing', /\bcustomers?\b(?! orders?\b)|\bclients?\b|\bguests?\b|\bclient-facing\b|\bcustomer-facing\b|\bhomeowners?\b|\bthe public\b|\bshoppers?\b|\bpatrons?\b/i],
+  ['Hands-on care', /\bpersonal care\b|\b(?:bathing|dressing|grooming|toileting|feeding|transfer techniques|wound care|vital signs|medications?|patient care|resident care)\b|\bcare (?:for|to) (?:residents|patients|clients|seniors|children)\b/i],
   ['Fast-paced', /\bfast[- ]paced\b|\bbusy\b|\brush\b|\bhigh[- ]volume\b|\bpeak (?:times|hours|season)\b|\bholiday season\b/i],
   ['Driving or travel', /\b(?:driver[’']?s|driving) licen[cs]e\b|\breliable transportation\b|\bown vehicle\b|\btravel (?:to|between|required|across|within|up to)\b|\bsome travel\b/i],
-  ['Training and support', /\bwe will train\b|\bwill train\b|\bpaid training\b|\btraining (?:is )?provided\b|\bon-the-job training\b|\bmentoring\b|\blearning (?:budget|stipend)\b|\bpaid (?:school time|education days)\b|\bunder the supervision\b/i],
+  ['Training and support', /\bwe will train\b|\bwe train\b|\bwill train\b|\bpaid training\b|\btraining (?:is )?provided\b|\bon-the-job training\b|\bmentoring\b|\blearning (?:budget|stipend)\b|\bpaid (?:school time|education days)\b|\bunder the supervision\b/i],
   ['Certificates or checks', /\bcriminal record check\b|\bvulnerable sector\b|\bpolice check\b|\bcertificat\w+\b|\blicen[cs]e\b|\bregistered (?:apprentice|nurse)\b|\bred seal\b|\bwhmis\b|\bfirst aid\b|\bcpr\b|\bfood ?safe\b|\bsmart ?serve\b/i],
   ['Small team', /\bsmall team\b|\bfamily-run\b|\bsmall, family\b|\bteam of (?:[2-9]|1\d|20)\b/i]
 ];
-const SCHEDULE = [['early mornings', /\bearly mornings?\b|\b[4-6] ?am\b/i], ['evenings', /\bevenings?\b/i], ['nights', /\bnights\b|\bovernight\b/i], ['weekends', /\bweekends?\b/i], ['holidays', /\bholidays?\b|\bholiday season\b/i], ['rotating shifts', /\brotating\b|\bshift work\b/i]];
+const SCHEDULE = [['early mornings', /\bearly mornings?\b|\b(?:at|from|by|before) [4-6] ?am\b/i], ['evenings', /\bevenings?\b/i], ['nights', /\bnights\b|\bovernight\b|\bnight shifts?\b/i], ['weekends', /\bweekends?\b|\bsaturdays?\b|\bsundays?\b/i], ['holidays', /\bholidays?\b|\bholiday season\b/i], ['rotating shifts', /\brotating\b|\bshift work\b/i]];
 function findSignals(items) {
   const out = [];
   const eligible = items.filter((it) => it.kind !== 'about');
