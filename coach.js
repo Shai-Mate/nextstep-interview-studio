@@ -73,6 +73,7 @@
   const CONJ = bag('and but so then or plus');
   const LEAD_IN = bag('then first next also and so after finally afterwards later');
   const PARTICLE = bag('up out down off over in back through around');
+  const SAME_PAST = bag('let put set cut read hit quit shut spread split cost hurt');
 
   // Situation, Task and Result markers: token phrases, '|' separates alternatives in a slot, '#num'/'#year' match numbers.
   const SITUATION = compile([
@@ -105,7 +106,11 @@
     'failing|failed|cancel|cancelling|canceling|crashed|crashing|risk|losing|overdue|refused|refusing',
     'did|does nothing', "didn't|wasn't|isn't|doesn't|won't|wouldn't work|working|load|start|open|turn", 'did|does|was|is|would not work|working|load|start|open',
     'not working', 'stopped working', 'kept crashing|failing|breaking|freezing|tripping|leaking',
-    'users|customers|clients|people|someone|homeowner|homeowners|residents|guests|patients|parents reported|complained|noticed|asked'
+    'users|customers|clients|people|someone|homeowner|homeowners|residents|guests|patients|parents reported|complained|noticed|asked',
+    'yelling|shouting|screaming|rude|alarm|alarms|crisis|accident|spill|spilled|flooded|flooding|shortage',
+    'falling|fell|fall|getting|got|running|ran behind', 'behind schedule', 'not enough', 'too many|few|much', 'short on',
+    'ran|run|running out', 'out of stock', 'not|wasn\'t ready', 'stopped replying|responding|answering|showing',
+    'was|were given|handed'
   ]);
   const RESULT = compile([
     'result|results|resulted|outcome|outcomes|consequently|ultimately|afterwards|afterward', 'as a result', 'in the end',
@@ -117,7 +122,7 @@
     'met|hit|reached|made|beat the|our|my|their deadline|target|targets|goal|goals|quota|numbers', 'on time',
     'ahead of schedule|time', 'under budget', 'finished|done|ready|arrived early', 'safely', 'safe',
     'without any|a|an injury|injuries|incident|incidents|issue|issues|problem|problems|complaint|complaints|accident|accidents|errors|mistakes|delays',
-    'no injuries|incidents|complaints|accidents|errors|mistakes|problems|issues|delays', 'nobody|no one got|was hurt',
+    'no injuries|incidents|complaints|accidents|errors|mistakes|problems|issues|delays', 'nobody got|was hurt', 'no one got|was hurt',
     'without mistakes|errors|issues|problems|complaints|incidents|injuries|accidents|delays|complaint|problem|issue|incident|injury|distress',
     'best|busiest|biggest|record day|week|month|shift|year|night|sales', 'got|made it through', 'got through',
     'thanked|thank|thanks|grateful|appreciated|smiled|smiling|happy|happier|satisfied|pleased|relieved|calmer',
@@ -126,7 +131,20 @@
     'good|great|positive|glowing|five-star|5-star review|reviews|feedback',
     'learned|learnt|lesson|lessons|realised|realized', 'taught me', 'fewer|faster|quicker|smoother|safer|shorter',
     'less time|waste|stress|money', 'more efficient|organised|organized|confident|smoothly', 'no longer', 'never again',
-    'went|go|goes down|up', 'it|that|this worked|helped|paid', 'difference'
+    'went|go|goes down|up', 'it|that|this worked|helped|paid', 'difference', 'instead of',
+    'within a|an|the|one|two|three minute|minutes|hour|hours|day|days|week|weeks|month|months|shift', 'within a few minutes|hours|days|weeks'
+  ]);
+  // Concrete outcomes are proof on their own, even without a number ("closed on time", "a good review").
+  const OUTCOME = compile([
+    'on time', 'ahead of schedule|time', 'under budget', 'never ran|run out', 'no longer',
+    'without any|a|an injury|injuries|incident|incidents|issue|issues|problem|problems|complaint|complaints|accident|accidents|errors|mistakes|delays',
+    'without mistakes|errors|issues|problems|complaints|incidents|injuries|accidents|delays|complaint|problem|issue|incident|injury|distress',
+    'no injuries|incidents|complaints|accidents|errors|mistakes|problems|issues|delays|fracture|fractures|harm|injury',
+    'nobody got|was hurt', 'no one got|was hurt', 'passed|pass inspection|audit|the|an|our|my|their', 'came|come|comes|coming back',
+    'renewed|retained|promoted|praised|recognised|recognized|complimented|thanked',
+    'good|great|positive|glowing|five-star|5-star review|reviews|feedback', 'best|busiest|biggest|record day|week|month|shift|year|night|sales',
+    'met|hit|reached|made|beat the|our|my|their deadline|target|targets|goal|goals|quota|numbers', 'asked for me', 'kept the|my route|system|plan|idea|approach',
+    'still use|uses|using', 'since then', 'from then on', 'every time|night|day|shift|week since'
   ]);
 
   // Filler and hedge words: strong ones count fully, soft ones count half.
@@ -172,6 +190,7 @@
 
   /* ---------- small helpers ---------- */
 
+  // Phrase specs: slots are separated by single spaces and alternatives by '|', so an alternative is always one word.
   function compile(specs) {
     const map = new Map();
     for (const spec of specs) {
@@ -189,7 +208,9 @@
   function slotHas(slot, t) {
     return slot.has(t) || (isNum(t) && (slot.has('#num') || (slot.has('#year') && isYear(t))));
   }
-  function hasPhrase(toks, map) {
+  const hasPhrase = (toks, map) => findPhrase(toks, map) !== '';
+  // The first phrase from the map found in the tokens, as text ('' when none).
+  function findPhrase(toks, map) {
     for (let i = 0; i < toks.length; i++) {
       const t = toks[i];
       let list = map.get(t);
@@ -198,10 +219,10 @@
       for (const rest of list) {
         let j = 0;
         while (j < rest.length && i + 1 + j < toks.length && slotHas(rest[j], toks[i + 1 + j])) j++;
-        if (j === rest.length) return true;
+        if (j === rest.length) return toks.slice(i, i + 1 + j).join(' ');
       }
     }
-    return false;
+    return '';
   }
   function clean(text) {
     let s = typeof text === 'string' ? text : typeof text === 'number' && Number.isFinite(text) ? String(text) : '';
@@ -295,7 +316,7 @@
     if (!form && t.length > 4 && t.endsWith('ed') && /^[a-z-]+$/.test(t) && !t.startsWith('un')) form = 'past';
     if (!form) return null;
     if (form === 'past' && PASSIVE.has(prev)) return null;
-    if (inherited && form === 'base' && lastForm !== 'base') return null;
+    if (inherited && form === 'base' && lastForm !== 'base' && !SAME_PAST.has(t)) return null;
     return form;
   }
   // Walks clauses keeping track of the subject, so "I greeted her, asked what she needed and found her size" counts 3 for I.
@@ -589,9 +610,10 @@
   // A number and the words that say what it counts: "30 small business accounts", "$200", "20%", "6 carts".
   const NUM_RE = /(?:[$£€]\s?)?\d+(?:[.,:]\d+)*(?:\s?(?:%|percent|per cent|k\b))?/gu;
   const NUM_WORD_RE = /\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|hundred|hundreds|thousand|thousands|dozen|dozens|twice|half|double|triple)\b/gi;
-  const SPAN_RE = /\b(?:within|after|in|under|over)\s+(?:a|one|two|three|four|five|six|a few|a couple of)\s+(?:minutes?|hours?|days?|weeks?|months?|shifts?)\b/i;
+  const SPAN_RE = /\b(?:within|after|in|under|over)\s+(?:a|an|one|two|three|four|five|six|a few|a couple of|the)\s+(?:minutes?|hours?|days?|weeks?|months?)\b/i;
   const NEXT_WORD_RE = /\s+([\p{L}][\p{L}'-]*)/uy;
   const TENURE = /^(?:years?|months?|weeks?|days?)$/;
+  const NUM_END = bag('and or but so then from into with without instead ago ahead early late earlier later faster sooner longer shorter quicker');
   function numberPhrase(s, m) {
     let end = m.index + m[0].length;
     const ws = [];
@@ -600,7 +622,8 @@
     while (ws.length < 3) {
       NEXT_WORD_RE.lastIndex = end;
       const w = NEXT_WORD_RE.exec(s);
-      if (!w || STOP.has(w[1].toLowerCase()) || /^(?:and|or|but|so|then|from|into|with|without)$/i.test(w[1])) break;
+      const lw = w ? w[1].toLowerCase() : '';
+      if (!w || STOP.has(lw) || NUM_END.has(lw) || (lw.length > 4 && /(?:ed|ing)$/.test(lw) && !/(?:thing|ceiling|building|meeting|booking|listing|setting|clothing|bedding|siding|wiring|piping|flooring|tiling|roofing|training)$/.test(lw))) break;
       ws.push(w[1]);
       end = NEXT_WORD_RE.lastIndex;
     }
@@ -613,22 +636,25 @@
   const CAPS_SKIP = bag(`I I'm I've I'd I'll OK Okay Hi Yes No So And But Then The A An My We It This That When While After Before Because If Also First Next Finally Monday Tuesday Wednesday Thursday Friday Saturday Sunday
     January February March April May June July August September October November December Christmas Last Next One Our Her His Their`);
   function evidence(s) {
-    const nums = [];
-    const push = (v) => {
+    const found = [];
+    const push = (v, at) => {
       const lv = v.toLowerCase();
-      if (v && !isYear(v) && nums.length < 4 && !nums.some((n) => n.toLowerCase().includes(lv) || lv.includes(n.toLowerCase()))) nums.push(v);
+      if (v && !isYear(v) && found.length < 6 && !found.some((n) => n.v.toLowerCase().includes(lv) || lv.includes(n.v.toLowerCase()))) found.push({ v, at });
     };
     for (const m of s.matchAll(NUM_RE)) {
-      push(numberPhrase(s, m));
-      if (nums.length >= 4) break;
+      push(numberPhrase(s, m), m.index);
+      if (found.length >= 6) break;
     }
     for (const m of s.matchAll(NUM_WORD_RE)) {
-      if (nums.length >= 4) break;
+      if (found.length >= 6) break;
       const v = numberPhrase(s, m);
-      if (v.includes(' ')) push(v.toLowerCase());
+      if (v.includes(' ')) push(v.toLowerCase(), m.index);
     }
-    const span = s.match(SPAN_RE);
-    if (span) push(span[0].toLowerCase());
+    const span = SPAN_RE.exec(s);
+    if (span) push(span[0].toLowerCase(), span.index);
+    // Numbers in the second half usually say what changed, so show those first.
+    const half = s.length * 0.45;
+    const nums = found.sort((x, y) => (x.at < half) - (y.at < half) || x.at - y.at).slice(0, 4).map((n) => n.v);
     const names = [];
     for (const sentence of s.split(/[.!?\n]+/)) {
       if (names.length >= 4) break;
@@ -642,7 +668,7 @@
     // How people reacted afterwards ("she thanked me", a quoted comment) is proof too; look in the later part of the answer.
     const tail = s.slice(Math.floor(s.length * 0.4));
     const said = /"[^"\n]{3,120}"/.test(tail)
-      || /\b(?:said|told (?:me|us)|thanked|praised|complimented|recogni[sz]ed|promoted|wrote (?:to )?(?:me|us)|left (?:a|us a|me a) (?:review|note|comment|card)|asked me to (?:share|show|train|teach|lead|mentor|help|cover|run))\b/i.test(tail);
+      || /\b(?:said|told (?:me|us)|thanked|praised|complimented|recogni[sz]ed|promoted|wrote (?:to )?(?:me|us)|left (?:a|us a|me a)(?: [a-z-]+)? (?:review|note|comment|card)|asked me to (?:share|show|train|teach|lead|mentor|help|cover|run))\b/i.test(tail);
     return { nums, names, said };
   }
 
@@ -740,12 +766,15 @@
     if (soft) {
       const first = e.nums[0] || names[0] || (kind === 'motivation' ? rel.echoed[0] : '');
       if (first) return { ok: true, title, detail: `You mention real details, like ${quote(first)}.` };
+      if (!a.english) return { ok: false, title, detail: 'Not checked: this coach reads English answers for now.' };
       if (e.said) return { ok: true, title, detail: 'You mention how people reacted, which makes it feel real.' };
       return { ok: false, title, detail: kind === 'motivation' ? 'Add one real detail, like something from the ad or a past job, that shows why it fits you.' : 'Add one real detail, like a time you did something similar, to show you can do it.' };
     }
     if (e.nums.length) return { ok: true, title, detail: `You back it up with numbers like ${list(e.nums.slice(0, 2).map(quote))}.` };
     if (!a.english) return { ok: false, title, detail: 'Not checked: this coach reads English answers for now.' };
     const more = 'a number, like how many or how long, would make it even stronger';
+    const outcome = findPhrase(a.toks, OUTCOME);
+    if (outcome) return { ok: true, title, detail: `You show how it turned out (${quote(outcome)}); ${more}.` };
     if (e.said && a.star.result) return { ok: true, title, detail: `You say how people reacted, which is good proof; ${more}.` };
     if (names.length >= 2 || (names.length && a.star.result)) return { ok: true, title, detail: `You name real details like ${list(names.slice(0, 2).map(quote))}; ${more}.` };
     if (e.said) return { ok: true, title, detail: `You say how people reacted, which is good proof; ${more}.` };
