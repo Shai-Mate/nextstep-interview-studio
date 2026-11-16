@@ -358,17 +358,48 @@ let toastTimer = 0;
 let active = null;
 let draft = null;
 let storageOK = true;
+/* Storage trust. 'Blocked': the browser refuses storage (private browsing, some in-app browsers).
+   Saved text that cannot be parsed is kept in rawSaved, never overwritten, and can be downloaded
+   as-is from Privacy. Single damaged records are kept in keptRecords and written back untouched on
+   every save, while the good ones load normally. */
+let storageBlocked = false;
+let rawSaved = null;
+let keptRecords = [];
+const CORE_SAVE_MSG = {
+  blockedLoad: "This browser won't let NextStep save anything on this device. That happens in private browsing and some in-app browsers. You can still practise; export a backup before you leave.",
+  blocked: "Not saved: this browser won't let NextStep save on this device. Export a backup before you leave.",
+  unreadableLoad: 'Your saved preparations could not be read. They have not been overwritten, and you can download them as-is on the Privacy page.',
+  unreadable: 'Not saved, so your earlier saved data stays exactly as it was. Export a backup before you leave.',
+  full: "Could not save: this browser's storage is full or unavailable. Export a backup before you leave."
+};
+const coreGoodRecord = (p) => !!p && typeof p === 'object' && p.schema === 1 && !!p.id && Array.isArray(p.course) && !!p.mock && typeof p.mock === 'object';
 let view = 'welcome';
 let lessonIndex = 0;
 let renaming = false;
 let privacyFrom = 'welcome';
 try {
-  records = JSON.parse(localStorage.getItem(KEY) || '[]');
-  if (!Array.isArray(records) || records.some((p) => p.schema !== 1 || !p.id || !Array.isArray(p.course) || !p.mock)) throw Error('Invalid saved format');
+  const raw = localStorage.getItem(KEY);
+  try {
+    const list = JSON.parse(raw || '[]');
+    if (!Array.isArray(list)) throw Error('Invalid saved format');
+    records = list.filter(coreGoodRecord);
+    keptRecords = list.filter((p) => !coreGoodRecord(p));
+  } catch {
+    storageOK = false;
+    records = [];
+    rawSaved = raw;
+  }
 } catch {
   storageOK = false;
+  storageBlocked = true;
   records = [];
-  notify('Saved data could not be read. It has not been overwritten. Export or recover your browser storage before continuing.');
+}
+if (storageBlocked) notify(CORE_SAVE_MSG.blockedLoad, true);
+else if (!storageOK) notify(CORE_SAVE_MSG.unreadableLoad, true);
+else if (keptRecords.length) notify(coreKeptLine(), false);
+function coreKeptLine() {
+  const n = keptRecords.length;
+  return n === 1 ? "1 saved preparation could not be read. It's kept safely as it was." : n + " saved preparations could not be read. They're kept safely as they were.";
 }
 
 /* Toast: a small pill that fades in, stays about 2 s and fades out (no slide). Failures that
@@ -395,7 +426,7 @@ function coreToastPlace(el) {
     }
   } catch { /* placement is only a nicety */ }
 }
-function notify(s) {
+function notify(s, stay) {
   const el = $('#status');
   if (!el) return;
   clearTimeout(toastTimer);
@@ -405,7 +436,7 @@ function notify(s) {
   coreToastPlace(el);
   void el.offsetWidth;
   el.classList.add('fresh');
-  const sticky = /could not|unavailable|will not|not been overwritten/i.test(s);
+  const sticky = typeof stay === 'boolean' ? stay : /could not|unavailable|will not|won't|not been overwritten/i.test(s);
   if (!sticky) toastTimer = setTimeout(() => {
     if (el.textContent !== s) return;
     el.classList.add('out');
@@ -413,9 +444,9 @@ function notify(s) {
   }, 2200);
 }
 function persist() {
-  if (!storageOK) { notify('Storage unavailable. Export a backup before leaving.'); return false; }
-  try { localStorage.setItem(KEY, JSON.stringify(records)); return true; }
-  catch { notify('Could not save: browser storage is full or unavailable. Export a backup before leaving.'); return false; }
+  if (!storageOK) { notify(storageBlocked ? CORE_SAVE_MSG.blocked : CORE_SAVE_MSG.unreadable, true); return false; }
+  try { localStorage.setItem(KEY, JSON.stringify([...records, ...keptRecords])); return true; }
+  catch { notify(CORE_SAVE_MSG.full, true); return false; }
 }
 function save() { active.updated = new Date().toISOString(); return persist(); }
 function wordCount(text) { const t = String(text || '').trim(); return t ? t.split(/\s+/).length : 0; }
@@ -595,6 +626,7 @@ const screens = {
         <h1>Show up ready.</h1>
         <p class="italic">Sound like yourself.</p>
         <p class="lede">Turn a job ad into a focused study plan. Find your evidence. Practise the conversation.</p>
+        ${keptRecords.length ? `<p class="hint kept-note">${esc(coreKeptLine())}</p>` : ''}
         <div class="steps">
           <div class="step"><i>1</i><b>Paste the job ad</b><span>Any role</span></div>
           <div class="step"><i>2</i><b>Four quick choices</b><span>Or skip</span></div>
@@ -610,6 +642,7 @@ const screens = {
       <div class="brandbar"><span class="logo">NextStep</span><button type="button" class="pill" data-action="privacy">${I.lock}<span>On this device</span></button></div>
       <div class="ask"><p class="italic lg">Pick up where you left off.</p><div class="orb-slot md"><div class="orb-anchor md" data-orb data-env=".6" data-s=".75" data-up="80,40" data-down="40,90" data-energy="${glow(records[0])}"></div></div></div>
       <p class="sub">${records.length === 1 ? 'Your preparation stays on this device.' : records.length + ' preparations, all on this device.'}</p>
+      ${keptRecords.length ? `<p class="hint kept-note">${esc(coreKeptLine())}</p>` : ''}
       <div class="prep-list">${records.map((p) => {
         const st = stats(p);
         const pct = Math.round(st.ratio * 100);
@@ -934,6 +967,7 @@ const screens = {
 The hosting provider receives normal requests for the app files, not your typed preparations. Imports append as separate copies and never overwrite existing preparations. Only import a backup you trust.</p>
       </details>
       <div class="spacer"></div>
+      ${rawSaved !== null ? `<button type="button" class="glass button" id="raw-export"><span class="copy"><strong>Download saved data as-is</strong><span>Your saved preparations, exactly as this browser kept them</span></span></button>` : ''}
       <button type="button" class="glass button" id="export-one"><span class="copy"><strong>Export backup</strong><span>${active ? 'This preparation' : 'Every preparation on this device'}</span></span></button>
       <button type="button" class="text-btn" id="all-export">Export all preparations</button>
       <label class="field" for="import">Restore a backup</label>
@@ -952,14 +986,17 @@ The hosting provider receives normal requests for the app files, not your typed 
 
 function needPrep() { if (!active) { show('welcome'); return false; } return true; }
 function openLesson(i) { if (!needPrep()) return; lessonIndex = i; show('lesson'); }
-function exportBackup(all) {
-  const payload = { schema: 1, preparations: !all && active ? [active] : records };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+function coreDownload(text, name) {
+  const blob = new Blob([text], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'nextstep-backup.json';
+  a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function exportBackup(all) {
+  const payload = { schema: 1, preparations: !all && active ? [active] : records };
+  coreDownload(JSON.stringify(payload, null, 2), 'nextstep-backup.json');
   notify('Backup exported. It includes your job ads, notes and answers. Keep it private.');
 }
 /* Backup restore. A preparation is rebuilt with PrepEngine.create(p) for safe defaults, but when the
@@ -1063,16 +1100,18 @@ function bindImport() {
     try {
       const f = e.target.files[0];
       if (!f) return;
-      if (f.size > 2000000) throw Error('Backup exceeds 2 MB');
-      const b = JSON.parse(await f.text());
-      if (b.schema !== 1 || !Array.isArray(b.preparations) || b.preparations.length > 50) throw Error('Unsupported backup');
+      if (f.size > 20 * 1024 * 1024) throw Error('this backup is over 20 MB.');
+      let b;
+      try { b = JSON.parse(await f.text()); } catch { throw Error('this file is not a readable backup.'); }
+      if (!b || b.schema !== 1 || !Array.isArray(b.preparations) || b.preparations.length > 500) throw Error('this is not a NextStep backup this version can open.');
       const copies = b.preparations.map((p) => coreRestore(p));
       records.push(...copies);
-      persist();
+      const ok = persist();
       active = null;
       show('welcome');
-      notify('Restored ' + copies.length + ' preparation(s) as separate copies.');
-    } catch (err) { notify('Could not restore: ' + err.message); }
+      const n = copies.length + (copies.length === 1 ? ' preparation' : ' preparations');
+      notify(ok ? 'Restored ' + n + ' as separate copies.' : "Opened for this visit only: this browser couldn't save it. Keep your backup file.", !ok);
+    } catch (err) { notify('Could not restore: ' + err.message, true); }
   });
 }
 
@@ -1118,6 +1157,10 @@ function bindScreen() {
   });
   if ($('#export-one')) $('#export-one').addEventListener('click', () => exportBackup(false));
   if ($('#all-export')) $('#all-export').addEventListener('click', () => exportBackup(true));
+  if ($('#raw-export')) $('#raw-export').addEventListener('click', () => {
+    coreDownload(String(rawSaved), 'nextstep-saved-data.json');
+    notify('Saved data downloaded as-is. It includes your job ads, notes and answers. Keep it private.');
+  });
   if ($('#prev')) $('#prev').addEventListener('click', () => { if (lessonIndex > 0) openLesson(lessonIndex - 1); });
   if ($('#next')) $('#next').addEventListener('click', () => { if (active && lessonIndex < active.course.length - 1) openLesson(lessonIndex + 1); });
   if ($('#mark')) $('#mark').addEventListener('click', () => {
@@ -1138,15 +1181,16 @@ function bindScreen() {
   });
   if ($('#retry')) $('#retry').addEventListener('click', () => { active.quiz.answers = {}; save(); show('quiz'); });
   if ($('#delete-all')) $('#delete-all').addEventListener('click', () => {
-    if (!storageOK) { notify('Saved data could not be read, so it will not be deleted. Export or recover browser storage first.'); return; }
+    if (!storageOK && !storageBlocked) { notify('Your saved data could not be read, so it is left exactly as it was. Download it as-is above if you want a copy.', true); return; }
     if (!confirm('Delete every preparation on this device? This cannot be undone. Export a backup first if you want to keep them.')) return;
     try {
-      localStorage.removeItem(KEY);
+      if (!storageBlocked) localStorage.removeItem(KEY);
       records = [];
+      keptRecords = [];
       active = null;
       draft = null;
       show('welcome');
-      notify('All preparations on this device were deleted.');
+      notify(storageBlocked ? 'Cleared. Nothing from this visit was saved on this device.' : 'All preparations on this device were deleted.');
     } catch { notify('Could not delete saved preparations.'); }
   });
   bindImport();
