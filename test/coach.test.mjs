@@ -370,7 +370,7 @@ test('a "would" answer to a tell-me-about-a-time question asks for a real time',
   const r = Coach.review('I would greet them, ask what they need and find it for them. I would make sure they are happy.', retail);
   const s = check(r, 'structure');
   assert.equal(s.ok, false);
-  assert.equal(s.detail, 'This says what you would do; tell it as a real time it happened: where you were, what you did and how it turned out.');
+  assert.equal(s.detail, 'This says what you would do; tell one real time it happened instead: where you were, what you did and how it turned out.');
   assert.equal(r.star.result, false);
   const care2 = Coach.review('I would tell the nurse in charge right away and write it in PointClickCare. Then I would check on her every hour.', care);
   assert.match(check(care2, 'structure').detail, /^This says what you would do/);
@@ -447,7 +447,7 @@ test('what you always or usually do is not one real time', () => {
   assert.equal(Coach.live('At my last job, I always greeted customers.').star.situation, true);
   assert.equal(Coach.live('One morning a regular who usually orders a latte came in upset.').star.situation, true);
   const usual = Coach.review('I am a people person and I always help customers. I usually check the back if something is not on the floor.', retail);
-  assert.equal(check(usual, 'structure').detail, 'This says what you usually do; tell it as one real time it happened: where you were, what you did and how it turned out.');
+  assert.equal(check(usual, 'structure').detail, 'This says what you usually do; tell one real time it happened instead: where you were, what you did and how it turned out.');
   assert.match(check(usual, 'ownership').detail, /you usually do yourself/);
   // A real story that mentions a habit is still a real story.
   assert.equal(check(Coach.review(`I usually work the morning shift. ${STRONG.cafe}`, cafe), 'structure').ok, true);
@@ -484,4 +484,54 @@ test('quoted words read as whole phrases, not fragments', () => {
   assert.ok(!nurse.echoed.includes('charge'), JSON.stringify(nurse.echoed));
   const vague = Coach.review('I felt really nervous but I knew I had to do something so I told my supervisor and she helped the resident.', care);
   assert.doesNotMatch(check(vague, 'ownership').detail, /“do”/);
+});
+
+// Engine-shaped questionInfo for questions no single line of the ad is tied to (source: null), as on the real path.
+const OPEN_SIT = (question) => ({ question, info: { kind: 'situational', theme: null, source: null, probe: '', include: ['What you would do first, and why', 'Who you would tell or ask for help'] }, analysis: retail.analysis });
+
+test('open "why this job" and "what would you do" questions are not marked down on ad words', () => {
+  const sit = Coach.review('First I would count the drawer again slowly. If it is still short I would check the receipts and refunds from my shift, then tell my supervisor right away and write down what I found.', OPEN_SIT('Imagine your cash drawer is short at the end of your shift. What would you do?'));
+  const rel = check(sit, 'relevance');
+  assert.equal(rel.ok, true);
+  assert.equal(rel.detail, 'Nothing in the ad is tied to this question, so your own words are fine here.');
+  assert.deepEqual(sit.missing, []);
+  // Coaching words the ad also uses ("learn") do not tie the question to the ad, and any ad word used is a bonus.
+  const why = Coach.review('I have always liked figuring out how things work, and I finished my first year of the electrical program last spring. I want to learn on residential and commercial jobs.', {
+    question: 'What made you want to apply for the Electrical Apprentice job at Brightline Electric?',
+    info: { kind: 'motivation', source: null, include: ['Something specific in the ad that appeals to you', 'What you hope to learn or give'] },
+    analysis: { skills: ['blueprints', 'electrical code', 'conduit'], keywords: ['Registered apprentice', 'safety procedures'], requirements: [{ text: 'Good attitude, eager to learn, and you show up on time' }] }
+  });
+  assert.equal(check(why, 'relevance').ok, true, check(why, 'relevance').detail);
+  // A question tied to a line of the ad still asks for its words.
+  assert.equal(check(Coach.review('I helped a shopper find a coat and she was happy.', retail), 'relevance').ok, false);
+});
+
+test('situational answers with clear steps or a reason are ok, one bare step is not', () => {
+  const care2 = Coach.review("I would stay calm and ask her why she doesn't want it, maybe she is cold or embarrassed. I would offer a different time or a sponge bath instead, and respect her choice. Then I would tell the nurse and write it in the chart.", OPEN_SIT('Imagine a resident refuses care they need and is getting upset. What would you do?'));
+  assert.equal(check(care2, 'structure').ok, true);
+  assert.equal(check(care2, 'structure').detail, 'You give clear steps; you could finish with how you would know it worked.');
+  const sick = Coach.review('I would call my manager as early as I can, so they have time to find someone.', OPEN_SIT('Imagine you wake up sick on a day you are scheduled to work. What would you do?'));
+  assert.equal(check(sick, 'structure').ok, true);
+  assert.match(check(sick, 'structure').detail, /^You say what you would do and why/);
+  const one = Coach.review('I would tell my manager.', OPEN_SIT('Imagine your cash drawer is short. What would you do?'));
+  assert.equal(check(one, 'structure').ok, false);
+  // A sentence that starts with "So" is not a reason.
+  assert.equal(check(Coach.review('So I would tell my manager.', OPEN_SIT('Imagine your cash drawer is short. What would you do?')), 'structure').ok, false);
+});
+
+test('the structure row is not a warning for answers in other languages', () => {
+  const fr = Coach.review("Dans mon dernier emploi, j'ai aidé un client à trouver un cadeau. Je lui ai montré trois options et il a acheté un pull.", retail);
+  assert.equal(check(fr, 'structure').ok, true);
+  assert.match(check(fr, 'structure').detail, /reads English answers/);
+});
+
+test('time in a job is a real detail for "why this job", but not proof it worked', () => {
+  const why = Coach.review('I worked 2 years at a grocery store and I loved helping customers find what they needed.', { question: 'Why do you want to work at Maple & Thread?', info: { kind: 'motivation', source: null }, analysis: retail.analysis });
+  assert.equal(check(why, 'evidence').ok, true);
+  assert.match(check(why, 'evidence').detail, /“2 years”/);
+  const story = Coach.review('I worked 2 years at a grocery store and I helped customers find what they needed.', retail);
+  assert.doesNotMatch(check(story, 'evidence').detail, /2 years/);
+  // "I care a lot about" and "I would like to" are reasons too.
+  const dev = Coach.review('I built two React apps in my bootcamp and I care a lot about accessibility. Kitebird makes travel planning easier, and I would like to work on booking pages that real people use every day.', { question: 'What made you want to apply for the Junior Front-End Developer job at Kitebird?', info: { kind: 'motivation', source: null }, analysis: tech.analysis });
+  assert.equal(check(dev, 'structure').ok, true);
 });
