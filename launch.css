@@ -1,0 +1,103 @@
+/* Launch additions: the install sheet and the standalone privacy page. Loaded after styles.css. */
+
+/* Install sheet */
+#install [hidden] { display: none !important; }
+#install-title:focus { outline: none; }
+.install-sheet #install-lede { margin-top: 4px; }
+.install-sheet #install-now { margin-top: 16px; }
+.install-way { margin-top: 16px; }
+.install-way > p:first-child { margin-top: 0; }
+.install-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: install-step;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.install-steps li {
+  counter-increment: install-step;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.install-steps li::before {
+  content: counter(install-step);
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -2px;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--amber);
+  background: rgba(255, 196, 138, .1);
+  box-shadow: inset 0 0 0 1px rgba(255, 196, 138, .28);
+}
+.install-steps li > span { flex: 1; min-width: 0; }
+.install-sheet b { font-weight: 600; color: var(--ink); }
+.glyph {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  vertical-align: -5px;
+  color: var(--ink);
+}
+.install-sheet .install-note { margin-top: 12px; font-size: 13px; color: var(--muted); }
+.install-sheet .install-alert {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(255, 196, 138, .08);
+  box-shadow: inset 0 0 0 1px rgba(255, 196, 138, .3);
+  color: var(--ink);
+}
+.install-sheet .install-url {
+  margin-top: 8px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, .24);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09);
+  color: var(--ink);
+  font-size: 14px;
+  -webkit-user-select: all;
+  user-select: all;
+}
+.install-sheet .install-copy { justify-content: center; text-align: center; margin-top: 16px; }
+.install-sheet .install-url { margin-top: 12px; }
+.install-sheet .install-done { color: var(--ink); font-size: 15px; }
+.install-sheet .install-done .glyph { color: var(--green); }
+.install-sheet #offline-status { margin-top: 20px; }
+.install-sheet .install-more { margin-top: 4px; }
+.install-more a, a.quiet-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--amber);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.install-more a:hover, a.quiet-link:hover { text-decoration: underline; }
+.install-sheet .text-btn { margin-top: 8px; }
+
+/* Once installed, the app does not need to ask to be installed. */
+@media (display-mode: standalone) {
+  .install-row { display: none; }
+}
+
+/* Standalone privacy page (privacy.html, no scripts) */
+.privacy-page h1 { margin-top: 16px; }
+.privacy-page .lede { margin-bottom: 8px; }
+.privacy-page a.logo { color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; }
+.privacy-page .stack { margin-top: 8px; }
+.privacy-page a.primary { text-decoration: none; margin-top: 24px; }
+.privacy-page .credit-line { text-align: center; font-size: 13px; color: var(--muted); letter-spacing: .02em; padding: 16px 0 8px; }
+.privacy-page .privacy-block b { font-weight: 600; color: var(--soft); }
