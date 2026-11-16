@@ -74,6 +74,8 @@
   const LEAD_IN = bag('then first next also and so after finally afterwards later');
   const PARTICLE = bag('up out down off over in back through around');
   const SAME_PAST = bag('let put set cut read hit quit shut spread split cost hurt');
+  // "I knew I had to do something": do/did with no real object is not a step you took.
+  const VAGUE = bag('something anything nothing everything whatever what');
 
   // Situation, Task and Result markers: token phrases, '|' separates alternatives in a slot, '#num'/'#year' match numbers.
   const SITUATION = compile([
@@ -131,7 +133,7 @@
     'good|great|positive|glowing|five-star|5-star review|reviews|feedback',
     'learned|learnt|lesson|lessons|realised|realized', 'taught me', 'fewer|faster|quicker|smoother|safer|shorter',
     'less time|waste|stress|money', 'more efficient|organised|organized|confident|smoothly', 'no longer', 'never again',
-    'went|go|goes down|up', 'it|that|this worked|helped|paid', 'difference', 'instead of',
+    'went|go|goes down|up', 'it|that|this|everything worked|helped|paid', 'calmed|settled|cooled down', 'difference', 'instead of',
     'within a|an|the|one|two|three minute|minutes|hour|hours|day|days|week|weeks|month|months|shift', 'within a few minutes|hours|days|weeks'
   ]);
   // Concrete outcomes are proof on their own, even without a number ("closed on time", "a good review").
@@ -208,9 +210,9 @@
   function slotHas(slot, t) {
     return slot.has(t) || (isNum(t) && (slot.has('#num') || (slot.has('#year') && isYear(t))));
   }
-  const hasPhrase = (toks, map) => findPhrase(toks, map) !== '';
-  // The first phrase from the map found in the tokens, as text ('' when none).
-  function findPhrase(toks, map) {
+  const hasPhrase = (toks, map, skip) => findPhrase(toks, map, skip) !== '';
+  // The first phrase from the map found in the tokens, as text ('' when none). skip(toks, i) can veto a match at i.
+  function findPhrase(toks, map, skip) {
     for (let i = 0; i < toks.length; i++) {
       const t = toks[i];
       let list = map.get(t);
@@ -219,11 +221,27 @@
       for (const rest of list) {
         let j = 0;
         while (j < rest.length && i + 1 + j < toks.length && slotHas(rest[j], toks[i + 1 + j])) j++;
-        if (j === rest.length) return toks.slice(i, i + 1 + j).join(' ');
+        if (j === rest.length && !(skip && skip(toks, i))) return toks.slice(i, i + 1 + j).join(' ');
       }
     }
     return '';
   }
+  // "make sure they are happy" and "they would be safe" are hopes, not how it turned out.
+  const STATE = bag('safe safely happy happier satisfied pleased relieved calmer');
+  const HOPE = bag(`would will could should might must can gonna i'd we'd i'll we'll he'd she'd they'd you'd it'd he'll she'll
+    they'll it'll you'll`);
+  function hoped(toks, i, modal) {
+    if (!STATE.has(toks[i])) return false;
+    for (let k = i - 1; k >= 0 && k >= i - 8; k--) {
+      const t = toks[k];
+      if (t === '.' || t === ',' || (CONJ.has(t) && !(t === 'and' && STATE.has(toks[k - 1])))) return false;
+      if ((t === 'sure' && /^mak/.test(toks[k - 1] || '')) || /^ensur/.test(t)) return true;
+      if (modal && HOPE.has(t)) return true;
+    }
+    return false;
+  }
+  const hopedStrict = (toks, i) => hoped(toks, i, true);
+  const hopedSure = (toks, i) => hoped(toks, i, false);
   function clean(text) {
     let s = typeof text === 'string' ? text : typeof text === 'number' && Number.isFinite(text) ? String(text) : '';
     if (s.length > MAX_CHARS) s = s.slice(0, MAX_CHARS);
@@ -310,7 +328,7 @@
     if (NOT_ACTION.has(t) || isNum(t)) return null;
     if (t === 'used' && next === 'to') return null;
     if (/^(?:work|worked|volunteer|volunteered)$/.test(t) && SCENE_NEXT.has(next)) return null;
-    if ((t === 'did' || t === 'do') && (next === 'not' || next === 'never')) return null;
+    if ((t === 'did' || t === 'do') && (next === 'not' || next === 'never' || prev === 'to' || VAGUE.has(next))) return null;
     const b = baseOf(t);
     let form = b ? (t === b ? 'base' : 'past') : null;
     if (!form && t.length > 4 && t.endsWith('ed') && /^[a-z-]+$/.test(t) && !t.startsWith('un')) form = 'past';
@@ -321,21 +339,32 @@
   }
   // Walks clauses keeping track of the subject, so "I greeted her, asked what she needed and found her size" counts 3 for I.
   function scanActions(toks) {
-    const r = { i: 0, we: 0, iVerbs: [], weVerbs: [], hyp: 0, iCount: 0, weCount: 0 };
+    const r = { i: 0, we: 0, iVerbs: [], weVerbs: [], hyp: 0, iCount: 0, weCount: 0, hypAll: 0, habit: 0, vague: 0, iHabit: 0, iVague: 0 };
+    const mask = habitMask(toks);
     let lead = null;
     let cur = null;
     let win = 0;
     let sub = false;
     let pos = 0;
     let hyp = false;
+    let had = false;
+    let habit = false;
     let form = null;
     let inherited = false;
     const record = (who, word, f, k) => {
       form = f;
       const t = PARTICLE.has(toks[k + 1]) ? `${word} ${toks[k + 1]}` : word;
+      // "I'd already finished" is "I had": a past form after "I'd" is something you did.
+      const h = hyp && !(had && f === 'past');
+      const u = habit || mask[k] === 1;
+      if (h) r.hypAll++;
+      if (u) r.habit++;
+      if (h || u) r.vague++;
       if (who === 'i') {
         r.i++;
-        if (hyp) r.hyp++;
+        if (h) r.hyp++;
+        if (u) r.iHabit++;
+        if (h || u) r.iVague++;
         if (!r.iVerbs.includes(t) && r.iVerbs.length < 6) r.iVerbs.push(t);
       } else {
         r.we++;
@@ -344,27 +373,40 @@
     };
     for (let k = 0; k < toks.length; k++) {
       const t = toks[k];
-      if (t === '.') { lead = cur = null; win = 0; sub = false; pos = 0; form = null; hyp = false; continue; }
+      if (t === '.') { lead = cur = null; win = 0; sub = false; pos = 0; form = null; hyp = had = habit = false; continue; }
       if (t === ',') { cur = lead; win = cur ? 3 : 0; inherited = true; sub = false; continue; }
       if (win > 0 && (t === 'sort' || t === 'kind') && toks[k + 1] === 'of') { k++; continue; }
       if (win > 0 && (SKIP.has(t) || (t.length > 4 && t.endsWith('ly') && !BASE.has(t)))) {
         if (MODAL.has(t)) hyp = true;
+        if (HABIT.has(t)) habit = true;
+        if (t === 'have') had = false;
         pos++;
         continue;
       }
       if (CONJ.has(t)) { cur = lead; win = cur ? 3 : 0; inherited = true; sub = false; pos++; continue; }
       const prev = toks[k - 1];
       const clauseStart = pos === 0 || prev === ',' || CONJ.has(prev) || SUBORD.has(prev);
-      const who = I_FORMS.has(t) ? 'i' : WE_FORMS.has(t) ? 'we' : OTHER.has(t) && (clauseStart || !AMBIG.has(t)) ? 'x' : null;
+      // "Me and my coworker restocked ..." or "my coworker and me restocked ...": a shared subject, like "we".
+      let pair = false;
+      if (t === 'me') {
+        if (clauseStart && toks[k + 1] === 'and') {
+          let j = k + 2;
+          while (j < toks.length && j < k + 6 && !isPast(toks[j]) && toks[j] !== ',' && toks[j] !== '.') j++;
+          if (j < toks.length && isPast(toks[j])) { pair = true; k = j - 1; }
+        } else if (prev === 'and' && isPast(toks[k + 1])) pair = true;
+      }
+      const who = pair ? 'we' : I_FORMS.has(t) ? 'i' : WE_FORMS.has(t) ? 'we' : OTHER.has(t) && (clauseStart || !AMBIG.has(t)) ? 'x' : null;
       if (who) {
         if (who === 'i') r.iCount++;
-        else if (who === 'we') r.weCount++;
+        else if (who === 'we' && !pair) r.weCount++;
         cur = who;
         if (!sub) lead = who;
         sub = false;
         win = 4;
         inherited = false;
         hyp = HYP_FORMS.has(t);
+        had = t === "i'd" || t === "we'd";
+        habit = HABIT.has(prev);
         pos++;
         continue;
       }
@@ -391,7 +433,31 @@
       }
       pos++;
     }
+    r.mask = mask;
     return r;
+  }
+  const isPast = (t) => { const b = t ? baseOf(t) : null; return Boolean(b) && b !== t; };
+  // Clauses that say what usually happens ("we always do lockout tagout on our sites") rather than one real time.
+  const HABIT = bag('always usually normally generally typically often sometimes regularly');
+  const EVERY = bag('time day shift morning night week weekend');
+  function habitMask(toks) {
+    const mask = new Uint8Array(toks.length);
+    let start = 0;
+    let marked = false;
+    for (let k = 0; k <= toks.length; k++) {
+      const t = toks[k];
+      if (k === toks.length || t === '.' || t === ',' || CONJ.has(t)) {
+        if (marked) mask.fill(1, start, k);
+        start = k + 1;
+        marked = false;
+        continue;
+      }
+      if (marked) continue;
+      const prev = toks[k - 1];
+      if (HABIT.has(t) ? prev !== 'who' && prev !== 'that' && prev !== 'which'
+        : t === 'whenever' || (t === 'every' && EVERY.has(toks[k + 1])) || (t === 'all' && toks[k + 1] === 'the' && toks[k + 2] === 'time')) marked = true;
+    }
+    return mask;
   }
 
   /* ---------- the shared analysis ---------- */
@@ -400,7 +466,10 @@
     const tk = tokenize(s);
     const toks = tk.toks;
     const acts = scanActions(toks);
-    let result = hasPhrase(toks, RESULT);
+    const habits = acts.mask;
+    let result = hasPhrase(toks, RESULT, hopedStrict);
+    // For "what would you do" questions a hoped-for outcome ("so they would be happy") is the point, so keep it apart.
+    const hopeResult = result || (full && hasPhrase(toks, RESULT, hopedSure));
     let late = false;
     let percent = false;
     if (!result) {
@@ -416,13 +485,14 @@
       result = late || percent;
     }
     const star = {
-      situation: hasPhrase(toks, SITUATION) || opensWithPlace(toks),
+      situation: hasPhrase(toks, SITUATION, (x, i) => habits[i] === 1) || opensWithPlace(toks, habits),
       task: hasPhrase(toks, TASK),
       action: acts.i + acts.we > 0,
       result
     };
     const a = { words: tk.words, seconds: Math.round((tk.words / WPM) * 60), star, english: tk.english };
     if (!full) return a;
+    a.hopeResult = Boolean(hopeResult || result);
     a.toks = toks;
     a.sentences = tk.sentences;
     a.acts = acts;
@@ -433,10 +503,10 @@
   // "On a basement reno, ..." / "At a summer camp ...": a place or occasion in the first sentence sets the scene.
   const PLACE_PREP = bag('at on in during');
   const PLACE_DET = bag('a an my our one');
-  function opensWithPlace(toks) {
+  function opensWithPlace(toks, habits) {
     for (let i = 0; i < toks.length - 1 && i < 40; i++) {
       if (toks[i] === '.') return false;
-      if (PLACE_PREP.has(toks[i]) && PLACE_DET.has(toks[i + 1])) return true;
+      if (PLACE_PREP.has(toks[i]) && PLACE_DET.has(toks[i + 1]) && habits[i] !== 1) return true;
     }
     return false;
   }
@@ -532,13 +602,19 @@
     if (!s || s.split(' ').length > 5) return '';
     return s;
   }
+  const IN_IDIOM = bag('charge order touch line place mind addition advance general particular');
   // Content words from a line of the ad, in the ad's own spelling ("Restock" at a sentence start becomes "restock").
   function contentWords(text, limit) {
     const out = [];
     const seen = new Set();
+    let prev = '';
     for (const raw of String(text || '').match(WORD_RE) || []) {
       const w = raw.replace(/'s$/i, '');
       const lw = w.toLowerCase();
+      const after = prev;
+      prev = lw;
+      // "in charge", "in order to": the word means nothing on its own.
+      if (after === 'in' && IN_IDIOM.has(lw)) continue;
       if (lw.length < 3 || STOP.has(lw) || GENERIC.has(lw) || isNum(lw) || !/\p{L}/u.test(lw)) continue;
       const st = stem(lw);
       if (seen.has(st) || GENERIC.has(st)) continue;
@@ -581,17 +657,26 @@
     items.sort((a, b) => b.score - a.score || a.order - b.order);
     return items.slice(0, 24);
   }
-  function relevance(toks, question, info, analysis) {
+  function relevance(toks, question, info, analysis, kind) {
     const items = pool(question, info, analysis);
     const idx = answerIndex(toks);
     const hit = [];
+    const rest = [];
     const missing = [];
     const related = items.some((it) => it.score >= 2);
     for (const it of items) {
       const h = termHits(it.label, idx);
       if (h.all) hit.push(it);
-      // Suggest only words tied to this question when there are some, and never ones the answer half-uses already.
-      else if (h.part < 0.5 && missing.length < 3 && (!related || it.score >= 2) && !missing.some((m) => overlaps(m.key, it.key))) missing.push(it);
+      else if (h.part < 0.5) rest.push(it);
+    }
+    // Suggest only words tied to this question when there are some, never ones the answer half-uses already or
+    // that overlap a phrase it echoes ("product" next to "product usage data"). For a "what would you do" or
+    // "why this job" question with nothing tied to it, the ad's top skills are beside the point: suggest nothing.
+    const open = !related && (kind === 'situational' || kind === 'motivation');
+    for (const it of rest) {
+      if (open || missing.length >= 3 || (related && it.score < 2)) continue;
+      if (missing.some((m) => overlaps(m.key, it.key)) || hit.some((m) => overlaps(m.key, it.key))) continue;
+      missing.push(it);
     }
     // Drop an echoed word when a longer echoed phrase already contains it ("POS" inside "POS system").
     const shown = hit.filter((it) => !hit.some((o) => o !== it && o.key.length > it.key.length && ` ${o.key} `.includes(` ${it.key} `)));
@@ -619,6 +704,10 @@
     const ws = [];
     const clock = /^\s?(?:am|pm|a\.m\.|p\.m\.)(?![\p{L}])/iu.exec(s.slice(end, end + 6));
     if (clock) return (m[0] + clock[0]).replace(/\s+/g, ' ').trim();
+    // Keep hyphenated units whole: "5-star review", "10-minute wait".
+    const unit = /^-[\p{L}][\p{L}'-]{0,18}/u.exec(s.slice(end, end + 20));
+    const head = unit ? m[0] + unit[0] : m[0];
+    if (unit) end += unit[0].length;
     while (ws.length < 3) {
       NEXT_WORD_RE.lastIndex = end;
       const w = NEXT_WORD_RE.exec(s);
@@ -628,10 +717,13 @@
       end = NEXT_WORD_RE.lastIndex;
     }
     const before = s.slice(Math.max(0, m.index - 12), m.index).toLowerCase();
-    const after = s.slice(end, end + 6).toLowerCase();
+    const after = s.slice(end, end + 12).toLowerCase();
+    const w0 = !unit && ws.length === 1 ? ws[0].toLowerCase() : '';
     // "for 2 years" or "2 years ago" says how long you were there, not that it worked.
-    if (ws.length === 1 && TENURE.test(ws[0].toLowerCase()) && (/\b(?:for|over|almost|nearly)\s+$/.test(before) || /^\s+ago\b/.test(after))) return '';
-    return [m[0], ...ws].join(' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (TENURE.test(w0) && (/\b(?:for|over|almost|nearly)\s+$/.test(before) || /^\s+ago\b/.test(after))) return '';
+    // So does a bare "2 years" ("I work in cafe 2 years"), unless it says how fast: "within 2 months", "2 months early".
+    if (/^(?:years?|months?)$/.test(w0) && !/\b(?:within|in|after|under|by)\s+$/.test(before) && !/^\s+(?:early|earlier|ahead|sooner|faster|quicker)\b/.test(after)) return '';
+    return [head, ...ws].join(' ').replace(/\s+/g, ' ').trim().slice(0, 40);
   }
   const CAPS_SKIP = bag(`I I'm I've I'd I'll OK Okay Hi Yes No So And But Then The A An My We It This That When While After Before Because If Also First Next Finally Monday Tuesday Wednesday Thursday Friday Saturday Sunday
     January February March April May June July August September October November December Christmas Last Next One Our Her His Their`);
@@ -659,10 +751,18 @@
     for (const sentence of s.split(/[.!?\n]+/)) {
       if (names.length >= 4) break;
       const ws = sentence.match(/[\p{L}\p{N}][\p{L}\p{N}'&+-]*/gu) || [];
+      const cap = (w) => w && w.length > 1 && /^\p{Lu}/u.test(w) && !CAPS_SKIP.has(w);
       for (let i = 0; i < ws.length && names.length < 4; i++) {
         const w = ws[i];
-        if (w.length < 2 || CAPS_SKIP.has(w) || names.includes(w)) continue;
-        if ((i > 0 && /^\p{Lu}/u.test(w)) || /^\p{Lu}{2,}$/u.test(w)) names.push(w.slice(0, 28));
+        if (w.length < 2 || CAPS_SKIP.has(w)) continue;
+        // A run of capitalised words is one name: "Queen Street", "Google Sheets", "Little Fern Coffee".
+        let j = i + 1;
+        while (j < ws.length && j < i + 4 && cap(ws[j]) && cap(ws[i])) j++;
+        const name = ws.slice(i, j).join(' ').slice(0, 28);
+        if ((i > 0 && /^\p{Lu}/u.test(w)) || (j - i > 1 && cap(w)) || /^\p{Lu}{2,}$/u.test(w)) {
+          if (!names.includes(name)) names.push(name);
+          i = j - 1;
+        }
       }
     }
     // How people reacted afterwards ("she thanked me", a quoted comment) is proof too; look in the later part of the answer.
@@ -715,9 +815,18 @@
     if (kind === 'situational') {
       const t = 'Your steps';
       if (!st.action) return { ok: false, title: t, detail: 'Say what you would do first, then next, starting with “I would …”.' };
-      if (st.result) return { ok: true, title: t, detail: 'You say what you would do and how you would know it worked.' };
+      if (st.result || a.hopeResult) return { ok: true, title: t, detail: 'You say what you would do and how you would know it worked.' };
       if (st.task) return { ok: true, title: t, detail: 'You say what you would do and why; you could finish with how you would know it worked.' };
       return { ok: false, title: t, detail: 'You say what you would do; add why it matters and how you would know it worked.' };
+    }
+    // "Tell me about a time" asks for something that really happened.
+    // Steps you would take, or what you always do, are the most common thing to fix here.
+    const r = a.acts;
+    const n = r.i + r.we;
+    if (n > 0 && r.vague * 2 > n) {
+      return { ok: false, title, detail: r.habit > r.hypAll
+        ? 'This says what you usually do; tell it as one real time it happened: where you were, what you did and how it turned out.'
+        : 'This says what you would do; tell it as a real time it happened: where you were, what you did and how it turned out.' };
     }
     const have = PARTS.filter((p) => st[p]);
     const lack = PARTS.filter((p) => !st[p]);
@@ -737,20 +846,20 @@
     const title = 'Your part in it';
     const r = a.acts;
     if (!a.words) return { ok: false, title, detail: 'Say what you did yourself, starting with “I …”.' };
-    if (!a.english) return { ok: false, title, detail: 'Not checked: this coach reads English answers for now.' };
+    if (!a.english) return { ok: true, title, detail: 'Not checked: this coach reads English answers for now.' };
     if (kind === 'closing') return { ok: true, title, detail: 'Nothing to add here: this is your turn to ask.' };
     if (r.weCount >= 3 && r.weCount > r.iCount) {
       return { ok: false, title, detail: r.iCount ? `You said “we” ${times(r.weCount)} and “I” ${times(r.iCount)}; try saying what you did yourself.` : `You said “we” ${times(r.weCount)} but never “I”; try saying what you did yourself.` };
     }
-    const would = r.i > 0 && r.hyp * 2 > r.i;
+    const doing = r.i > 0 && r.iVague * 2 > r.i ? (r.iHabit > r.hyp ? 'you usually do' : 'you would do') : 'you did';
     const verbs = list(r.iVerbs.slice(0, 2).map(quote));
     if (kind === 'motivation') {
       return r.iCount + r.i >= 2
         ? { ok: true, title, detail: 'You speak for yourself, in your own words.' }
         : { ok: false, title, detail: 'Say it in your own words, starting with “I …”.' };
     }
-    if (r.i >= 2) return { ok: true, title, detail: `You name ${r.i} things ${would ? 'you would do' : 'you did'} yourself, like ${verbs}.` };
-    if (r.i === 1) return { ok: false, title, detail: `You name one thing ${would ? 'you would do' : 'you did'} yourself (${verbs}); add one or two more steps in your own words.` };
+    if (r.i >= 2) return { ok: true, title, detail: `You name ${r.i} things ${doing} yourself, like ${verbs}.` };
+    if (r.i === 1) return { ok: false, title, detail: `You name one thing ${doing} yourself (${verbs}); add one or two more steps in your own words.` };
     if (r.we > 0) return { ok: false, title, detail: 'You describe what the team did; add what you did yourself, starting with “I …”.' };
     if (r.iCount) return { ok: false, title, detail: 'Describe what you did, step by step, like “I checked …” or “I asked …”.' };
     return { ok: false, title, detail: 'Say what you did yourself, step by step, starting with “I …”.' };
@@ -766,19 +875,19 @@
     if (soft) {
       const first = e.nums[0] || names[0] || (kind === 'motivation' ? rel.echoed[0] : '');
       if (first) return { ok: true, title, detail: `You mention real details, like ${quote(first)}.` };
-      if (!a.english) return { ok: false, title, detail: 'Not checked: this coach reads English answers for now.' };
+      if (!a.english) return { ok: true, title, detail: 'Not checked: this coach reads English answers for now.' };
       if (e.said) return { ok: true, title, detail: 'You mention how people reacted, which makes it feel real.' };
       return { ok: false, title, detail: kind === 'motivation' ? 'Add one real detail, like something from the ad or a past job, that shows why it fits you.' : 'Add one real detail, like a time you did something similar, to show you can do it.' };
     }
     if (e.nums.length) return { ok: true, title, detail: `You back it up with numbers like ${list(e.nums.slice(0, 2).map(quote))}.` };
-    if (!a.english) return { ok: false, title, detail: 'Not checked: this coach reads English answers for now.' };
+    if (!a.english) return { ok: true, title, detail: 'Not checked: this coach reads English answers for now.' };
     const more = 'a number, like how many or how long, would make it even stronger';
     const outcome = findPhrase(a.toks, OUTCOME);
     if (outcome) return { ok: true, title, detail: `You show how it turned out (${quote(outcome)}); ${more}.` };
-    if (e.said && a.star.result) return { ok: true, title, detail: `You say how people reacted, which is good proof; ${more}.` };
-    if (names.length >= 2 || (names.length && a.star.result)) return { ok: true, title, detail: `You name real details like ${list(names.slice(0, 2).map(quote))}; ${more}.` };
     if (e.said) return { ok: true, title, detail: `You say how people reacted, which is good proof; ${more}.` };
-    if (names.length === 1) return { ok: false, title, detail: `You mention ${quote(names[0])}; add how you know it worked, like how many, how long, or what someone said.` };
+    if (names.length && a.star.result) return { ok: true, title, detail: `You name real details like ${list(names.slice(0, 2).map(quote))}; ${more}.` };
+    // Tool or place names alone do not show it worked ("I use React and TypeScript").
+    if (names.length) return { ok: false, title, detail: `You mention ${list(names.slice(0, 2).map(quote))}; add how you know it worked, like how many, how long, or what someone said.` };
     return { ok: false, title, detail: 'Add one detail that shows it worked, like how many, how long, or what someone said afterwards.' };
   }
 
@@ -786,6 +895,7 @@
     const title = 'Matches the job ad';
     if (!a.words) return { ok: false, title, detail: 'Use the job ad’s own words where they are true for you.' };
     if (!rel.size) return { ok: true, title, detail: 'Nothing from the job ad to compare with for this question.' };
+    if (!a.english && !rel.echoed.length) return { ok: true, title, detail: 'Not checked: this coach reads English answers for now.' };
     const miss = rel.missing.slice(0, 2).map(quote);
     const used = `You use the ad’s own words, like ${list(rel.echoed.slice(0, 2).map(quote))}`;
     if (kind === 'closing') {
@@ -797,10 +907,14 @@
     return { ok: false, title, detail: miss.length ? `Tie it to the ad by using its words where they are true for you, like ${list(miss, 'or')}.` : 'Tie it to the ad by using its words where they are true for you.' };
   }
 
+  // Typed answers run shorter than speech: people add detail when they say them out loud. So a typed answer is
+  // long enough from `min` seconds (about 50 words for a story, 30 for a reason) and a comfortable spoken length from `full`.
   const LENGTHS = {
-    closing: { min: 8, max: 90, cap: 'a minute and a half' },
-    motivation: { min: 25, max: 120, cap: '2 minutes' },
-    other: { min: 40, max: 150, cap: '2 and a half minutes' }
+    closing: { min: 4, full: 4, max: 90, cap: 'a minute and a half' },
+    motivation: { min: 13, full: 25, max: 120, cap: '2 minutes', aim: '30 seconds' },
+    situational: { min: 13, full: 35, max: 150, cap: '2 and a half minutes', aim: 'a minute' },
+    gap: { min: 13, full: 35, max: 150, cap: '2 and a half minutes', aim: 'a minute' },
+    other: { min: 20, full: 40, max: 150, cap: '2 and a half minutes', aim: 'a minute' }
   };
   function lengthCheck(a, kind) {
     const title = 'Time to say it';
@@ -808,13 +922,20 @@
     const L = LENGTHS[kind] || LENGTHS.other;
     const t = spoken(a.seconds);
     if (a.seconds < L.min) {
-      const aim = !a.english ? 'most answers take 1 to 2 minutes to say'
+      const st = a.star;
+      const add = !a.english ? 'most answers take about a minute to say'
         : kind === 'closing' ? 'one or two short questions of your own is plenty'
-        : kind === 'motivation' ? 'aim for 30 seconds to a minute and a half, with one reason and one example'
-          : `most answers like this take 1 to 2 minutes, so add ${!a.star.action ? 'what you did, step by step' : !a.star.result ? 'how it turned out' : 'a little more detail on what you did'}`;
-      return { ok: false, title, detail: `About ${t} out loud; ${aim}.` };
+        : kind === 'motivation' ? 'add one reason and one example, so it runs about 30 seconds'
+        : kind === 'situational' ? `add ${!st.action ? 'what you would do first, then next' : 'what you would do next and why'}, so it runs closer to a minute`
+        : kind === 'gap' ? `add ${!st.action ? 'the steps you would take to learn it' : 'a time you learned something new quickly'}, so it runs closer to a minute`
+        : `add ${!st.action ? 'what you did, step by step' : !st.result ? 'how it turned out' : 'a little more on what you did'}, so it runs closer to a minute`;
+      return { ok: false, title, detail: `About ${t} out loud; ${add}.` };
     }
     if (a.seconds > L.max) return { ok: false, title, detail: `About ${t} out loud; try to keep it under ${L.cap} and save extra detail for follow-up questions.` };
+    if (a.seconds < L.full) {
+      const near = kind === 'motivation' || a.seconds >= 30 ? 'about' : 'closer to';
+      return { ok: true, title, detail: `About ${t} as written; said out loud with a little detail it will run ${near} ${L.aim}, which is a good length.` };
+    }
     return { ok: true, title, detail: `About ${t} out loud, a comfortable length.` };
   }
 
@@ -850,7 +971,7 @@
     const analysis = c.analysis && typeof c.analysis === 'object' && !Array.isArray(c.analysis) ? c.analysis : null;
     const a = analyse(s, true);
     const kind = kindOf(question, info);
-    const rel = relevance(a.toks, question, info, analysis);
+    const rel = relevance(a.toks, question, info, analysis, kind);
     const checks = [
       { id: 'structure', ...structureCheck(a, kind, s) },
       { id: 'ownership', ...ownershipCheck(a, kind) },
@@ -867,7 +988,7 @@
       starScore,
       checks,
       echoed: rel.echoed,
-      missing: rel.missing.slice(0, 3),
+      missing: a.english ? rel.missing.slice(0, 3) : [],
       summary: summary(a, kind, starScore, rel)
     };
   }
@@ -875,12 +996,12 @@
   function summary(a, kind, starScore, rel) {
     if (!a.words) return 'No answer yet';
     const bits = [];
-    if (kind !== 'closing' && kind !== 'motivation' && a.english) {
+    if (kind !== 'closing' && kind !== 'motivation' && kind !== 'situational' && kind !== 'gap' && a.english) {
       const lack = PARTS.filter((p) => !a.star[p]);
       bits.push(starScore === 4 ? 'All 4 parts' : starScore === 0 ? 'No story parts yet' : `${starScore} of 4 parts (no ${list(lack, 'or')} yet)`);
     }
     bits.push(`${plural(a.words, 'word')}, about ${spoken(a.seconds)}`);
-    if (rel.size) bits.push(rel.echoed.length ? `uses ${plural(rel.echoed.length, 'word')} from the ad` : 'no words from the ad yet');
+    if (rel.size && (a.english || rel.echoed.length)) bits.push(rel.echoed.length ? `uses ${plural(rel.echoed.length, 'word')} from the ad` : 'no words from the ad yet');
     return bits.join(' · ');
   }
 
