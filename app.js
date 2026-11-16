@@ -297,6 +297,8 @@ function coreBindDay() {
 }
 
 let records = [];
+/* Declared before the storage read below: its catch path calls notify(), which uses this. */
+let toastTimer = 0;
 let active = null;
 let draft = null;
 let storageOK = true;
@@ -313,7 +315,6 @@ try {
   notify('Saved data could not be read. It has not been overwritten. Export or recover your browser storage before continuing.');
 }
 
-let toastTimer = 0;
 function notify(s) {
   const el = $('#status');
   if (!el) return;
