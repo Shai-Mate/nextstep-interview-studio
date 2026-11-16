@@ -393,10 +393,10 @@ function guessHeadingKind(s) {
 
 /* ---------- cue words for lines without a clear section ---------- */
 const CUE = {
-  nice: /\b(?:nice[- ]to[- ]have|bonus|preferred|preferably|an asset|is an asset|asset but not required|not required|desirable|a plus|is a plus|would be great|is great but|great but we will train|ideally|an advantage|helpful but not|not essential|not necessary|we will train)\b/i,
+  nice: /\b(?:nice[- ]to[- ]have|(?:we'd|we would|would) love|bonus|preferred|preferably|an asset|is an asset|asset but not required|not required|desirable|a plus|is a plus|would be great|is great but|great but we will train|ideally|an advantage|helpful but not|not essential|not necessary|we will train)\b/i,
   exclude: /\b(?:we offer|we provide|benefits (?:include|package)|(?:extended|health|full|great|competitive) (?:health )?benefits|perks|staff discount|employee discount|discounts?|tips|salary|wages?|per hour|an hour|hourly|pay range|compensation|pension|vacation|paid time off|dental|apply|applicants?|resumes?|résumé|cover letter|equal opportunit\w*|accommodations? (?:are|is) available|diversity|we are an?|we're an?|is an? (?:fictional|small|leading|growing|family|local|global|well-known|busy|friendly|new|fast-growing)|is home to|an? fictional|our (?:values|mission|story|team of|company|founders?)|founded|headquartered)\b|[$£€]\s?\d/i,
   role: /\b(?:we(?:'re| are) (?:looking for|hiring|seeking)|join (?:our|the) (?:small )?team|is hiring|are hiring|reporting to|reports to)\b/i,
-  must: /\b(?:must|required|requires|requirement|mandatory|essential|you have|you(?:'ll| will)? need|need to|needs to|you should|you are|you're|experience (?:with|in|as|of|using)|\d+\+? years?|ability to|able to|certificat\w*|licen[cs]e\w*|degree|diploma|registered|knowledge of|proficien\w*|familiar\w*|understanding of|comfortable|available|availability|valid|current)\b/i,
+  must: /\b(?:must|we need|someone who (?:can|is|has)|required|requires|requirement|mandatory|essential|you have|you(?:'ll| will)? need|need to|needs to|you should|you are|you're|experience (?:with|in|as|of|using)|\d+\+? years?|ability to|able to|certificat\w*|licen[cs]e\w*|degree|diploma|registered|knowledge of|proficien\w*|familiar\w*|understanding of|comfortable|available|availability|valid|current)\b/i,
   duty: /\b(?:you will|you'll|you would|responsible for|duties include|assist\w*|help\w*|install\w*|greet\w*|process\w*|build\w*|make|making|prepare\w*|serve|serving|clean\w*|maintain\w*|manage\w*|support\w*|handle\w*|take orders|operate\w*|deliver\w*|provide\w*|run|running|monitor\w*|repair\w*|record\w*|answer\w*|work with|working with|keep|keeping|stock\w*|restock\w*|sell\w*|teach\w*|care for|look after|cook\w*|pour\w*)\b/i
 };
 const STRONG_MUST = /\b(?:must|required|requires|mandatory|essential|\d+\+? years?|certificat\w*|licen[cs]e\w*|degree|diploma)\b/i;
@@ -461,7 +461,7 @@ function readAd(src, company) {
     if (CUE.nice.test(low)) return 'nice';
     if (CUE.role.test(low)) return 'role';
     // The company talking about itself ("We have served our town for 20 years") is not something they ask of you.
-    if (/^(?:we|our)\b/.test(low) && !/\b(?:you|your|need|needs|require\w*|want|expect|looking|seeking|hiring|ask)\b/.test(low)) return 'about';
+    if (/^(?:we|our)\b/.test(low) && !/\b(?:you|your|need|needs|require\w*|want|expect|looking|seeking|hiring|ask|must|should|someone|candidates?|applicants?|person who|would love|'d love|love to (?:hear|meet|see))\b/.test(low)) return 'about';
     if (sec === 'role' && !STRONG_MUST.test(low)) return CUE.duty.test(low) ? 'duty' : 'role';
     if (CUE.must.test(low)) return 'must';
     if (CUE.duty.test(low)) return 'duty';
@@ -865,7 +865,7 @@ const VERBS = new Set(('assist help greet process keep receive share install rep
   'test design develop create plan organise organize coordinate lead train mentor work ensure identify review update schedule book collect respond communicate explain document ' +
   'set open close count measure cut lift move transport wash sweep mop file enter track analyse analyze report present negotiate research assess evaluate administer give ' +
   'collaborate partner participate contribute attend act use apply inspect diagnose fix replace assemble paint guide welcome seat host recommend price label unpack rotate ' +
-  'be greet visit drive support prepare protect respond complete perform conduct oversee calm book confirm pick ship fill').split(' '));
+  'be greet visit drive support prepare protect respond complete perform conduct oversee calm book confirm pick ship fill prep').split(' '));
 // Everyday tools read better with an article ("a multimeter"); names, plurals and mass nouns do not need one.
 function withArticle(s) {
   if (!/^[a-z]/.test(s) || /s$/.test(s) || /\b(?:code|conduit|wiring|wire|data|software|equipment|safety|care|control|charting|accessibility|protection)$/.test(s)) return s;
