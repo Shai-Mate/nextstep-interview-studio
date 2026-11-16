@@ -151,6 +151,8 @@ details.iv-want[open] summary::after { transform: translateY(2px) rotate(-135deg
 .iv-check .card-head strong { white-space: nowrap; }
 .iv-group { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 18px; }
 .iv-gentle { margin-top: 8px; }
+details.iv-more { margin-top: 16px; }
+details.iv-more .check:last-child { margin-bottom: 16px; }
 .iv-sub { font-size: 13px; color: var(--muted); margin-top: 12px; }
 .iv-words { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .iv-words li {
@@ -200,7 +202,7 @@ details.iv-want[open] summary::after { transform: translateY(2px) rotate(-135deg
 .iv-send .fine { padding-top: 0; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .iv-reveal .iv-w { display: inline-block; animation: iv-word .6s cubic-bezier(.2, .8, .2, 1) backwards; }
+  .iv-reveal .iv-w { display: inline-block; max-width: 100%; overflow-wrap: anywhere; animation: iv-word .6s cubic-bezier(.2, .8, .2, 1) backwards; }
   .iv-part, .iv-pip { transition: color .3s, background-color .35s, box-shadow .35s, transform .2s cubic-bezier(.3, 1.5, .5, 1); }
   .iv-part:active, .iv-speak:active { transform: scale(.95); }
   .iv-part.on .iv-pip { animation: iv-light .7s ease-out; }

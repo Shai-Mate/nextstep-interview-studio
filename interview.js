@@ -29,6 +29,8 @@ let ivSpeakTimer = 0;
 let ivSpeechSeq = 0;
 let ivReadAloud = ivPrefs().readAloud === true;
 let ivMic = null;
+let ivVoiceSetup = null;
+let ivVoiceHooked = null;
 
 /* ---------- small helpers ---------- */
 
@@ -131,7 +133,7 @@ function ivSnapOf(r, text) {
   return { starScore: null, words, seconds: ivSecs(words), ok: ivBasicChecks(text).filter((c) => c.ok).map((c) => c.id), echoed: [] };
 }
 function ivSnapValid(s) {
-  return s && typeof s === 'object' && Number.isFinite(s.words) && Number.isFinite(s.seconds) && Array.isArray(s.ok)
+  return s && typeof s === 'object' && Number.isFinite(s.words) && Number.isFinite(s.seconds) && Array.isArray(s.ok) && Array.isArray(s.echoed)
     && (s.starScore === null || (Number.isInteger(s.starScore) && s.starScore >= 0 && s.starScore <= 4));
 }
 function ivSnap(p, k, a) {
@@ -220,6 +222,16 @@ function ivReport(p) {
     nextTip = miss ? miss.detail : '';
   }
   const bestFull = best ? ivReview(p, best.k, best.ans.text, best.ans.question) : null;
+  let bestLine = '';
+  if (best) {
+    const st = bestFull && bestFull.star;
+    const have = st ? IV_PARTS.filter((x) => st[x.id]).map((x) => x.name) : [];
+    const good = bestFull ? bestFull.checks.filter((c) => c.ok).map((c) => c.title) : [];
+    if (best.story && have.length === 4) bestLine = 'It had all four parts: Situation, Task, Action, Result.';
+    else if (best.story && have.length) bestLine = `It had ${have.length} of the four parts: ${have.join(', ')}.`;
+    else if (good.length) bestLine = 'What went well: ' + good.join(', ') + '.';
+    else bestLine = bestFull ? bestFull.summary + '.' : best.s.ok.length + ' of the checks went well.';
+  }
   const used = [];
   rows.forEach((r) => (r.s.echoed || []).forEach((w) => { if (!used.some((u) => u.toLowerCase() === String(w).toLowerCase())) used.push(String(w)); }));
   const said = m.answers.map((x) => String(x.text || '').toLowerCase()).join(' \n ');
@@ -250,7 +262,7 @@ function ivReport(p) {
       <ol class="iv-rows">${rows.map((r) => `<li><span class="iv-qn">${r.k + 1}</span><span class="iv-qt">${esc(r.ans.question)}</span>${r.parts === null ? '<span class="iv-na">Not checked</span>' : r.story ? ivBars(r.parts) : '<span class="iv-na">No story needed</span>'}</li>`).join('')}</ol>
     </div>
     ${best ? `<div class="glass flat iv-picks">
-      <div class="iv-pick"><p class="kicker">Your strongest answer</p>${qShort(best)}<p class="muted">${esc(bestFull ? bestFull.summary : best.s.ok.length + ' of the checks went well')}.</p></div>
+      <div class="iv-pick"><p class="kicker">Your strongest answer</p>${qShort(best)}<p class="muted">${esc(bestLine)}</p></div>
       ${next ? `<div class="iv-pick"><p class="kicker">Worth another pass</p>${qShort(next)}${nextTip ? `<p class="muted">Next time: ${esc(nextTip)}</p>` : ''}</div>` : ''}
     </div>` : ''}
     ${used.length || notYet.length ? `<div class="glass flat">
@@ -282,29 +294,33 @@ Object.assign(screens, {
     const live = ivLive(m.draft);
     const part = IV_PARTS.find((x) => x.id === ivPart) || IV_PARTS[2];
     const tip = info && IV_KIND_TIP[info.kind];
+    const story = ivStory(info);
+    const placeholder = info && info.kind === 'closing' ? 'Write one or two questions you would like to ask them.'
+      : info && info.kind === 'motivation' ? 'One real reason you want this job, and something you have done that shows it.'
+        : 'Use a real example. What happened, what did you do, and how did it turn out?';
     return `<div class="screen iv-screen" data-screen="mock">
       <div class="topbar tight">${iconBtn('close-today', 'Close', I.close)}<span class="center">Mock interview</span><span class="count">${i + 1} of ${p.questions.length}</span></div>
       ${segs(p.questions.length, i, i)}
       <div class="iv-stage"><div class="orb-slot iv-slot"><div class="orb-anchor iv-anchor" data-orb data-voice="1" data-env="1" data-s=".8" data-up="110,55" data-down="50,120" data-energy="${glow(p)}"></div></div></div>
       <div class="iv-askrow"><p class="italic iv-asks">The interviewer asks</p><button type="button" class="iv-speak" id="iv-speak" aria-pressed="${ivReadAloud}" hidden>${IV_SPEAKER}<span>Read aloud</span></button></div>
-      <p class="iv-note" id="iv-speak-note" hidden>Read aloud needs an English voice that works offline on this phone.</p>
+      <p class="iv-note" id="iv-speak-note" hidden>Read aloud needs an English voice that works offline on this device.</p>
       <h1 class="question iv-q iv-focus${reduceMotion() ? '' : ' iv-reveal'}" data-say="1" tabindex="-1">${ivQuestionHtml(q)}</h1>
       ${excerpt ? `<div class="glass pad-sm quote"><div class="kicker">From your job ad</div><p>${esc(excerpt)}</p></div>` : ''}
       <p class="iv-calm">This is practice, and nobody is grading you. Take your time.</p>
       ${ivWant(info)}
       ${tip ? `<p class="hint iv-tip">${esc(tip)}</p>` : ''}
       <div class="iv-answer">
-        <div class="iv-shape-head"><span class="kicker">Answer shape</span><span class="iv-shape-sub">lights up as you write</span></div>
+        ${story ? `<div class="iv-shape-head"><span class="kicker">Answer shape</span><span class="iv-shape-sub">${ivCoach() ? 'lights up as you write' : 'tap a part for a tip'}</span></div>
         ${ivMeter(live.star)}
-        <p class="hint" id="star-hint"><strong>${part.name}:</strong> ${esc(part.tip)}</p>
+        <p class="hint" id="star-hint"><strong>${part.name}:</strong> ${esc(part.tip)}</p>` : ''}
         <label class="field tight" for="mock-answer">Your answer</label>
-        <textarea id="mock-answer" rows="5" placeholder="Use a real example. What happened, what did you do, and how did it turn out?">${esc(m.draft)}</textarea>
+        <textarea id="mock-answer" rows="5" placeholder="${esc(placeholder)}">${esc(m.draft)}</textarea>
         <div class="meta"><span id="word-count">${ivWords(live.words)}${live.words ? ' · ' + ivSpoken(live.seconds) + ' to say' : ''}</span><span class="saved" id="save-line">${I.check}<span>Draft saved. Resume anytime.</span></span></div>
       </div>
       <div class="iv-mic" id="iv-mic" hidden>
         <div class="iv-mic-row"><button type="button" class="iv-mic-btn" id="iv-mic-btn">${IV_MIC}<span>Practise out loud</span></button><button type="button" class="quiet iv-mic-del" id="iv-mic-del" hidden>Delete recording</button></div>
         <audio class="iv-mic-play" id="iv-mic-play" controls preload="metadata" hidden></audio>
-        <p class="iv-mic-note">Optional. Say your answer out loud, then listen back. The recording stays in this phone’s memory only: never saved, never sent, and gone when you leave this question.</p>
+        <p class="iv-mic-note">Optional. Say your answer out loud, then listen back. The recording stays in this device’s memory only: never saved, never sent, and gone when you leave this question or switch apps.</p>
       </div>
       <button type="button" class="primary" id="submit-answer">Save answer and continue</button>
       ${logHtml(m)}
@@ -337,7 +353,8 @@ Object.assign(screens, {
         <p class="muted">A structure checklist, not a hiring score.</p>
         ${r && ivStory(info) ? ivShape(r.star) : ''}
         ${good.length ? `<p class="iv-group">What went well</p>${good.map(checkRow).join('')}` : '<p class="iv-group">What went well</p><p class="muted iv-gentle">You wrote a real answer, and that is the hardest part.</p>'}
-        ${todo.length ? `<p class="iv-group">Try next time</p>${todo.map(checkRow).join('')}` : ''}
+        ${todo.length ? `<p class="iv-group">Try next time</p>${todo.slice(0, 2).map(checkRow).join('')}` : ''}
+        ${todo.length > 2 ? `<details class="fold iv-want iv-more"><summary>${todo.length - 2} more to try</summary>${todo.slice(2).map(checkRow).join('')}</details>` : ''}
       </div>
       ${echoed.length || missing.length ? `<div class="glass flat">
         <div class="card-head"><strong>Words from the ad</strong></div>
@@ -392,8 +409,10 @@ function ivSpeak(text) {
   u.onboundary = () => { if (ivSpeech === me) { me.last = performance.now(); level(0.95); } };
   u.onstart = () => {
     if (ivSpeech !== me || reduceMotion()) return;
+    const t0 = performance.now();
     const tick = (now) => {
       if (ivSpeech !== me) return;
+      if (now - t0 > 1000 && !s.speaking && !s.pending) { ivSpeech = null; return; }
       if (now - me.last > 450) level(0.3 + 0.3 * Math.abs(Math.sin(now / 90)));
       requestAnimationFrame(tick);
     };
@@ -412,7 +431,7 @@ function ivBindSpeech(question) {
   if (!btn || !s) return;
   const seq = ivSpeechSeq;
   const setup = () => {
-    if (!btn.isConnected) return;
+    if (!btn.isConnected) { if (ivVoiceSetup === setup) ivVoiceSetup = null; return; }
     const { loaded, voice } = ivVoices();
     if (voice) {
       btn.hidden = false;
@@ -429,11 +448,11 @@ function ivBindSpeech(question) {
       if (note) note.hidden = false;
     }
   };
+  ivHookVoices(s);
+  ivVoiceSetup = setup;
   setup();
-  if (!ivVoices().voice) {
-    try { s.addEventListener('voiceschanged', setup, { once: true }); } catch { /* older engines */ }
-  }
   btn.addEventListener('click', () => {
+    if (btn.disabled) return;
     ivReadAloud = !ivReadAloud;
     ivSetPref('readAloud', ivReadAloud);
     btn.setAttribute('aria-pressed', String(ivReadAloud));
@@ -443,6 +462,17 @@ function ivBindSpeech(question) {
     } else ivStopSpeech();
   });
 }
+/* One listener for the whole app (voices can arrive late): it re-runs the current screen's setup. */
+function ivHookVoices(s) {
+  if (!s || ivVoiceHooked === s) return;
+  ivVoiceHooked = s;
+  const run = () => { if (ivVoiceSetup) ivVoiceSetup(); };
+  try {
+    if (typeof s.addEventListener === 'function') s.addEventListener('voiceschanged', run);
+    else s.onvoiceschanged = run;
+  } catch { /* older engines */ }
+}
+ivHookVoices(ivSynth());
 (function ivWatchLeave() {
   const app = document.getElementById('app');
   if (app && window.MutationObserver) {
@@ -455,9 +485,9 @@ function ivBindSpeech(question) {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) return;
     ivStopSpeech();
-    if (ivMic && ivMic.live) { ivMicStop(true); ivMicPaint(); }
+    if (ivMic) { ivMicStop(false); ivMicPaint(); }
   });
-  window.addEventListener('pagehide', () => { ivStopSpeech(); ivMicStop(false); });
+  window.addEventListener('pagehide', () => { ivStopSpeech(); ivMicStop(false); ivMicPaint(); });
 })();
 
 /* ---------- practise out loud (microphone, in memory only) ---------- */
@@ -536,6 +566,7 @@ async function ivMicStart() {
   rec.onstop = () => {
     if (ivMic !== me || !me.keep || !me.chunks.length) return;
     try { me.url = URL.createObjectURL(new Blob(me.chunks, { type: rec.mimeType || 'audio/webm' })); } catch { me.url = null; }
+    me.chunks = [];
     ivMicPaint();
   };
   try {
@@ -615,9 +646,10 @@ binders.mock = () => {
   if (!p) return;
   const root = document.getElementById('app');
   ivFocusTitle();
-  if (!p.mock.finished) {
-    const box = root.querySelector('#mock-answer');
+  const box = root.querySelector('#mock-answer');
+  if (!p.mock.finished && box) {
     const question = p.questions[p.mock.index];
+    const at = p.mock.index;
     ivRevealQuestion();
     ivBindSpeech(question);
     ivBindMic();
@@ -631,6 +663,8 @@ binders.mock = () => {
       if (!pending) pending = requestAnimationFrame(() => { pending = 0; ivPaintMeter(box.value); });
     });
     root.querySelector('#submit-answer').addEventListener('click', () => {
+      /* A handler from a screen that is already gone (double tap) must not save twice. */
+      if (!box.isConnected || active !== p || p.mock.finished || p.mock.index !== at) return;
       const text = box.value.trim();
       if (text.length < 20) { notify('Add a few more words first, so there is an answer to look at.'); box.focus(); return; }
       const m = active.mock;
@@ -657,7 +691,7 @@ binders.mock = () => {
   }
   const restart = root.querySelector('#restart');
   if (restart) restart.addEventListener('click', () => {
-    if (confirm('Start a new round? This clears this round’s answers. Your Answer bank notes stay as they are.')) {
+    if (confirm("Start a new round? This round's answers will be cleared, including stories your Interview day page uses. Answer bank notes stay. Export a backup first to keep them.")) {
       active.mock = { index: 0, answers: [], draft: '', finished: false };
       lastFeedback = null;
       save();
