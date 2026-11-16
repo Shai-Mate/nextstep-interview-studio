@@ -17,6 +17,8 @@
   const ag = aurora.getContext('2d', { alpha: true, desynchronized: true });
   const cg = stage.getContext('2d', { alpha: true, desynchronized: true });
   if (!ag || !cg) return;
+  // WebGL glass sphere (orb-gl.js) when available; the Canvas 2D drawGlass() stays the fallback.
+  const GL = window.NextStepOrbGL && window.NextStepOrbGL.init() ? window.NextStepOrbGL : null;
   const appRoot = document.getElementById('app');
   const pick = (sel) => (appRoot && appRoot.querySelector(sel)) || document.querySelector(sel);
 
@@ -140,6 +142,7 @@
     }
     ag.setTransform(s, 0, 0, s, 0, 0);
     cg.setTransform(s, 0, 0, s, 0, 0);
+    if (GL) GL.resize(vw, vh, dprCap);
     bgStill = false;
     if (reduced) draw(true);
   }
@@ -577,7 +580,7 @@
     if (!still) drawAurora(false);
     else if (!bgStill) drawAurora(true);
     cg.clearRect(0, 0, vw, vh);
-    if (!anchor || !anchor.isConnected || R < 4) return;
+    if (!anchor || !anchor.isConnected || R < 4) { if (GL) GL.clear(); return; }
     const bobX = still ? 0 : Math.sin(t * 0.37 + 1.3) * 2.2 * Math.min(1, R / 74);
     const bobY = still ? 0 : Math.sin(t * 0.55) * 3.6 * Math.min(1, R / 74);
     const x = cx + bobX + tx * R * 0.06;
@@ -585,7 +588,8 @@
     const form = 1 - sm(0.45, 1.75, D);
     const beatAmt = bt < 4 ? Math.min(1, bt / 0.14) * Math.exp(-bt * 2.4) : 0;
     const voiceAmt = clamp(vA * 0.9 + vB * 0.08, 0, 1) * form;
-    drawGlass(x, y, R, Math.max(form, still ? 1 : form), still ? 0 : beatAmt, still ? 0 : voiceAmt);
+    const gf = Math.max(form, still ? 1 : form);
+    if (!(GL && GL.draw({ x, y, r: R, form: gf, beat: still ? 0 : beatAmt, voice: still ? 0 : voiceAmt, energy: eA, t }))) drawGlass(x, y, R, gf, still ? 0 : beatAmt, still ? 0 : voiceAmt);
     if (!still) {
       drawParticles(x, y, R);
       drawBridge(x, y, R);
