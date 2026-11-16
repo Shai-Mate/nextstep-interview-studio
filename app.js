@@ -134,7 +134,7 @@ function coreLiveHtml(text) {
   const r = coreLive(text);
   const secs = Math.max(0, Math.round(r.seconds || 0));
   const spoken = !r.words ? 'Nothing yet' : r.words + (r.words === 1 ? ' word' : ' words') + ' · about ' + (secs < 60 ? secs + ' s' : Math.floor(secs / 60) + ' min ' + String(secs % 60).padStart(2, '0') + ' s') + ' aloud';
-  const star = r.star && typeof r.star === 'object' ? `<span class="star-pips" title="Situation, Task, Action, Result" aria-label="Situation, Task, Action, Result: ${['situation', 'task', 'action', 'result'].filter((k) => r.star[k]).length} of 4 covered">${[['situation', 'S'], ['task', 'T'], ['action', 'A'], ['result', 'R']].map(([k, l]) => `<i class="${r.star[k] ? 'on' : ''}" aria-hidden="true">${l}</i>`).join('')}</span>` : '';
+  const star = r.star && typeof r.star === 'object' ? `<span class="star-pips" role="img" title="Situation, Task, Action, Result" aria-label="Situation, Task, Action, Result: ${['situation', 'task', 'action', 'result'].filter((k) => r.star[k]).length} of 4 covered">${[['situation', 'S'], ['task', 'T'], ['action', 'A'], ['result', 'R']].map(([k, l]) => `<i class="${r.star[k] ? 'on' : ''}" aria-hidden="true">${l}</i>`).join('')}</span>` : '';
   return `<span>${spoken}</span>${star}`;
 }
 
@@ -302,9 +302,11 @@ function render(opts = {}) {
   const keep = !!opts.keep;
   const oldScroll = document.querySelector('#app .scroll');
   const keepTop = keep ? (oldScroll ? oldScroll.scrollTop : window.scrollY) : 0;
+  const html = screen();
   const ghost = keep ? null : coreGhost(app.firstElementChild, opts.from, view);
-  app.innerHTML = screen();
+  app.innerHTML = html;
   if (keep && app.firstElementChild) app.firstElementChild.classList.add('steady');
+  document.body.classList.toggle('tabs-on', !!app.querySelector('.tabbar'));
   bindScreen();
   animateBits(keep);
   const sc = document.querySelector('#app .scroll');
@@ -579,7 +581,7 @@ const screens = {
     const card = (r, i) => {
       const m = meta[i];
       const tags = m ? m.themes.slice(0, 2).map((id) => `<b class="tag">${esc(coreThemeLabel(id, a))}</b>`).join('') : '';
-      return `<article class="glass pad-sm map-card${(p.notes['map-' + i] || '').trim() ? ' has-note' : ''}"><div class="map-head"><p class="kicker">Excerpt ${i + 1}</p>${tags ? `<span class="tags">${tags}</span>` : ''}</div><p class="prose">${esc(r)}</p><label class="field" for="map-${i}">Your transferable evidence or gaps</label><textarea id="map-${i}" data-note="map-${i}" rows="3">${esc(p.notes['map-' + i] || '')}</textarea><p class="hint">${esc(hints[(m && m.kind) || 'other'])}</p></article>`;
+      return `<article class="glass pad-sm map-card${(p.notes['map-' + i] || '').trim() ? ' has-note' : ''}"><div class="map-head"><p class="kicker">Excerpt ${i + 1}</p>${tags ? `<span class="tags">${tags}</span>` : ''}</div><p class="prose">${esc(r)}</p><label class="field" for="map-${i}">Your example, or how you would learn it</label><textarea id="map-${i}" data-note="map-${i}" rows="3">${esc(p.notes['map-' + i] || '')}</textarea><p class="hint">${esc(hints[(m && m.kind) || 'other'])}</p></article>`;
     };
     let body;
     if (meta.some(Boolean)) {
