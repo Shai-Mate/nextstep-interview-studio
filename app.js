@@ -141,6 +141,87 @@ function coreLiveHtml(text) {
   const spoken = !r.words ? 'Nothing yet' : r.words + (r.words === 1 ? ' word' : ' words') + ' · about ' + (secs < 60 ? secs + ' s' : Math.floor(secs / 60) + ' min ' + String(secs % 60).padStart(2, '0') + ' s') + ' aloud';
   return `<span>${spoken}</span>${coreStarPips(r.star)}`;
 }
+/* Interview date: optional, local time, stored as p.interviewAt = 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM'. */
+let coreWhenEditing = false;
+const CORE_CAL = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5h12v9.5H4zM4 9.5h12M7 4v3M13 4v3"></path></svg>';
+function coreParseWhen(v) {
+  const m = typeof v === 'string' ? /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/.exec(v) : null;
+  if (!m) return null;
+  const y = +m[1], mo = +m[2], d = +m[3];
+  const hasTime = m[4] !== undefined;
+  const h = hasTime ? +m[4] : 0, mi = hasTime ? +m[5] : 0;
+  if (y < 2000 || y > 2100 || h > 23 || mi > 59) return null;
+  const date = new Date(y, mo - 1, d, h, mi);
+  if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return null;
+  return { date, hasTime };
+}
+function coreWhen(p, now) {
+  const w = coreParseWhen(p && p.interviewAt);
+  if (!w) return null;
+  const n = now || new Date();
+  const day0 = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  const dayT = new Date(w.date.getFullYear(), w.date.getMonth(), w.date.getDate());
+  const days = Math.round((dayT - day0) / 86400000);
+  const weekday = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayT.getDay()];
+  let time = '';
+  if (w.hasTime) {
+    try { time = w.date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch { time = String(w.date.getHours()).padStart(2, '0') + ':' + String(w.date.getMinutes()).padStart(2, '0'); }
+  }
+  const at = time ? ' at ' + time : '';
+  const when = days < 7 ? weekday : longDate(dayT);
+  let line;
+  if (days < 0) line = 'How did it go?';
+  else if (days === 0) line = 'Interview today' + at + '. You’ve got this.';
+  else if (days === 1) line = 'Interview tomorrow' + at;
+  else line = 'Interview in ' + days + ' days · ' + when + at;
+  return { days, when, time, line };
+}
+function corePace(p, w) {
+  if (!w || w.days < 0) return '';
+  const left = p.course.filter((c) => !c.done).length;
+  if (w.days === 0) return 'Today’s the day. Read your Interview day page before you go.';
+  if (w.days === 1) return left ? 'Tomorrow’s the day. Do what feels useful today, then rest.' : 'Tomorrow’s the day. Read your Interview day page tonight, then rest.';
+  if (!left) return 'Every lesson done. Practise out loud before ' + w.when + '.';
+  const per = Math.ceil(left / w.days);
+  return (per === 1 ? 'One lesson a day' : 'About ' + per + ' lessons a day') + ' gets you through before ' + w.when + '.';
+}
+function coreWhenHtml(p, w) {
+  if (coreWhenEditing) {
+    const parsed = coreParseWhen(p.interviewAt);
+    const dateVal = parsed ? p.interviewAt.slice(0, 10) : '';
+    const timeVal = parsed && parsed.hasTime ? p.interviewAt.slice(11, 16) : '';
+    return `<form class="glass pad-sm when-form" id="when-form">
+      <p class="kicker">When is your interview?</p>
+      <div class="when-fields">
+        <div><label class="field tight" for="when-date">Date</label><input id="when-date" type="date" value="${esc(dateVal)}" required></div>
+        <div><label class="field tight" for="when-time">Time, optional</label><input id="when-time" type="time" value="${esc(timeVal)}"></div>
+      </div>
+      <p class="hint">Only used on this device, to pace your plan.</p>
+      <button class="primary gap-top" type="submit">Save date</button>
+      <div class="pager"><button type="button" class="quiet" id="when-cancel">Cancel</button>${parsed ? '<button type="button" class="quiet" id="when-clear">Remove date</button>' : ''}</div>
+    </form>`;
+  }
+  if (!w) return `<button type="button" class="when-chip" data-action="set-when">${CORE_CAL}<span>When is your interview?</span></button>`;
+  if (w.days < 0) return `<div class="when-past"><p>How did it go? Start a new preparation when you’re ready.</p><div class="pager"><button type="button" class="quiet" data-action="start">New preparation</button><button type="button" class="quiet" data-action="set-when">Change date</button></div></div>`;
+  return `<button type="button" class="when-chip set${w.days <= 1 ? ' soon' : ''}" data-action="set-when" aria-label="${esc(w.line)}. Change the date">${CORE_CAL}<span>${esc(w.line)}</span></button>`;
+}
+function coreBindWhen() {
+  const form = $('#when-form');
+  if (!form) return;
+  const done = (msg) => { coreWhenEditing = false; show('today', { keep: true }); if (msg) notify(msg); };
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const d = $('#when-date').value;
+    const t = $('#when-time').value;
+    const v = d ? (t ? d + 'T' + t.slice(0, 5) : d) : '';
+    if (!coreParseWhen(v)) { notify('Pick a date, or tap Cancel.'); $('#when-date').focus(); return; }
+    active.interviewAt = v;
+    save();
+    done(coreWhen(active).line);
+  });
+  $('#when-cancel').addEventListener('click', () => done(''));
+  if ($('#when-clear')) $('#when-clear').addEventListener('click', () => { delete active.interviewAt; save(); done('Interview date removed.'); });
+}
 /* Interview day: one calm page built only from the user's own preparation. */
 let coreDayFrom = 'today';
 const CORE_DAY_CHECKS = [
@@ -439,7 +520,7 @@ const screens = {
         const st = stats(p);
         const pct = Math.round(st.ratio * 100);
         const next = p.course.find((c) => !c.done);
-        return `<article class="glass prep-card"><div class="prep-top"><div><p class="kicker">${esc(p.company)}</p><h2>${esc(p.role)}</h2></div><span class="prep-pct">${pct}%</span></div><p class="muted">${esc(p.intake.stage)} · ${esc(p.intake.time)} a day</p>${bar(pct)}<p class="next-up">${next ? 'Up next · ' + esc(next.title) : 'Every lesson done · keep practising'}</p><button type="button" class="primary" data-action="resume" data-id="${esc(p.id)}"><span>Resume preparation</span>${I.arrow}</button></article>`;
+        return `<article class="glass prep-card"><div class="prep-top"><div><p class="kicker">${esc(p.company)}</p><h2>${esc(p.role)}</h2></div><span class="prep-pct">${pct}%</span></div><p class="muted">${esc(p.intake.stage)} · ${esc(p.intake.time)} a day</p>${bar(pct)}${(() => { const w = coreWhen(p); return w ? `<p class="when-line${w.days >= 0 && w.days <= 1 ? ' soon' : ''}">${CORE_CAL}<span>${esc(w.days < 0 ? 'Interview date passed. How did it go?' : w.line)}</span></p>` : ''; })()}<p class="next-up">${next ? 'Up next · ' + esc(next.title) : 'Every lesson done · keep practising'}</p><button type="button" class="primary" data-action="resume" data-id="${esc(p.id)}"><span>Resume preparation</span>${I.arrow}</button></article>`;
       }).join('')}</div>
       <div class="spacer"></div>
       <button type="button" class="primary gap-top" data-action="start">New preparation</button>
@@ -460,11 +541,15 @@ const screens = {
     const a = analysisOf(p);
     const pop = coreCelebrate;
     coreCelebrate = -1;
+    const w = coreWhen(p, now);
+    const dayFirst = !!w && (w.days === 0 || w.days === 1);
+    const pace = corePace(p, w);
     const themes = a && Array.isArray(a.themes) ? a.themes.filter((t) => t && t.label).slice(0, 3) : [];
     const musts = a && Array.isArray(a.requirements) ? a.requirements.filter((r) => r && r.kind === 'must').length : 0;
     const skills = a && Array.isArray(a.skills) ? a.skills.length : 0;
     const facts = [musts ? musts + ' must-have' + (musts === 1 ? '' : 's') : '', skills ? skills + (skills === 1 ? ' skill' : ' skills') + ' the ad mentions' : '', a && a.seniority && a.seniority.level && a.seniority.level !== 'Unknown' ? a.seniority.level + ' level' : ''].filter(Boolean).join(' · ');
     const decoded = a && actions['open-insights'] ? `<button type="button" class="glass button decoded" data-action="open-insights"><span class="copy"><span class="kicker">Your ad, decoded</span><strong>What this job is really about</strong>${themes.length ? `<span class="tags">${themes.map((t) => `<b class="tag">${esc(t.label)}</b>`).join('')}</span>` : ''}${facts ? `<span>${esc(facts)}</span>` : ''}</span>${I.chev}</button>` : '';
+    const dayHero = dayFirst ? `<button type="button" class="glass button day-hero" data-action="open-day"><span class="copy"><span class="kicker">${w.days === 0 ? 'Interview today' : 'Interview tomorrow'}</span><strong>Your Interview day page</strong><span>Your best stories, questions to ask and a calm checklist</span></span>${I.chev}</button>` : '';
     const ad = coreHighlightAd(p.job, a);
     const legend = [['must', 'Must-have'], ['skill', 'Skill or tool'], ['nice', 'Nice to have'], ['keyword', 'Worth repeating']].filter(([k]) => ad.kinds.has(k));
     return shell('today', `
@@ -472,16 +557,23 @@ const screens = {
       <h1 class="italic greet">${esc(greeting(now))}</h1>
       <p class="role-name">${esc(p.role)}</p>
       <p class="muted">${esc(p.company)} · ${esc(p.intake.stage)}</p>
+      ${coreWhenHtml(p, w)}
+      ${dayHero}
       <div class="glass pad session${pop >= 0 ? ' celebrate' : ''}">
         <div class="session-head"><div class="min-left">${pop >= 0 ? `<span class="done-badge">${I.check}Lesson ${pop + 1} done</span>` : allDone ? 'All lessons complete' : left + ' min left'}</div><div class="session-kicker">Today's ${budgetOf(p)}-minute session</div></div>
         <h2 class="session-title">${esc(lesson.title)}</h2>
         <p class="upnow">${allDone ? 'Review any lesson' : 'Up now · Lesson ' + (idx + 1) + ' of ' + p.course.length}</p>
         ${coreLessonSegs(p, allDone ? -1 : idx, pop)}
+        ${pace ? `<p class="pace">${esc(pace)}</p>` : ''}
         <button type="button" class="primary" data-action="continue"><span>${allDone ? 'Review lessons' : 'Continue'}</span>${I.arrow}</button>
       </div>
       ${decoded}
-      <button type="button" class="glass button day-entry" data-action="open-day"><span class="copy"><strong>Interview day</strong><span>Your best stories, words to use and a calm checklist</span></span>${I.chev}</button>
-      <div class="glass flat" aria-label="${pct} percent prepared">
+      <div class="glass flat more-card">
+        <p class="kicker quiet-kicker">More ways to prepare</p>
+        <button type="button" class="list-row" data-action="open-mock"><span class="copy"><strong>Mock interview</strong><span>${esc(mockLine(p))}</span></span>${I.chev}</button>
+        ${dayFirst ? '' : `<button type="button" class="list-row" data-action="open-day"><span class="copy"><strong>Interview day</strong><span>Your best stories, words to use and a calm checklist</span></span>${I.chev}</button>`}
+      </div>
+      <div class="glass flat quiet-card" aria-label="${pct} percent prepared">
         <div class="stat-row">${ring(pct)}<div><strong>Preparation so far</strong><p class="muted">${st.done} of ${st.total} steps done. ${st.done ? 'Keep going, one small step at a time.' : 'Start with today’s first lesson.'}</p></div></div>
         <div class="stat-grid">
           <div><b>${st.lessonsDone}/${st.lessons}</b><span>Lessons</span></div>
@@ -490,8 +582,7 @@ const screens = {
           <div><b>${st.mockDone}/${st.mock}</b><span>Mock</span></div>
         </div>
       </div>
-      <button type="button" class="glass button" data-action="open-mock"><span class="copy"><strong>Mock interview</strong><span>${esc(mockLine(p))}</span></span>${I.chev}</button>
-      ${renaming ? `<form class="rename" id="rename-form"><input id="rename-input" type="text" maxlength="120" value="${esc(p.role)}" aria-label="Job title"><button class="primary" type="submit">Save</button></form>` : `<div class="pager"><button type="button" class="quiet" id="rename">Rename</button><button type="button" class="quiet" id="export-one">Export backup</button><button type="button" class="quiet" data-action="all-preps">All preparations</button></div>`}
+      ${renaming ? `<form class="rename" id="rename-form"><label class="sr" for="rename-input">Job title</label><input id="rename-input" type="text" maxlength="120" value="${esc(p.role)}"><button class="primary" type="submit">Save</button></form>` : `<div class="pager tools"><button type="button" class="quiet" id="rename">Rename</button><button type="button" class="quiet" id="export-one">Export backup</button><button type="button" class="quiet" data-action="all-preps">All preparations</button></div>`}
       <details class="fold"><summary>Review original job ad</summary>${legend.length ? `<p class="hl-legend">${legend.map(([k, l]) => `<mark class="hl hl-${k}">${l}</mark>`).join('')}</p>` : ''}<pre class="ad-text">${ad.html}</pre>${p.url ? `<p class="muted">Reference URL: ${esc(p.url)}</p>` : ''}</details>
     `);
   },
@@ -828,6 +919,7 @@ function coreRestore(p) {
   if (requirements) fresh.requirements = requirements;
   const course = coreCleanCourse(p.course);
   if (course) fresh.course = course;
+  if (coreParseWhen(p.interviewAt)) fresh.interviewAt = p.interviewAt;
   /* Quiz: keep the backup's own items; a backup from before ad-specific quizzes answered the three
      default items, so it restores onto those. Answers are dropped if the items are unusable. */
   let quizOK = true;
@@ -902,6 +994,7 @@ function bindScreen() {
   if (view === 'lesson' || view === 'answers' || view === 'rolemap') bindNotes();
   if (view === 'answers') coreBindAnswers();
   if (view === 'interviewday') coreBindDay();
+  if (view === 'today') coreBindWhen();
   if ($('#rename')) $('#rename').addEventListener('click', () => { renaming = true; show('today', { keep: true }); $('#rename-input')?.focus(); });
   const rename = $('#rename-form');
   if (rename) rename.addEventListener('submit', (e) => {
@@ -959,6 +1052,7 @@ document.body.addEventListener('click', (e) => {
   if (action === 'resume') {
     active = records.find((p) => p.id === el.dataset.id);
     renaming = false;
+    coreWhenEditing = false;
     if (active) show('today');
     return;
   }
@@ -975,6 +1069,7 @@ document.body.addEventListener('click', (e) => {
   if (action === 'open-day') { if (needPrep()) { coreDayFrom = view === 'progress' ? 'progress' : 'today'; show('interviewday'); } return; }
   if (action === 'day-back') { if (needPrep()) show(coreDayFrom || 'today'); return; }
   if (action === 'print-day') { window.print(); return; }
+  if (action === 'set-when') { if (needPrep()) { coreWhenEditing = true; show('today', { keep: true }); $('#when-date')?.focus(); } return; }
   if (action === 'quiz') {
     if (active.quiz.answers[el.dataset.q] !== undefined) return;
     active.quiz.answers[el.dataset.q] = +el.dataset.choice;
