@@ -259,6 +259,31 @@ function coreFirstWords(text, n) {
   const w = String(text || '').trim().split(/\s+/);
   return w.slice(0, n).join(' ') + (w.length > n ? '…' : '');
 }
+/* Lesson -> story: the answer-bank question that best matches a lesson. Most specific first:
+   the question about the same ad excerpt, then the same topic (undrafted first), then the
+   first undrafted question. Works for old preparations through the quoted excerpt. */
+let coreOpenAnswer = -1;
+let coreAnswersFrom = 'practise';
+function coreStoryFor(p, li) {
+  const c = p.course[li] || {};
+  const norm = (x) => String(x || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const quote = norm(quoteFrom(c.body, ''));
+  const drafted = (i) => !!(p.notes['answer-' + i] || '').trim();
+  const all = p.questions.map((_, i) => i);
+  /* Closest question number to the lesson number breaks ties, so the match stays stable
+     (a drafted story keeps opening for its lesson). */
+  const closest = (list) => list.reduce((b, i) => (Math.abs(i - li) < Math.abs(b - li) ? i : b), list[0]);
+  if (quote.length > 12) {
+    const same = all.filter((i) => norm(coreInfo(p, i)?.source) === quote || norm(p.questions[i]).includes(quote));
+    if (same.length) return closest(same);
+  }
+  if (c.theme) {
+    const same = all.filter((i) => coreInfo(p, i)?.theme === c.theme);
+    if (same.length) return closest(same.filter((i) => !drafted(i)).length ? same.filter((i) => !drafted(i)) : same);
+  }
+  const open = all.filter((i) => !drafted(i));
+  return open.length ? open[0] : 0;
+}
 function coreAdWords(a) {
   const out = [];
   const seen = new Set();
@@ -424,6 +449,7 @@ function mockLine(p) {
 const CORE_DEPTH = { welcome: 0, today: 1, learn: 1, practise: 1, progress: 1, interviewday: 2, lessons: 3, privacy: 3 };
 function show(next, opts) {
   const from = view;
+  if (next !== 'answers') coreAnswersFrom = 'practise';
   view = next;
   render({ ...(opts || {}), from });
 }
@@ -600,7 +626,7 @@ const screens = {
       <p class="italic lg">Say it out loud first.</p>
       <p class="sub">Practise, pause, pick up again. Drafts save as you go.</p>
       <button type="button" class="row" data-action="open-mock"><span class="copy"><strong>Mock interview</strong><em>${esc(mockLine(p))}</em></span>${I.chev.replace('stroke="currentColor"', 'stroke="#FFC48A"')}</button>
-      <button type="button" class="row" data-action="open-answers"><span class="copy"><strong>Answer bank</strong><em>${st.answersDone} of ${st.answers} answers drafted${Array.isArray(p.questionInfo) ? ' · with what they listen for' : ''}</em></span>${I.chev}</button>
+      <button type="button" class="row" data-action="open-answers"><span class="copy"><strong>Answer bank</strong><em>${st.answersDone} of ${st.answers} answers drafted${Array.isArray(p.questionInfo) ? ' · with what they want to hear' : ''}</em></span>${I.chev}</button>
       <button type="button" class="row" data-action="open-quiz"><span class="copy"><strong>Quiz</strong><em>${st.quizDone} of ${st.quiz} done${fromAd ? ' · built from your ad' : ''}</em></span>${I.chev}</button>
       <button type="button" class="row" data-action="open-map"><span class="copy"><strong>Role map</strong><em>${st.mapDone} of ${st.map} ad excerpts mapped</em></span>${I.chev}</button>
     `);
@@ -665,7 +691,9 @@ const screens = {
         <button type="button" class="quiet" id="next" ${i === p.course.length - 1 ? 'disabled' : ''}>Next</button>
       </div>
       <div class="spacer"></div>
-      <button type="button" class="primary" data-action="lesson-practise">Practise this answer</button>
+      <p class="hint story-hint">Your story for: ${esc(coreFirstWords(p.questions[coreStoryFor(p, i)], 14))}</p>
+      <button type="button" class="primary" data-action="lesson-story"><span>Write this story</span>${I.arrow}</button>
+      <button type="button" class="text-btn" data-action="lesson-practise">Practise in a mock interview</button>
       <button type="button" class="text-btn mark${c.done ? '' : ' todo'}" id="mark">${c.done ? 'Mark incomplete' : I.check + '<span>Mark lesson done</span>'}</button>
     </div>`;
   },
@@ -691,9 +719,11 @@ const screens = {
     const drafted = (i) => !!(p.notes['answer-' + i] || '').trim();
     const total = p.questions.length;
     const doneCount = p.questions.filter((_, i) => drafted(i)).length;
-    const firstOpen = Math.max(0, p.questions.findIndex((_, i) => !drafted(i)));
+    const firstOpen = coreOpenAnswer >= 0 && coreOpenAnswer < total ? coreOpenAnswer : Math.max(0, p.questions.findIndex((_, i) => !drafted(i)));
+    coreOpenAnswer = -1;
+    const back = coreAnswersFrom === 'lesson' ? iconBtn('back-lesson', 'Back to the lesson', I.back) : iconBtn('back-practise', 'Back', I.back);
     return `<div class="screen" data-screen="answers">
-      <div class="topbar">${iconBtn('back-practise', 'Back', I.back)}<span class="label">Answer bank</span><span class="count" id="bank-count">${doneCount} of ${total}</span></div>
+      <div class="topbar">${back}<span class="label">Answer bank</span><span class="count" id="bank-count">${doneCount} of ${total}</span></div>
       <h1>Your answer bank</h1>
       <p class="italic lg">True examples only.</p>
       <p class="sub">Use something you actually did. A gap is something to prepare for, not something to make up. Notes save as you type.</p>
@@ -1084,7 +1114,22 @@ document.body.addEventListener('click', (e) => {
   if (action === 'all-lessons') { if (needPrep()) show('lessons'); return; }
   if (action === 'back-lesson') { if (needPrep()) show('lesson'); return; }
   if (action === 'open-lesson') { openLesson(+el.dataset.index || 0); return; }
-  if (action === 'open-answers') { if (needPrep()) show('answers'); return; }
+  if (action === 'open-answers') { if (needPrep()) { coreAnswersFrom = 'practise'; show('answers'); } return; }
+  if (action === 'lesson-story') {
+    if (!needPrep()) return;
+    const qi = coreStoryFor(active, lessonIndex);
+    coreAnswersFrom = 'lesson';
+    coreOpenAnswer = qi;
+    show('answers');
+    const box = document.getElementById('answer-' + qi);
+    if (box) {
+      const block = box.closest('details');
+      if (block) block.open = true;
+      box.scrollIntoView({ block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' });
+      box.focus({ preventScroll: true });
+    }
+    return;
+  }
   if (action === 'open-quiz') { if (needPrep()) show('quiz'); return; }
   if (action === 'open-map') { if (needPrep()) show('rolemap'); return; }
   if (action === 'open-day') { if (needPrep()) { coreDayFrom = view === 'progress' ? 'progress' : 'today'; show('interviewday'); } return; }
