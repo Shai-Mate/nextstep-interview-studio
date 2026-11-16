@@ -455,6 +455,128 @@ test('tiny ads always get 5 or 6 quiz items and a sensible role', () => {
   assert.ok(!PrepEngine.analyze(rad('very-short.txt'), {}).signals.some((s) => s.label === 'On-site'), '"Apply in person" is not on-site work');
 });
 
+// Ads pasted the way people really copy them (Indeed, LinkedIn, Job Bank, email, emoji, French, CRLF), from adversarial QA.
+const ADV = join(FIX, 'adv');
+const advFiles = readdirSync(ADV).filter((f) => f.endsWith('.txt')).sort();
+const aad = (name) => readFileSync(join(ADV, name), 'utf8');
+const PICTO = /\p{Extended_Pictographic}/u;
+const FURNITURE = /\b(?:job types?|work location|application deadline|expected start date|expected hours|shift and schedule|supplemental pay|seniority level|employment type|job function|referrals increase|see who you know|profile insights|out of 5 stars|show (?:more|less)|easy apply|advertised until|employment groups|posted on)\b/i;
+
+test('pasted job-site ads: no page furniture, emoji or brackets in the plan', () => {
+  assert.ok(advFiles.length >= 12);
+  for (const f of advFiles) {
+    const job = aad(f);
+    const p = PrepEngine.create({ job });
+    assert.ok(p.questions.length >= 8 && p.questions.length <= 10 && p.course.length >= 6 && p.course.length <= 8 && p.quizItems.length >= 5 && p.quizItems.length <= 6, f);
+    assert.equal(new Set(p.course.map((c) => c.title)).size, p.course.length, f + ': lesson titles repeat');
+    for (const r of p.requirements) assert.ok(!FURNITURE.test(r) && !/^(?:pay|salary|hours|location|schedule)\s*:/i.test(r), f + ': furniture requirement: ' + r);
+    for (const t of [p.role, p.company, ...p.requirements, ...p.questions]) assert.ok(!PICTO.test(t), f + ': emoji: ' + t);
+    for (const q of p.questions) assert.ok(!/\((?:required|preferred)\)/i.test(q), f + ': ' + q);
+    const a = PrepEngine.analyze(job, { role: p.role, company: p.company });
+    for (const r of a.requirements) assert.ok(!FURNITURE.test(r.text), f + ': ' + r.text);
+    for (const k of a.keywords) assert.ok(!FURNITURE.test(k) && !/[<>“”"]/.test(k), f + ': keyword ' + k);
+  }
+});
+
+test('pasted job-site ads: names come from the line after the title, not the title’s second half', () => {
+  const names = {
+    'linkedin-registered-nurse.txt': ['Registered Nurse', 'Larchmere Health Centre'],
+    'corporate-class1-driver.txt': ['Class 1 Driver', 'Granitefield Freight Lines Ltd.'],
+    'messy-crlf-shipper-receiver.txt': ['Shipper / Receiver', 'Kestrel Bay Distribution'],
+    'indeed-server-bartender-newlayout.txt': ['Server / Bartender', 'The Gilded Gull Taphouse'],
+    'caps-emoji-early-childhood-educator.txt': ['Early Childhood Educator (ECE)', 'Little Acorns Learning Village'],
+    'indeed-line-cook.txt': ['Line Cook', 'Saltgrass Kitchen & Bar'],
+    'email-bakery-weekend.txt': [null, 'Honeycomb Hearth Bakery']
+  };
+  for (const [f, [role, company]] of Object.entries(names)) {
+    const p = PrepEngine.create({ job: aad(f) });
+    if (role) assert.equal(p.role, role, f);
+    assert.equal(p.company, company, f);
+  }
+});
+
+test('pasted job-site ads: Indeed, Job Bank and LinkedIn sections are read for what they are', () => {
+  const cook = aad('indeed-line-cook.txt');
+  const cp = PrepEngine.create({ job: cook });
+  const ca = PrepEngine.analyze(cook, {});
+  assert.ok(cp.requirements.includes('1 year of kitchen experience'), cp.requirements.join(' | '));
+  assert.ok(ca.requirements.some((r) => r.text === 'kitchen: 1 year' && r.kind === 'must'));
+  assert.ok(ca.requirements.some((r) => r.text === 'line cook: 1 year' && r.kind === 'nice'));
+  const bar = PrepEngine.analyze(aad('indeed-server-bartender-newlayout.txt'), {});
+  assert.ok(bar.requirements.some((r) => /pour draft beer/.test(r.text)), 'the full job description is read');
+  assert.ok(!bar.requirements.some((r) => /^(?:serving|bartending)$/i.test(r.text)), 'Profile insights skills are page furniture');
+  const jan = PrepEngine.create({ job: aad('jobbank-janitor.txt') });
+  assert.ok(jan.requirements.includes('Bondable') || PrepEngine.analyze(aad('jobbank-janitor.txt'), {}).requirements.some((r) => r.text === 'Bondable'));
+  assert.ok(!PrepEngine.analyze(aad('jobbank-janitor.txt'), {}).signals.some((x) => x.label === 'Certificates or checks' && /no degree/i.test(x.detail)));
+  const rn = PrepEngine.analyze(aad('linkedin-registered-nurse.txt'), {});
+  assert.ok(!rn.requirements.some((r) => /equal opportunity/i.test(r.text)), 'the list after Preferred Qualifications ends at the paragraph');
+  const email = PrepEngine.analyze(aad('email-bakery-weekend.txt'), {});
+  assert.ok(!email.requirements.some((r) => /reply to this email|ask for Marisol/i.test(r.text)));
+  const truck = PrepEngine.analyze(aad('corporate-class1-driver.txt'), {});
+  assert.ok(truck.skills.some((x) => /Class 1 driver's licence/i.test(x)) && truck.skills.some((x) => /air brake/i.test(x)), truck.skills.join(', '));
+  assert.ok(PrepEngine.analyze(aad('jobbank-security-guard.txt'), {}).skills.some((x) => /Security Worker Licence/i.test(x)));
+  const ece = PrepEngine.analyze(aad('caps-emoji-early-childhood-educator.txt'), {});
+  assert.ok(ece.requirements.some((r) => /criminal record/i.test(r.text)) && ece.requirements.some((r) => /^Plan and lead play-based/.test(r.text)), 'emoji headings and bullets are read');
+});
+
+test('a French-only ad gets a Language signal and is not quoted into English', () => {
+  const job = aad('french-only-aide-cuisinier.txt');
+  const a = PrepEngine.analyze(job, {});
+  assert.equal(a.signals[0].label, 'Language');
+  assert.deepEqual(a.keywords, []);
+  const p = PrepEngine.create({ job });
+  for (const t of [...p.questions, ...p.quizItems.flatMap((q) => [q.q, ...q.options])]) assert.ok(!/“/.test(t) && !/Expérience|Préparer|Capacité|Disponible/.test(t), t);
+  assert.ok(!/keep pointing back to these/.test(p.course[0].body), 'no areas, so nothing to point back to');
+  for (const r of p.requirements) assert.ok(!/salaire|pourboires|postuler|restaurant fictif/i.test(r), r);
+});
+
+test('one-line ads without a full stop still get areas and a role', () => {
+  const cases = [['Part time dishwasher needed evenings and weekends, no experience needed', 'Dishwasher'], ['Need a cashier for weekends, must be friendly and good with cash', 'Cashier'],
+    ['Hiring delivery drivers with own car and clean driving record', 'Delivery driver'], ['Babysitter needed after school for two kids, must have first aid', 'Babysitter']];
+  for (const [job, role] of cases) {
+    const a = PrepEngine.analyze(job, {});
+    assert.ok(a.themes.length >= 1, job);
+    const p = PrepEngine.create({ job });
+    assert.equal(p.role, role, job);
+    assert.equal(new Set(p.course.map((c) => c.title)).size, p.course.length, job);
+  }
+  assert.equal(PrepEngine.create({ job: rad('no-bullets-multiline.txt') }).role, 'Cleaner', 'a short "X needed for…" first line is still the title');
+});
+
+test('every listed area gets a question in a default plan, and no two lessons quote the same line', () => {
+  const all = [...files.map((f) => ad(f)), ...reviewFiles.map((f) => rad(f)), ...advFiles.map((f) => aad(f))];
+  for (const job of all) {
+    const p = PrepEngine.create({ job });
+    const a = PrepEngine.analyze(job, { role: p.role, company: p.company });
+    assert.ok(a.themes.length <= 4);
+    const asked = new Set(p.questionInfo.map((i) => i.theme));
+    for (const t of a.themes) assert.ok(asked.has(t.id), job.slice(0, 40) + ': no question for ' + t.id);
+    const quoted = p.course.flatMap((c) => quotesIn(c.body));
+    assert.equal(new Set(quoted).size, quoted.length, job.slice(0, 40) + ': two lessons quote the same line: ' + quoted.join(' | '));
+    assert.equal(p.course[0].title, 'The heart of this job');
+  }
+});
+
+test('quiz wrong answers are clearly wrong', () => {
+  const KIN = new Set(['Helping customers', 'Sales and persuasion', 'Care and compassion']);
+  for (const f of ['retail-store-associate.txt', 'hospitality-barista-noheadings.txt', 'healthcare-care-aide.txt', 'admin-dental-receptionist.txt']) {
+    const p = PrepEngine.create({ job: ad(f) });
+    const about = p.quizItems.find((q) => q.q === 'What is this job mostly about?');
+    if (about && KIN.has(about.options[about.correct])) for (const [i, o] of about.options.entries()) if (i !== about.correct) assert.ok(!KIN.has(o), f + ': ' + o);
+    const skill = p.quizItems.find((q) => q.q === 'Which skill or certificate does the ad mention?');
+    if (skill && /food ?safe|serving it right|smart serve/i.test(skill.options[skill.correct])) for (const [i, o] of skill.options.entries()) if (i !== skill.correct) assert.ok(!/smart serve|food ?safe/i.test(o), f + ': ' + o);
+  }
+});
+
+test('checks are about the candidate: screening or reference checks as duties are ordinary tasks', () => {
+  const job = 'Airport Screening Officer – Northwind Aviation Security Ltd.\nWhat you will do:\n- Perform security screening of passengers and their bags\n- Use X-ray and walk-through scanners and explain each step to travellers\nWhat you need:\n- High school diploma\n- Must pass a background check\n- Able to stand for long shifts';
+  const p = PrepEngine.create({ job });
+  assert.ok(p.questions.some((q) => /“perform security screening of passengers/.test(q)), 'a screening duty can be asked about');
+  assert.ok(!p.questions.some((q) => /background check/i.test(q)), 'the candidate’s own check is never asked about');
+  assert.ok(!p.questions.some((q) => /“high school diploma”/i.test(q)), 'a bare credential is not a story hook');
+  assert.ok(!p.questions.some((q) => /stand for long shifts”\. How would that schedule work/.test(q)), 'standing for long shifts is stamina, not a schedule');
+});
+
 test('validation keeps the same message and fields keep their types', () => {
   assert.throws(() => PrepEngine.create({ job: 'too short' }), { message: 'Paste at least 40 characters from the actual job ad.' });
   assert.throws(() => PrepEngine.create({}), { message: 'Paste at least 40 characters from the actual job ad.' });
