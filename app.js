@@ -104,7 +104,7 @@ function coreThemeReadiness(p, a) {
     const qs = p.questions.map((_, i) => i).filter((i) => coreInfo(p, i)?.theme === t.id);
     const done = qs.filter((i) => (p.notes['answer-' + i] || '').trim() || practised.has(p.questions[i])).length;
     return { id: t.id, label: t.label || coreThemeLabel(t.id, a), total: qs.length, done };
-  });
+  }).filter((t) => t.total > 0);
 }
 /* Job ad with the analysis highlights (char ranges into p.job), escaped. */
 function coreHighlightAd(text, a) {
@@ -259,42 +259,70 @@ function coreFirstWords(text, n) {
   const w = String(text || '').trim().split(/\s+/);
   return w.slice(0, n).join(' ') + (w.length > n ? '…' : '');
 }
+/* The question itself, without a lead-in sentence that only quotes the ad:
+   'Part of this job is to “greet …”. Tell me about a time …' -> 'Tell me about a time …'. */
+function coreAsk(q) {
+  const s = String(q || '').trim();
+  const m = s.match(/^[^“”"]{0,60}[“"][^”"]{4,}[”"][.:]\s+(?=[A-Z])/);
+  if (!m) return s;
+  const rest = s.slice(m[0].length);
+  /* Only when the rest stands on its own ('Tell me about a time…'), never 'How would that schedule…'. */
+  return /^(Tell me about a\b|Walk me through a time\b|Describe a time\b|Give (me )?an example\b)/.test(rest) && !/\b(these|those)\b/i.test(rest) ? rest : s;
+}
+/* 'Final' -> 'Final interview'; nothing when the person is not sure yet. */
+function coreQuotes(q, source) {
+  const norm = (x) => String(x || '').toLowerCase().replace(/[“”".]/g, '').replace(/\s+/g, ' ').trim();
+  const src = norm(source);
+  return src.length > 3 && norm(q).includes(src);
+}
+function coreStageLine(p) {
+  const st = String((p.intake && p.intake.stage) || '').trim();
+  if (!st || st === 'Not sure yet') return '';
+  return /interview/i.test(st) ? st : st + ' interview';
+}
 /* Lesson -> story: the answer-bank question that best matches a lesson. Most specific first:
-   the question about the same ad excerpt, then the same topic (undrafted first), then the
-   first undrafted question. Works for old preparations through the quoted excerpt. */
+   a question on the lesson's topic, then the question about the same ad excerpt (this also
+   covers old preparations), then by the lesson's purpose, then the first undrafted question.
+   The question number closest to the lesson number breaks ties, so a lesson keeps opening
+   the same story. */
 let coreOpenAnswer = -1;
 let coreAnswersFrom = 'practise';
 function coreStoryFor(p, li) {
   const c = p.course[li] || {};
   const norm = (x) => String(x || '').toLowerCase().replace(/\s+/g, ' ').trim();
-  const quote = norm(quoteFrom(c.body, ''));
-  const drafted = (i) => !!(p.notes['answer-' + i] || '').trim();
   const all = p.questions.map((_, i) => i);
-  /* Closest question number to the lesson number breaks ties, so the match stays stable
-     (a drafted story keeps opening for its lesson). */
   const closest = (list) => list.reduce((b, i) => (Math.abs(i - li) < Math.abs(b - li) ? i : b), list[0]);
+  if (c.theme) {
+    const same = all.filter((i) => coreInfo(p, i)?.theme === c.theme);
+    if (same.length) return closest(same);
+  }
+  const quote = norm(quoteFrom(c.body, ''));
   if (quote.length > 12) {
     const same = all.filter((i) => norm(coreInfo(p, i)?.source) === quote || norm(p.questions[i]).includes(quote));
     if (same.length) return closest(same);
   }
-  if (c.theme) {
-    const same = all.filter((i) => coreInfo(p, i)?.theme === c.theme);
-    if (same.length) return closest(same.filter((i) => !drafted(i)).length ? same.filter((i) => !drafted(i)) : same);
+  /* Lessons about the opening or the closing of an interview go to that kind of question. */
+  const title = String(c.title || '');
+  const kind = /\bask\b|\bquestions?\b|finish|clos(e|ing)/i.test(title) ? 'closing' : /introduc|yourself|why this job/i.test(title) ? 'motivation' : '';
+  if (kind) {
+    const same = all.filter((i) => coreInfo(p, i)?.kind === kind);
+    if (same.length) return same[0];
   }
-  const open = all.filter((i) => !drafted(i));
+  const open = all.filter((i) => !(p.notes['answer-' + i] || '').trim());
   return open.length ? open[0] : 0;
 }
 function coreAdWords(a) {
   const out = [];
-  const seen = new Set();
+  const seen = [];
   for (const w of [...(a && Array.isArray(a.skills) ? a.skills : []), ...(a && Array.isArray(a.keywords) ? a.keywords : [])]) {
     if (typeof w !== 'string') continue;
     const t = w.trim();
     const k = t.toLowerCase();
-    if (!t || t.length > 60 || seen.has(k)) continue;
-    seen.add(k);
+    /* Skip near-duplicates: 'handle cash accurately' after 'handle cash', 'Square register' after 'Square'. */
+    if (!t || t.length > 60 || seen.some((s) => s === k || s.includes(k) || k.includes(s))) continue;
+    seen.push(k);
     out.push(t);
-    if (out.length >= 10) break;
+    if (out.length >= 8) break;
   }
   return out;
 }
@@ -330,32 +358,99 @@ let toastTimer = 0;
 let active = null;
 let draft = null;
 let storageOK = true;
+/* Storage trust. 'Blocked': the browser refuses storage (private browsing, some in-app browsers).
+   Saved text that cannot be parsed is kept in rawSaved, never overwritten, and can be downloaded
+   as-is from Privacy. Single damaged records are kept in keptRecords and written back untouched on
+   every save, while the good ones load normally. */
+let storageBlocked = false;
+let rawSaved = null;
+let keptRecords = [];
+const CORE_SAVE_MSG = {
+  blockedLoad: "This browser won't let NextStep save anything on this device. That happens in private browsing and some in-app browsers. You can still practise; export a backup before you leave.",
+  blocked: "Not saved: this browser won't let NextStep save on this device. Export a backup before you leave.",
+  unreadableLoad: 'Your saved preparations could not be read. They have not been overwritten, and you can download them as-is on the Privacy page.',
+  unreadable: 'Not saved, so your earlier saved data stays exactly as it was. Export a backup before you leave.',
+  full: "Could not save: this browser's storage is full or unavailable. Export a backup before you leave."
+};
+const coreGoodRecord = (p) => !!p && typeof p === 'object' && p.schema === 1 && !!p.id && Array.isArray(p.course) && !!p.mock && typeof p.mock === 'object';
 let view = 'welcome';
 let lessonIndex = 0;
 let renaming = false;
 let privacyFrom = 'welcome';
 try {
-  records = JSON.parse(localStorage.getItem(KEY) || '[]');
-  if (!Array.isArray(records) || records.some((p) => p.schema !== 1 || !p.id || !Array.isArray(p.course) || !p.mock)) throw Error('Invalid saved format');
+  const raw = localStorage.getItem(KEY);
+  try {
+    const list = JSON.parse(raw || '[]');
+    if (!Array.isArray(list)) throw Error('Invalid saved format');
+    records = list.filter(coreGoodRecord);
+    keptRecords = list.filter((p) => !coreGoodRecord(p));
+  } catch {
+    storageOK = false;
+    records = [];
+    rawSaved = raw;
+  }
 } catch {
   storageOK = false;
+  storageBlocked = true;
   records = [];
-  notify('Saved data could not be read. It has not been overwritten. Export or recover your browser storage before continuing.');
+}
+if (storageBlocked) notify(CORE_SAVE_MSG.blockedLoad, true);
+else if (!storageOK) notify(CORE_SAVE_MSG.unreadableLoad, true);
+else if (keptRecords.length) notify(coreKeptLine(), false);
+function coreKeptLine() {
+  const n = keptRecords.length;
+  return n === 1 ? "1 saved preparation could not be read. It's kept safely as it was." : n + " saved preparations could not be read. They're kept safely as they were.";
 }
 
-function notify(s) {
+/* Toast: a small pill that fades in, stays about 2 s and fades out (no slide). Failures that
+   need action stay until replaced. It sits just above the tab bar, or near the bottom on other
+   screens, and moves to the top when that spot would cover a main button or a text box such as
+   the mock answer. pointer-events: none in CSS, so it never blocks a tap. */
+function coreToastPlace(el) {
+  el.classList.remove('top');
+  el.style.top = '';
+  try {
+    const keep = '#app .primary, #app textarea, #app input, #app select, #app button[type="submit"]';
+    const covers = () => {
+      const r = el.getBoundingClientRect();
+      return [...document.querySelectorAll(keep)].some((b) => {
+        /* Only the part you can see: clip to the scroll area it sits in (Today scrolls inside one). */
+        const e = b.getBoundingClientRect();
+        const c = b.closest('.scroll')?.getBoundingClientRect() || { top: -1e6, bottom: 1e6, left: -1e6, right: 1e6 };
+        const q = { top: Math.max(e.top, c.top), bottom: Math.min(e.bottom, c.bottom), left: Math.max(e.left, c.left), right: Math.min(e.right, c.right) };
+        return q.bottom > q.top && q.right > q.left && q.bottom > r.top - 8 && q.top < r.bottom + 8 && q.right > r.left && q.left < r.right;
+      });
+    };
+    if (covers()) {
+      el.classList.add('top');
+      /* Just below the top bar, so its Back button and the Privacy pill stay visible. */
+      const bar = document.querySelector('#app .topbar, #app .brandbar')?.getBoundingClientRect();
+      if (bar && bar.height > 0 && bar.bottom > 0 && bar.bottom < innerHeight / 3) el.style.top = Math.round(bar.bottom + 8) + 'px';
+      if (covers()) { el.classList.remove('top'); el.style.top = ''; }
+    }
+  } catch { /* placement is only a nicety */ }
+}
+function notify(s, stay) {
   const el = $('#status');
   if (!el) return;
-  el.textContent = s;
   clearTimeout(toastTimer);
+  el.classList.remove('fresh', 'out');
+  el.textContent = s;
   if (!s) return;
-  const sticky = /could not|unavailable|will not|not been overwritten/i.test(s);
-  if (!sticky) toastTimer = setTimeout(() => { if (el.textContent === s) el.textContent = ''; }, 4200);
+  coreToastPlace(el);
+  void el.offsetWidth;
+  el.classList.add('fresh');
+  const sticky = typeof stay === 'boolean' ? stay : /could not|unavailable|will not|won't|not been overwritten/i.test(s);
+  if (!sticky) toastTimer = setTimeout(() => {
+    if (el.textContent !== s) return;
+    el.classList.add('out');
+    toastTimer = setTimeout(() => { if (el.textContent === s) { el.textContent = ''; el.classList.remove('fresh', 'out', 'top'); el.style.top = ''; } }, 240);
+  }, 2200);
 }
 function persist() {
-  if (!storageOK) { notify('Storage unavailable. Export a backup before leaving.'); return false; }
-  try { localStorage.setItem(KEY, JSON.stringify(records)); return true; }
-  catch { notify('Could not save: browser storage is full or unavailable. Export a backup before leaving.'); return false; }
+  if (!storageOK) { notify(storageBlocked ? CORE_SAVE_MSG.blocked : CORE_SAVE_MSG.unreadable, true); return false; }
+  try { localStorage.setItem(KEY, JSON.stringify([...records, ...keptRecords])); return true; }
+  catch { notify(CORE_SAVE_MSG.full, true); return false; }
 }
 function save() { active.updated = new Date().toISOString(); return persist(); }
 function wordCount(text) { const t = String(text || '').trim(); return t ? t.split(/\s+/).length : 0; }
@@ -507,6 +602,9 @@ function render(opts = {}) {
     window.scrollTo(0, 0);
   }
   coreFadeGhost(ghost);
+  /* A toast still showing (or one that stays, like a storage warning) is placed again for this screen. */
+  const toast = $('#status');
+  if (toast && toast.textContent) coreToastPlace(toast);
 }
 function animateBits(keep) {
   if (keep || reduceMotion()) return;
@@ -532,6 +630,7 @@ const screens = {
         <h1>Show up ready.</h1>
         <p class="italic">Sound like yourself.</p>
         <p class="lede">Turn a job ad into a focused study plan. Find your evidence. Practise the conversation.</p>
+        ${keptRecords.length ? `<p class="hint kept-note">${esc(coreKeptLine())}</p>` : ''}
         <div class="steps">
           <div class="step"><i>1</i><b>Paste the job ad</b><span>Any role</span></div>
           <div class="step"><i>2</i><b>Four quick choices</b><span>Or skip</span></div>
@@ -547,11 +646,12 @@ const screens = {
       <div class="brandbar"><span class="logo">NextStep</span><button type="button" class="pill" data-action="privacy">${I.lock}<span>On this device</span></button></div>
       <div class="ask"><p class="italic lg">Pick up where you left off.</p><div class="orb-slot md"><div class="orb-anchor md" data-orb data-env=".6" data-s=".75" data-up="80,40" data-down="40,90" data-energy="${glow(records[0])}"></div></div></div>
       <p class="sub">${records.length === 1 ? 'Your preparation stays on this device.' : records.length + ' preparations, all on this device.'}</p>
+      ${keptRecords.length ? `<p class="hint kept-note">${esc(coreKeptLine())}</p>` : ''}
       <div class="prep-list">${records.map((p) => {
         const st = stats(p);
         const pct = Math.round(st.ratio * 100);
         const next = p.course.find((c) => !c.done);
-        return `<article class="glass prep-card"><div class="prep-top"><div><p class="kicker">${esc(p.company)}</p><h2>${esc(p.role)}</h2></div><span class="prep-pct">${pct}%</span></div><p class="muted">${esc(p.intake.stage)} · ${esc(p.intake.time)} a day</p>${bar(pct)}${(() => { const w = coreWhen(p); return w ? `<p class="when-line${w.days >= 0 && w.days <= 1 ? ' soon' : ''}">${CORE_CAL}<span>${esc(w.days < 0 ? 'Interview date passed. How did it go?' : w.line)}</span></p>` : ''; })()}<p class="next-up">${next ? 'Up next · ' + esc(next.title) : 'Every lesson done · keep practising'}</p><button type="button" class="primary" data-action="resume" data-id="${esc(p.id)}"><span>Resume preparation</span>${I.arrow}</button></article>`;
+        return `<article class="glass prep-card"><div class="prep-top"><div><p class="kicker">${esc(p.company)}</p><h2>${esc(p.role)}</h2></div><span class="prep-pct">${pct}%</span></div><p class="muted">${esc([coreStageLine(p), p.intake.time ? p.intake.time + ' a day' : ''].filter(Boolean).join(' · '))}</p>${bar(pct)}${(() => { const w = coreWhen(p); return w ? `<p class="when-line${w.days >= 0 && w.days <= 1 ? ' soon' : ''}">${CORE_CAL}<span>${esc(w.days < 0 ? 'Interview date passed. How did it go?' : w.line)}</span></p>` : ''; })()}<p class="next-up">${next ? 'Up next · ' + esc(next.title) : 'Every lesson done · keep practising'}</p><button type="button" class="primary" data-action="resume" data-id="${esc(p.id)}"><span>Resume preparation</span>${I.arrow}</button></article>`;
       }).join('')}</div>
       <div class="spacer"></div>
       <button type="button" class="primary gap-top" data-action="start">New preparation</button>
@@ -587,7 +687,7 @@ const screens = {
       <p class="date">${esc(longDate(now))}</p>
       <h1 class="italic greet">${esc(greeting(now))}</h1>
       <p class="role-name">${esc(p.role)}</p>
-      <p class="muted">${esc(p.company)} · ${esc(p.intake.stage)}</p>
+      ${(() => { const line = [p.company, coreStageLine(p)].filter(Boolean).join(' · '); return line ? `<p class="muted">${esc(line)}</p>` : ''; })()}
       ${coreWhenHtml(p, w)}
       ${dayHero}
       <div class="glass pad session${pop >= 0 ? ' celebrate' : ''}">
@@ -613,7 +713,7 @@ const screens = {
           <div><b>${st.mockDone}/${st.mock}</b><span>Mock</span></div>
         </div>
       </div>
-      ${renaming ? `<form class="rename" id="rename-form"><label class="sr" for="rename-input">Job title</label><input id="rename-input" type="text" maxlength="120" value="${esc(p.role)}"><button class="primary" type="submit">Save</button></form>` : `<div class="pager tools"><button type="button" class="quiet" id="rename">Rename</button><button type="button" class="quiet" id="export-one">Export backup</button><button type="button" class="quiet" data-action="all-preps">All preparations</button></div>`}
+      ${renaming ? `<form class="rename" id="rename-form"><label class="sr" for="rename-input">Job title</label><input id="rename-input" type="text" maxlength="120" value="${esc(p.role)}"><button class="primary" type="submit">Save</button></form>` : `<div class="pager tools"><button type="button" class="quiet" id="rename">Rename</button><button type="button" class="quiet" id="export-one">Export backup</button><button type="button" class="quiet" data-action="all-preps">All preparations</button></div><button type="button" class="quiet danger delete-prep" id="delete-prep">Delete this preparation</button>`}
       <details class="fold"><summary>Review original job ad</summary>${legend.length ? `<p class="hl-legend">${legend.map(([k, l]) => `<mark class="hl hl-${k}">${l}</mark>`).join('')}</p>` : ''}<pre class="ad-text">${ad.html}</pre>${p.url ? `<p class="muted">Reference URL: ${esc(p.url)}</p>` : ''}</details>
     `);
   },
@@ -647,7 +747,7 @@ const screens = {
     const readyHtml = ready && ready.length ? `<section class="readiness">
         <div class="section-head"><h2 class="section-title">Ready for each part of the job</h2><span class="muted">${covered} of ${ready.length}</span></div>
         <p class="hint">A part turns green once you write or practise an answer to one of its questions.</p>
-        <div class="theme-grid">${ready.map((t) => `<div class="theme-chip${t.done ? ' covered' : ''}"><span class="name">${t.done ? I.check : ''}${esc(t.label)}</span>${t.total ? `<span class="pips" role="img" aria-label="${t.done} of ${t.total} ${t.total === 1 ? 'question' : 'questions'} answered">${Array.from({ length: t.total }, (_, k) => `<i class="${k < t.done ? 'on' : ''}"></i>`).join('')}</span>` : '<span class="pips"><em>No question for this yet</em></span>'}</div>`).join('')}</div>
+        <div class="theme-grid">${ready.map((t) => `<div class="theme-chip${t.done ? ' covered' : ''}"><span class="name">${t.done ? I.check : ''}${esc(t.label)}</span>${t.total ? `<span class="pips" role="img" aria-label="${t.done} of ${t.total} ${t.total === 1 ? 'question' : 'questions'} answered">${Array.from({ length: t.total }, (_, k) => `<i class="${k < t.done ? 'on' : ''}"></i>`).join('')}</span>` : ''}</div>`).join('')}</div>
       </section>` : '';
     return shell('progress', `
       <h1>Progress</h1>
@@ -691,7 +791,7 @@ const screens = {
         <button type="button" class="quiet" id="next" ${i === p.course.length - 1 ? 'disabled' : ''}>Next</button>
       </div>
       <div class="spacer"></div>
-      <p class="hint story-hint">Your story for: ${esc(coreFirstWords(p.questions[coreStoryFor(p, i)], 14))}</p>
+      <p class="hint story-hint">Your story for: ${esc(coreFirstWords(coreAsk(p.questions[coreStoryFor(p, i)]), 14))}</p>
       <button type="button" class="primary" data-action="lesson-story"><span>Write this story</span>${I.arrow}</button>
       <button type="button" class="text-btn" data-action="lesson-practise">Practise in a mock interview</button>
       <button type="button" class="text-btn mark${c.done ? '' : ' todo'}" id="mark">${c.done ? 'Mark incomplete' : I.check + '<span>Mark lesson done</span>'}</button>
@@ -736,7 +836,7 @@ const screens = {
         const guide = info ? `${kind || theme ? `<div class="tags">${kind ? `<b class="tag kind">${esc(kind)}</b>` : ''}${theme ? `<b class="tag">${esc(theme)}</b>` : ''}</div>` : ''}
           ${info.probe ? `<div class="guide"><p class="kicker">What they want to hear</p><p>${esc(info.probe)}</p></div>` : ''}
           ${include.length ? `<div class="guide"><p class="kicker">A strong answer includes</p><ul class="includes">${include.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
-          ${info.source ? `<p class="source">From the ad: “${esc(info.source)}”</p>` : ''}` : '<p class="muted">Situation, Task, your Action, Result, and what you learned.</p>';
+          ${info.source && !coreQuotes(q, info.source) ? `<p class="source">From the ad: “${esc(info.source)}”</p>` : ''}` : '<p class="muted">Situation, Task, your Action, Result, and what you learned.</p>';
         return `<details class="block qa${drafted(i) ? ' drafted' : ''}" ${i === firstOpen ? 'open' : ''}><summary><span class="qnum" aria-hidden="true">${drafted(i) ? I.check : i + 1}</span><span class="qtext">${drafted(i) ? '<span class="sr">Drafted: </span>' : ''}${esc(q)}</span>${I.chev}</summary>
           ${guide}
           <label class="field" for="answer-${i}">Your evidence and answer</label><textarea id="answer-${i}" rows="6" data-note="answer-${i}" placeholder="Describe something you actually did.">${esc(p.notes['answer-' + i] || '')}</textarea>
@@ -781,25 +881,26 @@ const screens = {
     const p = active;
     const a = analysisOf(p);
     const meta = coreReqMeta(p, a);
-    const hints = {
-      must: 'Ask: What would good performance on this look like in the first 90 days?',
-      duty: 'Think of a time you did something similar, even at a smaller scale.',
+    /* One quiet tip per group; the group blurb already covers the day-to-day duties. */
+    const tips = {
+      must: 'Tip: ask them, “What would good performance look like in the first 90 days?”',
       nice: 'Not there yet? “Here is how I would learn it” is an honest, strong answer.',
-      other: 'Ask: What would good performance on this look like in the first 90 days?'
+      other: 'Tip: ask them, “What would good performance look like in the first 90 days?”'
     };
+    const tip = (kind) => (tips[kind] ? `<p class="hint map-tip">${esc(tips[kind])}</p>` : '');
     const card = (r, i) => {
       const m = meta[i];
       const tags = m ? m.themes.slice(0, 2).map((id) => `<b class="tag">${esc(coreThemeLabel(id, a))}</b>`).join('') : '';
-      return `<article class="glass pad-sm map-card${(p.notes['map-' + i] || '').trim() ? ' has-note' : ''}"><div class="map-head"><p class="kicker">Excerpt ${i + 1}</p>${tags ? `<span class="tags">${tags}</span>` : ''}</div><p class="prose">${esc(r)}</p><label class="field" for="map-${i}">Your example, or how you would learn it</label><textarea id="map-${i}" data-note="map-${i}" rows="3">${esc(p.notes['map-' + i] || '')}</textarea><p class="hint">${esc(hints[(m && m.kind) || 'other'])}</p></article>`;
+      return `<article class="glass pad-sm map-card${(p.notes['map-' + i] || '').trim() ? ' has-note' : ''}"><div class="map-head"><p class="kicker">Excerpt ${i + 1}</p>${tags ? `<span class="tags">${tags}</span>` : ''}</div><p class="prose">${esc(r)}</p><label class="field" for="map-${i}">Your example, or how you would learn it</label><textarea id="map-${i}" data-note="map-${i}" rows="3">${esc(p.notes['map-' + i] || '')}</textarea></article>`;
     };
     let body;
     if (meta.some(Boolean)) {
       body = CORE_REQ_KINDS.map(([kind, title, blurb]) => {
         const idx = p.requirements.map((_, i) => i).filter((i) => ((meta[i] && meta[i].kind) || 'other') === kind);
         if (!idx.length) return '';
-        return `<section class="map-group"><div class="section-head"><h2 class="section-title">${title}</h2><span class="muted">${idx.length}</span></div><p class="hint">${blurb}</p>${idx.map((i) => card(p.requirements[i], i)).join('')}</section>`;
+        return `<section class="map-group"><div class="section-head"><h2 class="section-title">${title}</h2><span class="muted">${idx.length}</span></div><p class="hint">${blurb}</p>${idx.map((i) => card(p.requirements[i], i)).join('')}${tip(kind)}</section>`;
       }).join('');
-    } else body = p.requirements.map(card).join('');
+    } else body = p.requirements.map(card).join('') + tip('other');
     return `<div class="screen" data-screen="rolemap">
       <div class="topbar">${iconBtn('back-practise', 'Back', I.back)}<span class="label">Role map</span><span class="count">${stats(p).mapDone} of ${p.requirements.length}</span></div>
       <h1>Map the role to your evidence</h1>
@@ -823,7 +924,7 @@ const screens = {
       <p class="sub">${esc(role)}${p.company ? ' · ' + esc(p.company) : ''}. Read this the night before, and again in the last ten minutes.</p>
       <section class="glass day-card" aria-labelledby="day-stories">
         <p class="kicker" id="day-stories">Your best stories</p>
-        ${stories.length ? `<ol class="stories">${stories.map((st) => `<li><p class="story-q">${esc(st.question)}</p><p class="story-text">${esc(coreFirstWords(st.text, 25))}</p>${coreStarPips(st.star)}</li>`).join('')}</ol>
+        ${stories.length ? `<ol class="stories">${stories.map((st) => `<li><p class="story-q">${esc(coreAsk(st.question))}</p><p class="story-text">${esc(coreFirstWords(st.text, 25))}</p>${coreStarPips(st.star)}</li>`).join('')}</ol>
           <p class="hint">Your own words, from your answer bank and mock interview. Tell each one as Situation, Task, Action, Result.</p>`
         : `<p class="day-empty">You have not written a story yet. One true example is enough to start: a time you helped someone, fixed something or learned fast.</p>
           <button type="button" class="primary day-go" data-action="open-answers"><span>Write my first story</span>${I.arrow}</button>`}
@@ -870,6 +971,7 @@ const screens = {
 The hosting provider receives normal requests for the app files, not your typed preparations. Imports append as separate copies and never overwrite existing preparations. Only import a backup you trust.</p>
       </details>
       <div class="spacer"></div>
+      ${rawSaved !== null ? `<button type="button" class="glass button" id="raw-export"><span class="copy"><strong>Download saved data as-is</strong><span>Your saved preparations, exactly as this browser kept them</span></span></button>` : ''}
       <button type="button" class="glass button" id="export-one"><span class="copy"><strong>Export backup</strong><span>${active ? 'This preparation' : 'Every preparation on this device'}</span></span></button>
       <button type="button" class="text-btn" id="all-export">Export all preparations</button>
       <label class="field" for="import">Restore a backup</label>
@@ -888,14 +990,17 @@ The hosting provider receives normal requests for the app files, not your typed 
 
 function needPrep() { if (!active) { show('welcome'); return false; } return true; }
 function openLesson(i) { if (!needPrep()) return; lessonIndex = i; show('lesson'); }
-function exportBackup(all) {
-  const payload = { schema: 1, preparations: !all && active ? [active] : records };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+function coreDownload(text, name) {
+  const blob = new Blob([text], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'nextstep-backup.json';
+  a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function exportBackup(all) {
+  const payload = { schema: 1, preparations: !all && active ? [active] : records };
+  coreDownload(JSON.stringify(payload, null, 2), 'nextstep-backup.json');
   notify('Backup exported. It includes your job ads, notes and answers. Keep it private.');
 }
 /* Backup restore. A preparation is rebuilt with PrepEngine.create(p) for safe defaults, but when the
@@ -999,16 +1104,18 @@ function bindImport() {
     try {
       const f = e.target.files[0];
       if (!f) return;
-      if (f.size > 2000000) throw Error('Backup exceeds 2 MB');
-      const b = JSON.parse(await f.text());
-      if (b.schema !== 1 || !Array.isArray(b.preparations) || b.preparations.length > 50) throw Error('Unsupported backup');
+      if (f.size > 20 * 1024 * 1024) throw Error('this backup is over 20 MB.');
+      let b;
+      try { b = JSON.parse(await f.text()); } catch { throw Error('this file is not a readable backup.'); }
+      if (!b || b.schema !== 1 || !Array.isArray(b.preparations) || b.preparations.length > 500) throw Error('this is not a NextStep backup this version can open.');
       const copies = b.preparations.map((p) => coreRestore(p));
       records.push(...copies);
-      persist();
+      const ok = persist();
       active = null;
       show('welcome');
-      notify('Restored ' + copies.length + ' preparation(s) as separate copies.');
-    } catch (err) { notify('Could not restore: ' + err.message); }
+      const n = copies.length + (copies.length === 1 ? ' preparation' : ' preparations');
+      notify(ok ? 'Restored ' + n + ' as separate copies.' : "Opened for this visit only: this browser couldn't save it. Keep your backup file.", !ok);
+    } catch (err) { notify('Could not restore: ' + err.message, true); }
   });
 }
 
@@ -1052,8 +1159,24 @@ function bindScreen() {
     renaming = false;
     show('today', { keep: true });
   });
+  if ($('#delete-prep')) $('#delete-prep').addEventListener('click', () => {
+    const p = active;
+    const at = p ? records.indexOf(p) : -1;
+    if (at < 0) return;
+    const name = [p.role, p.company].filter(Boolean).join(' at ') || 'this preparation';
+    if (!confirm('Delete ' + name + ' from this device? Its notes and answers go too, and this cannot be undone. Export a backup first if you want to keep it.')) return;
+    records.splice(at, 1);
+    if (storageOK && !persist()) { records.splice(at, 0, p); return; }
+    active = null;
+    show('welcome');
+    notify(storageOK ? 'Preparation deleted.' : 'Preparation removed. Nothing saved on this device was changed.');
+  });
   if ($('#export-one')) $('#export-one').addEventListener('click', () => exportBackup(false));
   if ($('#all-export')) $('#all-export').addEventListener('click', () => exportBackup(true));
+  if ($('#raw-export')) $('#raw-export').addEventListener('click', () => {
+    coreDownload(String(rawSaved), 'nextstep-saved-data.json');
+    notify('Saved data downloaded as-is. It includes your job ads, notes and answers. Keep it private.');
+  });
   if ($('#prev')) $('#prev').addEventListener('click', () => { if (lessonIndex > 0) openLesson(lessonIndex - 1); });
   if ($('#next')) $('#next').addEventListener('click', () => { if (active && lessonIndex < active.course.length - 1) openLesson(lessonIndex + 1); });
   if ($('#mark')) $('#mark').addEventListener('click', () => {
@@ -1074,15 +1197,16 @@ function bindScreen() {
   });
   if ($('#retry')) $('#retry').addEventListener('click', () => { active.quiz.answers = {}; save(); show('quiz'); });
   if ($('#delete-all')) $('#delete-all').addEventListener('click', () => {
-    if (!storageOK) { notify('Saved data could not be read, so it will not be deleted. Export or recover browser storage first.'); return; }
+    if (!storageOK && !storageBlocked) { notify('Your saved data could not be read, so it is left exactly as it was. Download it as-is above if you want a copy.', true); return; }
     if (!confirm('Delete every preparation on this device? This cannot be undone. Export a backup first if you want to keep them.')) return;
     try {
-      localStorage.removeItem(KEY);
+      if (!storageBlocked) localStorage.removeItem(KEY);
       records = [];
+      keptRecords = [];
       active = null;
       draft = null;
       show('welcome');
-      notify('All preparations on this device were deleted.');
+      notify(storageBlocked ? 'Cleared. Nothing from this visit was saved on this device.' : 'All preparations on this device were deleted.');
     } catch { notify('Could not delete saved preparations.'); }
   });
   bindImport();
