@@ -20,14 +20,14 @@ Add it to your Home Screen before you start, then always open it from the icon. 
 3. Tap **Add to Home Screen** (scroll down or tap **More** if it's hidden), then **Add**.
 4. Open NextStep from your Home Screen.
 
-On iPhone, work saved in Safari doesn't move to the Home Screen app. If you already started in Safari, export a backup from Privacy and restore it in the app.
+On iPhone, work saved in Safari doesn't move to the Home Screen app. If you already started in Safari, tap **On this device**, then **Export backup**, and use **Restore a backup** in the Home Screen app.
 
 **Android**
 1. Open the link in **Chrome**.
 2. Tap **How** on the first screen and then **Install app**, or use Chrome's menu **⋮** and tap **Install app** or **Add to Home screen**.
 3. Open NextStep from your Home Screen or app list.
 
-Open it once while you're online and wait for "Ready to work offline". After that it works without internet.
+Open it once while you're online. When the **How** sheet says "Ready to work offline", it works without internet.
 
 ## How it works
 
@@ -56,7 +56,7 @@ Made by Prism.
 ## Implementation notes
 
 - Static HTML, CSS and JavaScript, version 8. Preparation storage schema 1. No build step, no package installs, no server code, no remote calls.
-- Classic scripts, loaded in this order: `engine.js` (reads the job ad and builds the plan; pure, also runs in Node), `coach.js` (on-device feedback on answer structure; pure), `orb.js` (Canvas 2D liquid-light orb), `app.js` (screens, local storage, backups), `flow.js` (first-run flow), `interview.js` (mock interview), `pwa.js` (service worker registration and install help).
+- Classic scripts, loaded in this order: `engine.js` (reads the job ad and builds the plan; pure, also runs in Node), `coach.js` (on-device feedback on answer structure; pure), `orb-gl.js` (WebGL glass orb, used when the phone supports it), `orb.js` (the orb: Canvas 2D liquid light, and the fallback without WebGL), `app.js` (screens, local storage, backups), `flow.js` (first-run flow), `interview.js` (mock interview), `pwa.js` (service worker registration and install help).
 - `pwa.js` tailors the install sheet to iPhone Safari, other iPhone browsers, in-app browsers, Android and computers, and exposes `window.NextStepInstall = { canPrompt(), prompt(), platform, installed }`. `platform` is `ios-safari`, `ios-browser`, `in-app`, `android` or `desktop`; `prompt()` resolves to `accepted`, `dismissed` or `unavailable`; a `nextstep-install-change` event fires on `window` when `canPrompt()` or `installed` may have changed.
 - Styles: `styles.css`, `flow.css`, `interview.css`, `launch.css` (install sheet and privacy page). `privacy.html` is a static page with no scripts.
 - Offline: `sw.js` precaches the app files in cache `nextstep-phone-v8` (`?v=8` URLs) and removes older `nextstep-phone-*` caches. Pages are served as themselves from the cache first, then the network; offline, unknown pages fall back to the app. `share-card.png` (link previews only) and `nextstep_icon_1024.png` (read from the manifest at install time) are not precached.
