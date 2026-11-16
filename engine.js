@@ -414,7 +414,7 @@ const APPLY_CUE = /\b(?:if you(?:'re|’re| are) interested|reply to this (?:ema
 const ASK_FOR = /\bask for [A-Z]/;
 const STRONG_MUST = /\b(?:must|required|requires|mandatory|essential|\d+\+? years?|certificat\w*|licen[cs]e\w*|degree|diploma)\b/i;
 const ABBR = /^(?:e\.g|i\.e|etc|st|dr|mr|mrs|ms|no|approx|incl|vs|a\.m|p\.m|jr|sr|inc|ltd|co)$/i;
-const BULLET = /^(\s*)(?:[-*•·▪◦‣●■➢➤►✓✔–—]|\d{1,2}[.)]|[a-z][.)]|(?:\p{Extended_Pictographic}|[☀-➿])[️‍\p{Extended_Pictographic}]*)\s*/u;
+const BULLET = /^(\s*)(?:[-*•·▪◦‣●■➢➤►✓✔–—]|\d{1,2}[.)](?!\d)|[a-z][.)]|(?:\p{Extended_Pictographic}|[☀-➿])[️‍\p{Extended_Pictographic}]*)\s*/u;
 
 function splitSentences(text, base, out) {
   let s = 0;
@@ -538,7 +538,7 @@ function readAd(src, company) {
           text.split(/\s+/).filter((w) => w.length > 3).every((w) => /^[A-Z]/.test(w))) {
         section = guessHeadingKind(text); openSection(section, text); return;
       }
-      if (idx === 0 && wc <= 14 && text.length <= 110 && !/[!?]$/.test(text) && (!/\.$/.test(text) || /\b(?:Co|Inc|Ltd|Corp|LLC|Bros)\.$/.test(text)) && !/^(?:we|our|join|are you|looking)\b/i.test(text)) {
+      if (idx === 0 && lines.length > 1 && !/,/.test(text) && !(wc > 8 && /\b(?:needed|must|hiring|looking for)\b/i.test(text)) && wc <= 14 && text.length <= 110 && !/[!?]$/.test(text) && (!/\.$/.test(text) || /\b(?:Co|Inc|Ltd|Corp|LLC|Bros)\.$/.test(text)) && !/^(?:we|our|join|are you|looking)\b/i.test(text)) {
         titleLine = ln;
         items.push({ text, start: ln.start, end: ln.end, section: 'title', kind: 'title', bullet: false });
         return;
@@ -670,7 +670,7 @@ function findKeywords(items, skillNames, company) {
   for (const it of items) {
     const w = it.kind === 'must' ? 3 : it.kind === 'duty' ? 2 : it.kind === 'nice' ? 1.5 : 0;
     if (!w) continue;
-    const re = /[A-Za-z][A-Za-z0-9+#'’\/.-]*[A-Za-z0-9+#]|[A-Za-z]|[,;:()!?]|\s(?:and|or|but|-|–|—)\s/g;
+    const re = /[A-Za-z][A-Za-z0-9+#'’\/.-]*[A-Za-z0-9+#]|[A-Za-z]|[,;:()!?<>“”"«»]|\s(?:and|or|but|-|–|—)\s/g;
     let m, run = [];
     const coAt = [];
     if (coName) { const low = it.text.toLowerCase(); for (let i = low.indexOf(coName); i >= 0 && coAt.length < 20; i = low.indexOf(coName, i + coName.length)) coAt.push([i, i + coName.length]); }
@@ -851,7 +851,9 @@ function analyze(jobText, opts) {
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score || a.i - b.i);
   const top = themeList.length ? themeList[0].score : 0;
-  const backed = themeList.filter((x) => evid[x.t.id].length);
+  let backed = themeList.filter((x) => evid[x.t.id].length);
+  // A one-line ad whose only line names a check ("…own car and clean driving record") still gets its areas.
+  if (!backed.length && countWords(src) <= 40) backed = themeList.filter((x) => x.score > 0);
   const strong = backed.filter((x) => x.score >= Math.max(3, top * 0.15));
   const themes = (strong.length ? strong : backed.slice(0, 1)).slice(0, 6).map((x) => {
     const seen = new Set();
@@ -930,7 +932,7 @@ function analyze(jobText, opts) {
     requirements: topReq.map((r) => ({ text: r.text, kind: r.kind, themes: r.themes, score: r.score })),
     themes,
     skills: skills.list.filter((s) => !CHECK.test(s.text)).slice(0, 12).map((s) => s.text),
-    keywords: keywordList.filter((k) => !CHECK.test(k.text)).map((k) => clean(k.text)),
+    keywords: french ? [] : keywordList.filter((k) => !CHECK.test(k.text)).map((k) => clean(k.text)),
     seniority,
     signals,
     highlights,
@@ -962,17 +964,23 @@ function trimTail(t) { return t.replace(/[\s.;:,!?–—-]+$/, ''); }
 function niceCore(t) {
   // "Confident on the phone; Dentrix or another practice system is a plus": the plus is the last part.
   const parts = String(t).split(/;\s+/);
-  if (parts.length > 1 && CUE.nice.test(parts[parts.length - 1])) t = parts[parts.length - 1];
+  // "Bartending experience is a bonus; we will train the right person": the bonus is the first part.
+  const strong = parts.length > 1 ? parts.find((x) => /\b(?:nice[- ]to[- ]have|bonus|preferred|preferably|an asset|a plus|desirable|ideally|an advantage|would be great)\b/i.test(x)) : null;
+  if (strong) t = strong;
+  else if (parts.length > 1 && CUE.nice.test(parts[parts.length - 1])) t = parts[parts.length - 1];
   return trimTail(t.replace(/\s+(?:is|are|would be|will be)\s+(?:preferred|an asset|a plus|great|nice|desirable|helpful|an advantage|a bonus|welcome|nice to have)\b.*$/i, '')
     .replace(/^(?:nice to have|bonus|preferred|ideally|a plus)\s*[:,-]\s*/i, ''));
 }
 // Indeed's "line cook: 1 year" is said as "1 year of line cook experience".
-const sayExp = (t) => String(t).replace(/^([^:]{2,40}):\s*(\d+\+?)\s*(years?|months?)$/i, (m, what, n, unit) => `${n} ${unit.toLowerCase()} of ${what.trim().toLowerCase()} experience`);
+const sayExp = (t) => String(t).replace(/^([^:]{2,40}):\s*(\d+\+?)\s*(years?|months?)$/i, (m, what, n, unit) => `${n} ${unit.toLowerCase()} of ${what.trim().toLowerCase()} experience`)
+  .replace(/^(\d+ (?:years?|months?) to less than \d+ (?:years?|months?))$/i, '$1 of experience');
 function quoteText(t, max) {
   let q = sayExp(noEmoji(clean(t))).replace(/\s*\((?:required|preferred)\)/gi, '');
+  const noExp = q.match(/^no (?:prior |previous )?experience (?:is )?(?:needed|necessary|required)\b.*?,\s*but\s+(.+)$/i);
+  if (noExp && countWords(noExp[1]) >= 3) q = noExp[1];
   // "As a Registered Nurse on our unit, you will…": quote what you will do, not the opening phrase.
   const asA = q.match(/^as an? [^,]{3,80},\s*(.+)$/i);
-  if (asA && countWords(asA[1]) >= 4) q = asA[1];
+  if (asA && countWords(asA[1]) >= 4) q = asA[1].replace(/^you(?:'ll|’ll| will) (?=be\b)/i, '');
   const noParen = q.replace(/\s*\([^)]*\)\s*[.;:,!?]*$/, '');
   if (countWords(noParen) >= 3) q = noParen;
   q = trimTail(q);
@@ -996,7 +1004,7 @@ function lcFirst(t, keep) {
   if (/^[A-Z][a-z]/.test(next) && !VERBS.has(w.toLowerCase()) && !/^(?:a|an|the|some|good|strong|excellent|basic|current|valid|clear|previous|experience|knowledge|confidence|familiarity|able|comfortable|available)$/i.test(w)) return t;
   return w[0].toLowerCase() + t.slice(1);
 }
-function dutyPhrase(text) { return text.replace(/^(?:you will|you'll|you’ll|will|to)\s+/i, ''); }
+function dutyPhrase(text) { return text.replace(/^(?:you(?:'d|’d| would| will|'ll|’ll) be (?=\w+ing\b)|you will|you'll|you’ll|will|to)\s*/i, ''); }
 function isVerbStart(t) { const w = (t.match(/^[A-Za-z]+/) || [''])[0].toLowerCase(); return VERBS.has(w); }
 function isSentence(t) { return /^(?:you|we|our|they|this|the successful)\b/i.test(t) || /\b(?:is|are|will|should|must|need|needs|can)\b/i.test(t); }
 
@@ -1059,9 +1067,12 @@ function guessNames(a) {
   if (role) role = role.replace(/\s+(?:needed|wanted|required)\b.*$/i, '');
   if (!role) {
     const first = a._items.find((it) => it.kind !== 'about' && !HIRING_WORDS.test(clean(it.text).replace(/[.!:]+$/, '')));
-    const w = first && first.text.match(/^([A-Z][a-z-]+(?:\s+[a-z-]+)?)\s+(?:wanted|needed|for)\b/);
-    const h = a._items.map((it) => it.text).join(' ').match(/\b(?:now hiring|hiring)\s*:?\s+(?:an?\s+)?([a-z][a-z-]+(?:\s+[a-z][a-z-]+)?)\s*[.!,]/i);
-    const pick = w ? w[1] : h ? h[1] : '';
+    const w = first && first.text.match(/^((?:[A-Za-z][a-z-]+\s+){0,3}?[A-Za-z][a-z-]+)\s+(?:wanted|needed)\b|^([A-Z][a-z-]+(?:\s+(?!needed|wanted)[a-z-]+)?)\s+for\b/);
+    const all = a._items.map((it) => it.text).join(' ');
+    const h = all.match(/\b(?:now hiring|hiring)\s*:?\s+(?:an?\s+)?([a-z][a-z-]+(?:\s+[a-z][a-z-]+)?)\s*(?:[.!,]|\s(?:with|for|to|who|in|at)\b)/i) || all.match(/^(?:we )?need (?:an? )?([a-z][a-z-]+)\s+(?:for|to|who|in|at)\b/i);
+    let pick = w ? (w[1] || w[2]) : h ? h[1] : '';
+    pick = pick.replace(/^(?:(?:part|full)[- ]time|experienced|friendly|reliable|casual|seasonal)\s+/i, '').replace(/^(?:(?:part|full)[- ]time)\s+/i, '');
+    if (/^[a-z-]+ers$|^[a-z-]+ [a-z-]+ers$/i.test(pick)) pick = pick.replace(/s$/, '');
     if (pick && !/^(?:help|staff|people|someone|workers?|you|we)\b/i.test(pick)) role = cap1(pick);
   }
   role = noEmoji(role); company = noEmoji(company);
@@ -1111,7 +1122,7 @@ function create(input) {
   // An ad in another language is not quoted into English questions, lessons or quiz items.
   const ranked = a._french ? [] : a._ranked;
 
-  let requirements = a._ranked.slice(0, 8).map((r) => sayExp(noEmoji(r.text)).slice(0, 300));
+  let requirements = a._ranked.slice(0, 8).map((r) => sayExp(noEmoji(r.text)).replace(/\s*!{2,}$/, '!').slice(0, 300));
   if (!requirements.length) {
     const longest = [];
     splitSentences(job.replace(/\s+/g, ' '), 0, longest);
@@ -1325,7 +1336,7 @@ function create(input) {
   const leadLine = (a.themes[0] && a.themes[0].evidence[0]) || plainLine;
   const course = [];
   course.push({ title: 'What this job is really about', minutes: 5,
-    body: `${topLabels.length > 1 ? `This ad keeps coming back to ${topLabels.length === 2 ? 'two' : 'three'} areas: ${topLabels.join('; ')}.` : topLabels.length ? `This ad keeps coming back to one area: ${topLabels[0]}.` : 'Start with what the ad asks for most.'}${leadLine ? ` The ad says “${quoteText(leadLine, 150)}”.` : ''}\nYour answers should keep pointing back to these. You do not need to be perfect at all of them: real examples of a few go a long way.`,
+    body: `${topLabels.length > 1 ? `This ad keeps coming back to ${topLabels.length === 2 ? 'two' : 'three'} areas: ${topLabels.join('; ')}.` : topLabels.length ? `This ad keeps coming back to one area: ${topLabels[0]}.` : 'Start with what the ad asks for most.'}${leadLine ? ` The ad says “${quoteText(leadLine, 150)}”.` : ''}\n${topLabels.length ? 'Your answers should keep pointing back to these. You do not need to be perfect at all of them: real examples of a few go a long way.' : 'Pick two or three things the ad asks for and have one real example ready for each.'}`,
     exercise: 'Say in one sentence what this job is for and who it helps. Then write down one true example from your life for each area above.', done: false });
   const lessonThemes = a.themes.slice(0, 3);
   for (const t of lessonThemes) {
