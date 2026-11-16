@@ -123,7 +123,7 @@
         range.selectNodeContents(urlText);
         const selection = window.getSelection();
         if (selection) { selection.removeAllRanges(); selection.addRange(range); }
-        copyLabel.textContent = 'Press and hold the link above to copy it';
+        copyLabel.textContent = 'Press and hold the link below to copy it';
       }
     });
   }
