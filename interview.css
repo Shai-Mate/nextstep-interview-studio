@@ -1,1 +1,217 @@
-/* Mock interview styles. Loaded after styles.css and flow.css. */
+/* Mock interview styles. Loaded after styles.css and flow.css. Every class starts with iv-. */
+
+.iv-vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The interviewer: the orb at the top of the question screen. */
+.iv-stage { height: 124px; display: flex; align-items: center; justify-content: center; }
+.iv-slot { position: relative; width: 160px; height: 124px; }
+.iv-anchor { position: absolute; left: 50%; top: 50%; width: 92px; height: 92px; margin: -46px 0 0 -46px; }
+.iv-askrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; min-height: 44px; }
+.iv-asks { flex: 1 1 auto; font-size: 24px; margin: 0; }
+.iv-speak {
+  flex: none;
+  min-height: 44px;
+  padding: 0 12px 0 10px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, .06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 0 0 1px rgba(255, 255, 255, .06);
+  color: var(--soft);
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.iv-speak svg { color: var(--amber); }
+.iv-speak[aria-pressed="false"] .iv-wave { opacity: .35; }
+.iv-speak[aria-pressed="true"] { background: rgba(255, 196, 138, .14); color: var(--ink); box-shadow: inset 0 0 0 1px rgba(255, 196, 138, .55); }
+.iv-speak:active { transform: scale(.95); }
+.iv-speak[hidden], .iv-note[hidden] { display: none; }
+.iv-note { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+.iv-q { margin-top: 10px; }
+.iv-focus:focus { outline: none; }
+.iv-ad { color: #FFDCC2; }
+.iv-calm { display: flex; align-items: baseline; gap: 8px; font-size: 14px; line-height: 1.45; color: var(--soft); margin-top: 16px; }
+.iv-calm::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--green); transform: translateY(-2px); }
+
+/* What they want to hear */
+details.iv-want {
+  margin-top: 12px;
+  padding: 0 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), inset 0 0 0 1px rgba(255, 255, 255, .06);
+}
+details.iv-want summary {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+  color: var(--amber);
+  font-size: 15px;
+}
+details.iv-want summary::-webkit-details-marker { display: none; }
+details.iv-want summary::after {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+details.iv-want[open] summary::after { transform: translateY(2px) rotate(-135deg); }
+.iv-probe { font-size: 14px; line-height: 1.5; color: var(--soft); }
+.iv-inc-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-top: 12px; }
+.iv-inc { margin: 6px 0 16px; padding-left: 18px; font-size: 14px; line-height: 1.45; color: var(--soft); }
+.iv-inc li + li { margin-top: 4px; }
+.iv-inc li::marker { color: var(--amber); }
+.iv-tip { margin-top: 12px; }
+
+/* Live answer shape: Situation, Task, Action, Result */
+.iv-answer { margin-top: 24px; }
+.iv-shape-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.iv-shape-sub { font-size: 12px; color: var(--muted); }
+.iv-meter { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+.iv-part {
+  position: relative;
+  min-height: 56px;
+  padding: 8px 2px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .045);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), inset 0 0 0 1px rgba(255, 255, 255, .06);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -.005em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.iv-pip { display: block; width: 24px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .16); }
+.iv-part.on { color: var(--ink); }
+.iv-part.on .iv-pip, .iv-shape li.on .iv-pip { background: var(--amber); box-shadow: 0 0 10px rgba(255, 180, 134, .75); }
+.iv-part[aria-pressed="true"] { background: rgba(255, 196, 138, .1); box-shadow: inset 0 0 0 1.5px rgba(255, 196, 138, .6); color: var(--ink); }
+#star-hint strong { color: var(--ink); font-weight: 600; }
+.iv-screen .meta { flex-wrap: wrap; }
+
+/* Practise out loud (optional microphone, in memory only) */
+.iv-mic { margin: 4px 0 16px; padding: 12px 16px 14px; border-radius: 16px; background: rgba(255, 255, 255, .035); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07); }
+.iv-mic[hidden], .iv-mic-del[hidden], .iv-mic-play[hidden] { display: none; }
+.iv-mic-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.iv-mic-btn {
+  min-height: 44px;
+  padding: 0 16px 0 12px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, .07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 0 0 1px rgba(255, 255, 255, .07);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.iv-mic-btn svg { color: var(--amber); }
+.iv-mic-btn.rec { background: rgba(255, 158, 142, .16); box-shadow: inset 0 0 0 1px rgba(255, 158, 142, .6); }
+.iv-mic-btn.rec svg { color: var(--danger); }
+.iv-mic-play { display: block; width: 100%; height: 44px; margin-top: 12px; }
+.iv-mic-note { margin-top: 10px; font-size: 13px; line-height: 1.45; color: var(--muted); }
+
+/* Feedback after each answer */
+.feedback-orb.iv-fb-orb, .feedback-orb.iv-report-orb { flex: 0 0 150px; min-height: 150px; }
+.iv-shape { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.iv-shape li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 2px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .035);
+  font-size: 12px;
+  color: var(--muted);
+}
+.iv-shape li.on { color: var(--ink); }
+.iv-check .card-head { flex-wrap: wrap; row-gap: 2px; }
+.iv-check .card-head strong { white-space: nowrap; }
+.iv-group { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 18px; }
+.iv-gentle { margin-top: 8px; }
+.iv-sub { font-size: 13px; color: var(--muted); margin-top: 12px; }
+.iv-words { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.iv-words li {
+  font-size: 13px;
+  line-height: 1.3;
+  padding: 6px 10px;
+  border-radius: 99px;
+  background: rgba(255, 196, 138, .12);
+  box-shadow: inset 0 0 0 1px rgba(255, 196, 138, .3);
+  color: #FFE4D0;
+  overflow-wrap: anywhere;
+}
+.iv-words.iv-dashed li { background: none; box-shadow: none; border: 1px dashed rgba(255, 255, 255, .3); color: var(--soft); padding: 5px 9px; }
+
+/* Session report */
+.glass.flat.iv-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 20px; text-align: center; padding: 16px 12px; }
+.iv-stats b { display: block; font-size: 22px; font-weight: 600; letter-spacing: -.03em; }
+.iv-stats span { display: block; margin-top: 2px; font-size: 12px; line-height: 1.3; color: var(--muted); }
+.iv-rows { list-style: none; margin: 10px 0 0; padding: 0; }
+.iv-rows li { display: flex; align-items: center; gap: 10px; min-height: 40px; box-shadow: inset 0 -1px 0 var(--line); }
+.iv-rows li:last-child { box-shadow: none; }
+.iv-qn {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 196, 138, .12);
+  color: var(--amber);
+  font-size: 12px;
+  font-weight: 600;
+}
+.iv-qt { flex: 1; min-width: 0; font-size: 13px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iv-bars { flex: none; display: inline-flex; gap: 3px; }
+.iv-bars i { width: 12px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .15); }
+.iv-bars i.on { background: var(--amber); }
+.iv-na { flex: none; font-size: 12px; color: var(--muted); }
+.iv-pick + .iv-pick { margin-top: 16px; padding-top: 16px; box-shadow: inset 0 1px 0 var(--line); }
+.iv-pick-q { display: flex; align-items: flex-start; gap: 10px; margin-top: 8px; font-size: 14px; font-weight: 600; line-height: 1.4; }
+.iv-pt { flex: 1; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.iv-pick .muted { margin-top: 6px; }
+.iv-send { margin-top: 24px; text-align: center; }
+.iv-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; color: var(--amber); font-size: 15px; font-weight: 600; text-decoration: none; }
+.iv-link:hover { text-decoration: underline; }
+.iv-send .fine { padding-top: 0; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .iv-reveal .iv-w { display: inline-block; animation: iv-word .6s cubic-bezier(.2, .8, .2, 1) backwards; }
+  .iv-part, .iv-pip { transition: color .3s, background-color .35s, box-shadow .35s, transform .2s cubic-bezier(.3, 1.5, .5, 1); }
+  .iv-part:active, .iv-speak:active { transform: scale(.95); }
+  .iv-part.on .iv-pip { animation: iv-light .7s ease-out; }
+  .iv-speak { transition: transform .2s cubic-bezier(.3, 1.5, .5, 1), background-color .3s; }
+}
+@keyframes iv-word {
+  from { opacity: 0; transform: translate3d(0, .32em, 0); filter: blur(3px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes iv-light {
+  0% { transform: scaleX(.4); }
+  60% { transform: scaleX(1.25); }
+  100% { transform: none; }
+}

@@ -2,14 +2,23 @@
 /* Canvas 2D liquid-light orb. No WebGL, no video.
    Glass sphere over a quiet aurora, with wind-blown molecules that
    spiral back together, a soft glint, and a tap ripple.
-   Pauses while the tab is hidden. prefers-reduced-motion draws one still frame. */
+   Pauses while the tab is hidden. prefers-reduced-motion draws one still frame.
+   window.NextStepOrb = { celebrate(), level(v) }:
+     celebrate()  a short burst of light and two rings once the orb has formed (queued while it travels).
+     level(v)     an outside voice level 0..1 (read-aloud word boundaries, a microphone) the orb glows and
+                  rings with; call it every frame to hold it, it fades on its own. It replaces the
+                  simulated syllables of [data-say] while it is active.
+   Both are no-ops under prefers-reduced-motion or while the page is hidden. */
 (function () {
+  window.NextStepOrb = window.NextStepOrb || { celebrate() {}, level() {} };
   const aurora = document.getElementById('aurora');
   const stage = document.getElementById('orb');
   if (!aurora || !stage) return;
   const ag = aurora.getContext('2d', { alpha: true, desynchronized: true });
   const cg = stage.getContext('2d', { alpha: true, desynchronized: true });
   if (!ag || !cg) return;
+  const appRoot = document.getElementById('app');
+  const pick = (sel) => (appRoot && appRoot.querySelector(sel)) || document.querySelector(sel);
 
   const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
   const N = 440;
@@ -112,6 +121,12 @@
   let vB = 0;
   let vRing = 9;
   let bgStill = false;
+  let ext = 0;
+  let extAt = -1e9;
+  let extRing = 9;
+  let cheerAt = 0;
+  let burst = [];
+  let ring2 = -1;
 
   function resize() {
     const s = reduced ? 1 : dprCap;
@@ -148,7 +163,8 @@
   }
 
   function startSay() {
-    const q = document.querySelector('[data-say]');
+    if (performance.now() - extAt < 600) { syl = null; return; }
+    const q = pick('[data-say]');
     if (!q) { syl = null; return; }
     const text = q.textContent.trim();
     const next = [];
@@ -188,9 +204,56 @@
     if (vt > vEnd) syl = null;
   }
 
+  /* Outside voice level (0..1): a quick rise, a soft fall, a ring on a strong onset. */
+  function level(v) {
+    if (reduced || hidden) return;
+    const x = clamp(Number(v) || 0, 0, 1);
+    if (x - ext > 0.35 && extRing > 1.2 && st === 'hold') { extRing = 0; pulse(); }
+    ext = Math.max(ext, x);
+    extAt = performance.now();
+    syl = null;
+  }
+
+  function celebrate() {
+    if (reduced || hidden) return;
+    cheerAt = performance.now();
+    start();
+  }
+
+  function fireBurst() {
+    burst = [];
+    for (let i = 0; i < 72; i++) {
+      const a = Math.random() * Math.PI * 2;
+      burst.push({
+        a,
+        sp: 1.1 + Math.random() * 2.1,
+        life: 1.1 + Math.random() * 0.9,
+        age: -Math.random() * 0.12,
+        sz: 2 + Math.random() * 3.2,
+        lift: 0.15 + Math.random() * 0.35,
+        img: sprites[i % 4 === 0 ? 1 : i % 3 === 0 ? 2 : 0]
+      });
+    }
+    pulse();
+    ring2 = 0.32;
+  }
+
+  function stepCheer(dt) {
+    if (cheerAt) {
+      if (anchor && anchor.isConnected && st === 'hold') { cheerAt = 0; fireBurst(); }
+      else if (performance.now() - cheerAt > 7000) cheerAt = 0;
+    }
+    if (ring2 >= 0 && (ring2 -= dt) < 0) { ring2 = -1; pulse(); }
+    if (burst.length) {
+      let alive = 0;
+      for (const b of burst) if ((b.age += dt) < b.life) alive++;
+      if (!alive) burst = [];
+    }
+  }
+
   function step(dt) {
     t += dt;
-    const el = document.querySelector('[data-orb]');
+    const el = pick('[data-orb]');
     if (pulses[0] >= 0 && (pulses[0] += dt) > 2.4) pulses[0] = -1;
     if (pulses[1] >= 0 && (pulses[1] += dt) > 2.4) pulses[1] = -1;
     bt += dt;
@@ -237,9 +300,13 @@
 
     envA += (envT - envA) * (1 - Math.exp(-dt * 7));
     eA += (energy - eA) * (1 - Math.exp(-dt * 3));
+    extRing += dt;
+    ext *= Math.exp(-dt / 0.14);
+    const extOn = performance.now() - extAt < 500;
     const vOn = st === 'hold' && voice && syl;
-    vA += ((vOn ? vRaw : 0) - vA) * (1 - Math.exp(-dt * 22));
-    vB += ((vOn ? 1 : 0) - vB) * (1 - Math.exp(-dt * 4));
+    vA += ((extOn ? ext : vOn ? vRaw : 0) - vA) * (1 - Math.exp(-dt * 22));
+    vB += ((extOn || vOn ? 1 : 0) - vB) * (1 - Math.exp(-dt * 4));
+    stepCheer(dt);
 
     if (anchor && anchor.isConnected) {
       const r = anchor.getBoundingClientRect();
@@ -487,6 +554,25 @@
     }
   }
 
+  function drawBurst(x, y, radius) {
+    if (!burst.length) return;
+    cg.save();
+    cg.globalCompositeOperation = 'lighter';
+    const k = radius / 74;
+    for (const b of burst) {
+      if (b.age <= 0 || b.age >= b.life) continue;
+      const u = b.age / b.life;
+      const out = 1 - Math.exp(-b.age * 2.4);
+      const dist = radius * (0.9 + b.sp * out);
+      const sx = x + Math.cos(b.a) * dist;
+      const sy = y + Math.sin(b.a) * dist - radius * b.lift * out + radius * 0.22 * b.age * b.age;
+      const size = clamp(b.sz * k * (1.6 - 0.8 * u), 1.2, 10);
+      cg.globalAlpha = clamp((1 - u) * (1 - u) * Math.min(1, b.age / 0.08), 0, 0.95);
+      cg.drawImage(b.img, sx - size, sy - size, size * 2, size * 2);
+    }
+    cg.restore();
+  }
+
   function draw(still) {
     if (!still) drawAurora(false);
     else if (!bgStill) drawAurora(true);
@@ -504,6 +590,7 @@
       drawParticles(x, y, R);
       drawBridge(x, y, R);
       drawRings(x, y, R);
+      drawBurst(x, y, R);
     }
   }
 
@@ -538,7 +625,11 @@
     mode = 1;
     syl = null;
     vA = 0;
-    const el = document.querySelector('[data-orb]');
+    ext = 0;
+    cheerAt = 0;
+    burst = [];
+    ring2 = -1;
+    const el = pick('[data-orb]');
     anchor = el;
     if (el) read(el);
     envA = envT;
@@ -574,10 +665,10 @@
     else { reduced = false; bgStill = false; resize(); start(); }
   });
 
+  window.NextStepOrb = { celebrate, level };
   resize();
   if (reduced) settleStill();
   else start();
-  const appRoot = document.getElementById('app');
   if (appRoot && window.MutationObserver) {
     const mo = new MutationObserver(() => { if (reduced || mq.matches) settleStill(); });
     mo.observe(appRoot, { childList: true, subtree: true });
