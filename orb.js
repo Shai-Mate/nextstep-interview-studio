@@ -1,5 +1,5 @@
 'use strict';
-/* Canvas 2D liquid-light orb. No WebGL, no video.
+/* Liquid-light orb: Canvas 2D, with an optional WebGL glass sphere (orb-gl.js) and the 2D glass as fallback. No video.
    Glass sphere over a quiet aurora, with wind-blown molecules that
    spiral back together, a soft glint, and a tap ripple.
    Pauses while the tab is hidden. prefers-reduced-motion draws one still frame.
@@ -19,6 +19,11 @@
   if (!ag || !cg) return;
   // WebGL glass sphere (orb-gl.js) when available; the Canvas 2D drawGlass() stays the fallback.
   const GL = window.NextStepOrbGL && window.NextStepOrbGL.init() ? window.NextStepOrbGL : null;
+  // Reduced motion has no frame loop: after a lost or restored WebGL context (common when an installed
+  // iPhone app is backgrounded), redraw the still frame so the orb never goes blank. orb-gl.js handles
+  // the event first, so a loss draws the 2D glass and a restore draws the GL glass again.
+  const glCv = GL && document.getElementById('orb-gl');
+  if (glCv) ['webglcontextlost', 'webglcontextrestored'].forEach((ev) => glCv.addEventListener(ev, () => { if (reduced) draw(true); }));
   const appRoot = document.getElementById('app');
   const pick = (sel) => (appRoot && appRoot.querySelector(sel)) || document.querySelector(sel);
 
