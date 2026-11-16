@@ -70,7 +70,7 @@ const THEMES = [
     probe: 'They want to hear how you get the small things right and catch mistakes before they cause problems.',
     include: ['What had to be exactly right', 'How you checked your work', 'A mistake you caught or prevented'],
     story: 'Tell me about a time you caught a mistake before it caused a problem.',
-    scene: 'Imagine you notice a mistake in your own work after you have handed it in. What would you do?',
+    scene: 'Imagine you notice a mistake in your own work after you thought it was finished. What would you do?',
     rx: /\b(?:accura\w*|detail\w*|careful\w*|precis\w*|thorough\w*|double-check\w*|quality|mistakes?|errors?|charting|documentation|observ\w*|notic(?:e|ing) (?:changes|problems|issues)|tidy|unit tests?|testing|counts|counting|measur\w*|neat\w*)\b/g },
   { id: 'numbers', label: 'Numbers, cash and data',
     probe: 'They want to hear that you are careful and honest with money, counts or data, and can explain what the numbers mean.',
@@ -582,33 +582,48 @@ const STOP = new Set(('a an the and or of to in on for with at by from as into a
   'work working works make makes take takes get use using used keep need needs plus ideally preferred required nice bonus asset previous similar related relevant ' +
   'least one two three new team role job position candidate ideal someone person people like within across per day days week weeks month first just even ' +
   'own clear clean simple show shows agree turn take part part s t ll re ve d m willingness current valid certification certificate system during starting within via').split(' '));
+// Keywords are whole noun phrases a candidate could naturally say back ("customer feedback", "job sites"):
+// a run of words between stopwords and punctuation, with leading verbs and predicate adjectives and trailing
+// adverbs, participles and loose adjectives trimmed off. Fragments of skills and schedule words are left to
+// the skills and signals.
+const KW_LEAD = new Set(('comfortable available able willing eager happy keen ready proficient familiar fluent confident capable responsible ' +
+  'long short good strong excellent basic some own new previous current valid clear great various other similar simple small big high low ' +
+  'main every each all any many more most right quick friendly patient reliable cheerful positive solid proven relevant related minimum certain ' +
+  'pull stay terminate join bring show agree control love enjoy want know get become do go come see let put').split(' '));
+const KW_TAIL = new Set(('tidy clean safe calm accurate ready busy great welcome preferred required needed reported count move moves well daily early every').split(' '));
+const KW_BREAK = new Set(('under over across within through during after before between without per via using including like such up down out off upon toward towards among around near').split(' '));
+const KW_NOUN_LY = /^(?:family|supply|assembly|anomaly|ally|rally|reply|july|italy)$/;
+const KW_SCHEDULE = /\b(?:evenings?|weekends?|nights?|overnight|holidays?|mornings|schedules?|shifts?|season)\b/;
 function findKeywords(items, skillNames) {
   const cands = new Map();
-  const skillLow = new Set(skillNames.map((s) => s.toLowerCase()));
+  const skillLow = skillNames.map((s) => ' ' + flat(s).replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim() + ' ');
+  const nearSkill = (key) => { const k = ' ' + key + ' '; return skillLow.some((s) => s.includes(k) || k.includes(s)); };
+  const weakLead = (low) => VERBS.has(low) || KW_LEAD.has(low);
+  const weakTail = (low) => KW_TAIL.has(low) || (low.length > 4 && /[^e]ed$/.test(low)) || (/ly$/.test(low) && !KW_NOUN_LY.test(low));
   for (const it of items) {
     const w = it.kind === 'must' ? 3 : it.kind === 'duty' ? 2 : it.kind === 'nice' ? 1.5 : 0;
     if (!w) continue;
     const re = /[A-Za-z][A-Za-z0-9+#'’\/.-]*[A-Za-z0-9+#]|[A-Za-z]|[,;:()!?]|\s(?:and|or|but|-|–|—)\s/g;
     let m, run = [];
     const flush = () => {
-      for (let n = 3; n >= 2; n--) {
-        for (let i = 0; i + n <= run.length; i++) {
-          const seg = run.slice(i, i + n);
-          const key = seg.map((x) => x.low).join(' ');
-          if (skillLow.has(key) || key.length < 6) continue;
-          let c = cands.get(key);
-          if (!c) cands.set(key, (c = { text: it.text.slice(seg[0].s, seg[n - 1].e), key, score: 0, first: it.start + seg[0].s, n, hits: [] }));
-          c.score += w;
-          c.hits.push({ start: it.start + seg[0].s, end: it.start + seg[n - 1].e });
-        }
-      }
+      let a = 0, b = run.length;
+      while (a < b && weakLead(run[a].low)) a++;
+      while (b > a && weakTail(run[b - 1].low)) b--;
+      const seg = run.slice(a, b);
       run = [];
+      if (seg.length < 2 || seg.length > 4) return;
+      const key = seg.map((x) => x.low).join(' ');
+      if (key.length < 6 || KW_SCHEDULE.test(key) || nearSkill(key)) return;
+      let c = cands.get(key);
+      if (!c) cands.set(key, (c = { text: it.text.slice(seg[0].s, seg[seg.length - 1].e), key, score: 0, first: it.start + seg[0].s, n: seg.length, hits: [] }));
+      c.score += w;
+      c.hits.push({ start: it.start + seg[0].s, end: it.start + seg[seg.length - 1].e });
     };
     while ((m = re.exec(it.text))) {
       const tok = m[0];
       if (!/^[A-Za-z]/.test(tok)) { flush(); continue; }
       const lw = tok.toLowerCase().replace(/[’']s$/, '');
-      if (STOP.has(lw) || /^\d/.test(lw)) { flush(); continue; }
+      if (STOP.has(lw) || KW_BREAK.has(lw) || /^\d/.test(lw)) { flush(); continue; }
       run.push({ s: m.index, e: m.index + tok.length, low: tok.toLowerCase().replace(/’/g, "'") });
     }
     flush();
@@ -667,8 +682,20 @@ function findSignals(items) {
   }
   return out;
 }
+function titleParts(items, roleText) {
+  const parts = [];
+  for (const raw of [roleText].concat(items.filter((it) => it.kind === 'title').map((it) => it.text.split(/\s+[–—|·@]\s+|\s+-\s+/)[0]))) {
+    const p = clean(raw), low = flat(p);
+    if (!p || parts.some((x) => flat(x).includes(low))) continue;
+    for (let i = parts.length - 1; i >= 0; i--) if (low.includes(flat(parts[i]))) parts.splice(i, 1);
+    parts.push(p);
+  }
+  return parts;
+}
 function findSeniority(items, roleText) {
-  const titleish = clean(roleText + ' ' + items.filter((it) => it.kind === 'title').map((it) => it.text.split(/\s+[–—|·@]\s+|\s+-\s+/)[0]).join(' '));
+  const parts = titleParts(items, roleText);
+  const titleish = parts.join(' · ');
+  const said = (m) => (parts.find((x) => x.toLowerCase().includes(m[0].toLowerCase())) || titleish).slice(0, 160);
   const pool = items.filter((it) => it.kind === 'must' || it.kind === 'duty' || it.kind === 'nice' || it.kind === 'role');
   let years = null, yearsEvidence = null;
   for (const it of pool.filter((x) => x.kind === 'must').concat(pool.filter((x) => x.kind !== 'must'))) {
@@ -676,11 +703,11 @@ function findSeniority(items, roleText) {
     if (m) { years = Math.min(40, parseInt(m[1], 10)); yearsEvidence = clean(it.text).slice(0, 160); break; }
   }
   const t = titleish.match(/\b(?:intern(?:ship)?|apprentice|trainee|junior|jr\.?|entry[- ]level|graduate|new grad|student|co-?op)\b/i);
-  if (t) return { level: 'Entry', years, evidence: titleish.slice(0, 160) };
+  if (t) return { level: 'Entry', years, evidence: said(t) };
   const s = titleish.match(/\b(?:senior|sr\.?|principal|staff engineer|expert)\b/i);
-  if (s) return { level: 'Senior', years, evidence: titleish.slice(0, 160) };
+  if (s) return { level: 'Senior', years, evidence: said(s) };
   const l = titleish.match(/\b(?:lead|head of|director|supervisor|foreman|forewoman|chief|team leader)\b/i);
-  if (l) return { level: 'Lead', years, evidence: titleish.slice(0, 160) };
+  if (l) return { level: 'Lead', years, evidence: said(l) };
   if (years !== null) return { level: years <= 1 ? 'Entry' : years <= 4 ? 'Mid' : 'Senior', years, evidence: yearsEvidence };
   const e = items.find((it) => /\bno experience (?:is )?(?:necessary|required|needed)\b|\bexperience (?:is )?(?:an asset but )?not required\b|\bwe will train\b|\bwill train the right\b|\btraining (?:is )?provided\b|\bentry[- ]level\b|\bnot required\b/i.test(it.text) && it.kind !== 'about');
   if (e) return { level: 'Entry', years: null, evidence: clean(e.text).slice(0, 160) };
@@ -688,6 +715,10 @@ function findSeniority(items, roleText) {
 }
 
 /* ---------- analyze ---------- */
+const RELIABLE_CORE = /\b(?:reliab\w*|dependab\w*|punctual\w*|on time|show up|shows up|showing up|attendance|follow(?:s|ing)? through|follow-through|consisten\w*|committed|commitment|trustworth\w*|transportation|criminal record|vulnerable sector|police check|background check|driver'?s licen[cs]e)\b/;
+const SCHEDULE_WORDS = /\b(?:availab\w*|shifts?|weekends?|evenings?|nights?|overnight|early mornings?|rotating|holidays?)\b/;
+const LATER_CREDENTIAL = /\bwithin (?:your|the) first\b|\bwilling(?:ness)? to (?:get|obtain)\b|\b(?:must|will need to|able to) obtain\b|\bobtain(?:ed)? (?:within|after|once)\b|\bafter (?:you are )?hired\b/;
+const PHYSICAL_CONDITION = /\b(?:standing|on your feet|lift|lifting|kg|kilograms?|lbs?|pounds|heavy|bending|ladders?|crawl spaces?|outdoors?|all weather)\b/;
 function analyze(jobText, opts) {
   const src = String(jobText == null ? '' : jobText).slice(0, MAX_JOB);
   const o = opts || {};
@@ -719,8 +750,12 @@ function analyze(jobText, opts) {
     it.themeHits = hits;
     it.firstTheme = THEMES.map((t) => t.id).filter((id) => hits[id]).sort((a, b) => hits[b] - hits[a] || THEME_INDEX[a] - THEME_INDEX[b])[0] || null;
     it.cred = isCredential(it.text, (it.skills || []).length);
+    const sched = hits.reliability && !RELIABLE_CORE.test(low) && SCHEDULE_WORDS.test(low);
+    const later = LATER_CREDENTIAL.test(low) ? 0.5 : 1;
+    const condition = hits.physical && it.kind === 'must' && PHYSICAL_CONDITION.test(low);
+    it.scheduleOnly = !!sched;
     for (const id of Object.keys(hits)) {
-      const add = Math.min(2, hits[id]) * w;
+      const add = Math.min(2, hits[id]) * w * later * ((id === 'reliability' && sched) ? 0.75 : (id === 'physical' && condition) ? 0.5 : 1);
       scores[id] += add;
       reach[id] += 1;
       if (it.kind !== 'title') evid[id].push({ text: it.clean, add, start: it.start, key: Math.min(2, hits[id]) + (it.firstTheme === id ? 2 : 0) + (it.kind === 'duty' ? 3 : 0) - (it.cred ? 3 : 0) });
@@ -733,7 +768,8 @@ function analyze(jobText, opts) {
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score || a.i - b.i);
   const top = themeList.length ? themeList[0].score : 0;
-  const themes = themeList.filter((x) => x.score >= Math.max(3, top * 0.15)).slice(0, 6).map((x) => {
+  const strong = themeList.filter((x) => x.score >= Math.max(3, top * 0.15));
+  const themes = (strong.length ? strong : themeList.slice(0, 1)).slice(0, 6).map((x) => {
     const seen = new Set();
     const evidence = evid[x.t.id].slice().sort((a, b) => b.key - a.key || b.add - a.add || a.start - b.start)
       .map((e) => e.text).filter((e) => { const k = flat(e); if (seen.has(k)) return false; seen.add(k); return true; })
@@ -762,7 +798,7 @@ function analyze(jobText, opts) {
     const themeIds = Object.keys(hits).sort((a, b) => hits[b] - hits[a] || THEMES.findIndex((t) => t.id === a) - THEMES.findIndex((t) => t.id === b)).slice(0, 3);
     const score = KIND_BASE[it.kind] + specificity(it) + Math.max(0, 0.6 - (pos - 1) * 0.1);
     ranked.push({ text, kind: it.kind, themes: themeIds, score: Math.round(score * 100) / 100, start: it.start, _skills: (it.skills || []).map((s) => s.text),
-      _tech: (it.skills || []).filter((s) => s.theme === 'technical' && !/seal|ticket|certif|licen/i.test(s.name)).map((s) => s.text), _hits: hits, _cred: !!it.cred });
+      _tech: (it.skills || []).filter((s) => s.theme === 'technical' && !/seal|ticket|certif|licen/i.test(s.name)).map((s) => s.text), _hits: hits, _cred: !!it.cred, _sched: !!it.scheduleOnly, _fallback: !!it.fallback });
   }
   ranked.sort((a, b) => b.score - a.score || a.start - b.start);
   // Keep room for up to two nice-to-haves in the top 12, after every must-have and duty that fits.
@@ -779,7 +815,7 @@ function analyze(jobText, opts) {
     const code = it.kind === 'must' ? 1 : it.kind === 'nice' ? 2 : 0;
     if (code) paint.fill(code, it.start, it.end);
   }
-  for (const k of keywordList) for (const h of k.hits) paint.fill(3, h.start, h.end);
+  for (const k of keywordList) for (const h of k.hits) if (!skills.ranges.some((r) => r.start < h.end && h.start < r.end)) paint.fill(3, h.start, h.end);
   for (const r of skills.ranges) paint.fill(4, r.start, r.end);
   const highlights = [];
   for (let i = 0; i < paint.length;) {
@@ -959,12 +995,14 @@ function create(input) {
       if (!h || (!firstIs && h < 2)) continue;
       let sc = Math.min(3, h) + (firstIs ? 3 : 0) + (r.kind === 'duty' ? 2 : 0) + (r.kind === 'must' && !r._cred ? 1 : 0);
       if (r._cred && !['safety', 'learning', 'technical'].includes(id)) sc -= 4;
+      if (id === 'reliability' && r._sched) sc -= 2;
       if (sc > bestScore) { best = r; bestScore = sc; }
     }
     return best;
   };
   const ADJ_START = /^(?:able|comfortable|available|friendly|reliable|willing|eager|patient|organi[sz]ed|detail-oriented|flexible|happy|keen|confident|fluent|passionate|motivated|calm|punctual|physically|proficient|familiar|knowledgeable|skilled|outgoing|positive|respectful|honest|dependable|curious|good at|great at)\b/i;
   const lead = (r, max) => {
+    if (r._fallback) return `The ad says “${quoteText(r.text, max)}”.`;
     if (r.kind === 'duty') {
       const d = lcFirst(quoteText(dutyPhrase(r.text), max), keep);
       if (/^\w+ing\b/i.test(d)) return `This job involves “${d}”.`;
@@ -1012,6 +1050,11 @@ function create(input) {
     const r = byTheme(id, ['must', 'duty']);
     behaviouralThemes.push(id);
     if (r) used.add(r.text);
+    if (r && id === 'reliability' && r._sched) {
+      add(`${lead(r, 105)} How would that schedule work for you, and how do you make sure people can count on you?`, { kind: 'behavioural', theme: id, source: r.text, probe: t.probe,
+        include: ['The days and times you can work, said plainly', 'How you make sure you are on time and ready', 'A time someone counted on you and you came through'] });
+      continue;
+    }
     const stem = storyOf(id, r);
     add(r ? `${lead(r, 105)} ${stem}` : stem, { kind: 'behavioural', theme: id, source: r ? r.text : null, probe: t.probe, include: t.include.slice() });
   }
@@ -1029,6 +1072,9 @@ function create(input) {
       q = isVerbStart(d) ? `Walk me through how you would “${d}”, step by step.` : `Walk me through how you would handle “${d}”, step by step.`;
     } else if (r._skills.length) {
       q = `${lead(r, 100)} Tell me how you have used or learned ${r._skills.length > 1 ? 'these' : 'this'}, with a real example.`;
+      add(q, { kind: 'role', theme, source: r.text, probe: 'They want to hear what you have really done with these tools or skills, or how quickly you could learn them.',
+        include: ['Which of these you have used, and for what', 'One real example, step by step', 'How you would learn the rest'] });
+      return;
     } else {
       q = `${lead(r, 100)} What would that look like for you on a normal day?`;
     }
@@ -1061,9 +1107,12 @@ function create(input) {
   if (nice) {
     used.add(nice.text);
     const core = lcFirst(quoteText(niceCore(nice.text), 100), keep);
-    add(`The ad says “${core}” would be a plus. If that is new to you, how would you get up to speed?`, { kind: 'gap', theme: nice.themes[0] || 'learning', source: nice.text,
+    const credential = CRED.test(nice.text) && countWords(core) <= 6;
+    add(credential
+      ? `The ad says “${core}” would be a plus. If you do not have it yet, how would you go about getting it?`
+      : `The ad says “${core}” would be a plus. If that is new to you, how would you get up to speed?`, { kind: 'gap', theme: nice.themes[0] || 'learning', source: nice.text,
       probe: 'They want to hear that you are honest about what you have not done yet and have a real plan to learn it.',
-      include: ['Where you are now, said honestly', 'Anything related that carries over', 'A clear first step to learn it'] });
+      include: credential ? ['Whether you have it now, said honestly', 'Where and when you could get it', 'Anything related you already know'] : ['Where you are now, said honestly', 'Anything related that carries over', 'A clear first step to learn it'] });
   } else {
     add(`Which part of ${jobName} would be newest to you, and how would you get up to speed?`, { kind: 'gap', theme: 'learning', source: null,
       probe: 'They want to hear that you are honest about what you have not done yet and have a real plan to learn it.',
@@ -1087,10 +1136,16 @@ function create(input) {
       || areaIds.find((id) => !info.some((x) => x.kind === 'situational' && x.theme === id));
     if (nextSit) situational(nextSit);
   }
+  // A short duty that starts with a verb makes a natural question to ask ("How do new people learn to ...?").
   const closeDuty = ranked.filter((r) => r.kind === 'duty').sort((x, y) => (dutyPhrase(x.text).length <= 60 ? 0 : 1) - (dutyPhrase(y.text).length <= 60 ? 0 : 1) || y.score - x.score || x.start - y.start)[0];
+  const closeTask = (() => {
+    if (!closeDuty) return '';
+    const d = lcFirst(quoteText(dutyPhrase(closeDuty.text), 60), keep);
+    return d && !d.endsWith('…') && isVerbStart(d) && countWords(d) >= 2 ? d : '';
+  })();
   add('What questions would you like to ask about the job or the team?', { kind: 'closing', theme: null, source: null,
     probe: 'They want to see that you are curious about doing the job well.',
-    include: ['What a great first month looks like in this job', 'How training or support works for new people', closeDuty ? `How “${lcFirst(quoteText(dutyPhrase(closeDuty.text), 60), keep)}” works day to day` : 'What a normal day or shift looks like'] });
+    include: ['What does a great first month look like in this job?', 'How does training or support work for new people?', closeTask ? `How do new people learn to ${closeTask}?` : 'What does a normal day or shift look like?'] });
 
   // Lessons: short, plain and built around the top areas and must-haves.
   const tip = expTip(exp);
@@ -1170,11 +1225,10 @@ function create(input) {
     quizItems.push({ q: 'What is this job mostly about?', options, correct, why: `The ad keeps coming back to it, for example: “${quoteText(a.themes[0].evidence[0] || requirements[0], 110)}”.` });
   }
   {
-    const d = closeDuty ? lcFirst(quoteText(dutyPhrase(closeDuty.text), 60), keep) : '';
-    const right = d ? `What does doing “${d}” well look like in the first month?` : 'What does a great first month look like in this job?';
+    const right = closeTask ? `How do new people learn to “${closeTask}”?` : 'What does a great first month look like in this job?';
     const { options, correct } = place(right, ['What does your company do?', 'How soon can I take time off?'], qi++);
     quizItems.push({ q: 'Which is the best question to ask at the end of the interview?', options, correct,
-      why: 'Asking what success looks like shows you care about doing the job well. Look up the basics before you go, and save time-off questions for when you have an offer.' });
+      why: 'Asking how the work is learned, or what a good start looks like, shows you care about doing the job well. Look up the basics before you go, and save time-off questions for when you have an offer.' });
   }
   {
     const { options, correct } = place('The Action: what you did', ['The Situation: all the background', 'The Result: only the numbers'], qi++);
@@ -1189,6 +1243,11 @@ function create(input) {
       options, correct, why: 'An honest gap with a real plan to learn is a strong answer. Making things up is never worth it.' });
   }
 
+  if (quizItems.length < 5) {
+    const { options, correct } = place('About a minute: what you do now, one example that fits this job, and why you want it', ['Your whole life story, starting from school', 'Say there is not much to tell'], qi++);
+    quizItems.push({ q: 'They ask you to tell them about yourself. What is a strong answer?', options, correct,
+      why: 'A short, focused introduction gives them a clear picture and leads into your examples.' });
+  }
   return { schema: 1, id: uid(), company, role, job, url: String(input.url || '').slice(0, 2000), intake, requirements, course, questions, questionInfo: info, quizItems,
     notes: {}, quiz: { answers: {} }, mock: { index: 0, answers: [], draft: '', finished: false }, created: new Date().toISOString(), updated: new Date().toISOString() };
 }

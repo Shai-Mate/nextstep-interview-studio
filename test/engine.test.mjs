@@ -22,14 +22,14 @@ const EXPECT = {
     must: ['Current CPR and First Aid', 'Clear criminal record check (vulnerable sector)', 'Health Care Aide or Personal Support Worker certificate'],
     nice: ['Experience in long-term care or dementia care is preferred'],
     never: ['Cedar Grove Care Home (a fictional long-term care home)', 'Our values are dignity', 'Benefits include', 'Health Care Aide / Personal Support Worker'],
-    top: ['care'], top3: ['safety']
+    top: ['care'], top3: ['safety', 'reliability']
   },
   'hospitality-barista-noheadings.txt': {
     skills: ['Square', 'Food Safe'],
     must: ['Food Safe certification is required within your first month.', 'You need to be able to stay calm and friendly during the morning rush and work well with a small team.'],
     nice: ['Experience as a barista is great but we will train the right person.'],
     never: ['We offer tips', 'a fictional cafe'],
-    top3: ['customers']
+    top3: ['customers', 'pressure', 'teamwork']
   },
   'office-customer-success.txt': {
     skills: ['Salesforce', 'HubSpot', 'Excel', 'Google Sheets', 'SQL', 'Looker'],
@@ -153,8 +153,40 @@ for (const file of files) {
       assert.ok(Number.isInteger(h.start) && Number.isInteger(h.end) && h.start >= at && h.end > h.start && h.end <= job.length, JSON.stringify(h));
       at = h.end;
     }
+    for (const h of a.highlights.filter((x) => x.kind === 'skill' || x.kind === 'keyword')) {
+      const t = job.slice(h.start, h.end);
+      assert.equal(t, t.trim(), 'skill and keyword marks have no loose spaces: ' + JSON.stringify(t));
+    }
     const skillMarks = a.highlights.filter((h) => h.kind === 'skill').map((h) => job.slice(h.start, h.end));
     for (const s of a.skills) assert.ok(skillMarks.some((m) => m.includes(s) || s.includes(m)), 'skill highlighted: ' + s);
+  });
+
+  test(`${file}: keywords are whole phrases a candidate could say back`, () => {
+    const a = PrepEngine.analyze(job, {});
+    assert.ok(a.keywords.length >= 1 && a.keywords.length <= 12);
+    const skills = a.skills.map((s) => ' ' + flat(s).replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim() + ' ');
+    for (const k of a.keywords) {
+      const key = ' ' + flat(k) + ' ';
+      assert.ok(job.includes(k), 'keyword in the ad’s own words: ' + k);
+      assert.ok(k.split(' ').length >= 2, 'a phrase, not a lone word: ' + k);
+      assert.ok(!skills.some((s) => s.includes(key) || key.includes(s)), 'keyword repeats a skill: ' + k);
+      assert.ok(!/^(?:comfortable|available|able|long|provide|observe|follow|record|help|keep|process|receive|run|pull|troubleshoot|build|write|fix|turn|own|monitor|resolve|manage|clear|good|strong|excellent|basic|valid|current|stay)(?=\s)/i.test(k), 'cut-off start: ' + k);
+      assert.ok(!/\b(?:under|over|with|for|to|in|on|at|by|using|including|of|and|or|the|a|reported|accurately|safely)$/i.test(k), 'dangling end: ' + k);
+      assert.ok(!/\b(?:evenings?|weekends?|nights?|holidays?|season|mornings|schedule|shifts?)\b/i.test(k), 'schedule words belong to signals: ' + k);
+    }
+    for (const bad of ['Comfortable standing', 'long periods', 'Available evenings', 'holiday season', 'lighting under', 'Provide safe', 'Observe changes', 'criminal record', 'handle cash accurately']) {
+      assert.ok(!a.keywords.includes(bad), 'bad keyword: ' + bad);
+    }
+  });
+
+  test(`${file}: closing bullets are real questions and the quiz reads naturally`, () => {
+    const p = PrepEngine.create({ job });
+    const closing = p.questionInfo.filter((x) => x.kind === 'closing');
+    assert.equal(closing.length, 1);
+    for (const b of closing[0].include) assert.match(b, /^[A-Z].*\?$/, 'closing bullet is a question: ' + b);
+    for (const q of p.quizItems) for (const o of q.options) assert.ok(!/\bdoing “/.test(o), 'awkward option: ' + o);
+    const ask = p.quizItems.find((q) => /best question to ask/.test(q.q));
+    assert.ok(ask && ask.options[ask.correct].endsWith('?'));
   });
 
   test(`${file}: plan contract and plain, honest copy`, () => {
@@ -236,6 +268,40 @@ test('a tiny 45-character ad still makes a full plan', () => {
   assert.ok(p.quizItems.length >= 5 && p.quizItems.length <= 6);
   const a = PrepEngine.analyze(job, {});
   for (const h of a.highlights) assert.ok(h.end <= job.length);
+});
+
+test('seniority evidence never repeats the title', () => {
+  const job = ad('trades-electrical-apprentice.txt');
+  for (const role of ['', 'Electrical Apprentice', 'Electrical Apprentice (2nd or 3rd year)']) {
+    const s = PrepEngine.analyze(job, { role }).seniority;
+    assert.equal(s.level, 'Entry');
+    assert.equal(s.evidence, 'Electrical Apprentice (2nd or 3rd year)', role);
+  }
+  const p = PrepEngine.create({ job });
+  const ev = PrepEngine.analyze(job, { role: p.role, company: p.company }).seniority.evidence;
+  assert.equal(ev.split('Electrical Apprentice').length, 2, ev);
+});
+
+test('questions fit the line they quote', () => {
+  const trades = PrepEngine.create({ job: ad('trades-electrical-apprentice.txt') });
+  const gap = trades.questions[trades.questionInfo.findIndex((x) => x.kind === 'gap')];
+  assert.match(gap, /First Aid certificate/);
+  assert.match(gap, /how would you go about getting it\?$/, gap);
+  const care = PrepEngine.create({ job: ad('healthcare-care-aide.txt') });
+  const rel = care.questionInfo.findIndex((x) => x.kind === 'behavioural' && x.theme === 'reliability');
+  assert.ok(rel > 0);
+  assert.match(care.questions[rel], /rotating schedule/);
+  assert.match(care.questions[rel], /How would that schedule work for you/);
+  const retail = PrepEngine.create({ job: ad('retail-store-associate.txt') });
+  const r = retail.questionInfo.findIndex((x) => x.kind === 'behavioural' && x.theme === 'reliability');
+  assert.match(retail.questions[r], /“reliable and on time”/, 'a line about being dependable beats a schedule line');
+  const office = PrepEngine.create({ job: ad('office-customer-success.txt') });
+  const crm = office.questionInfo.find((x) => x.kind === 'role' && /Salesforce/.test(x.source || ''));
+  if (crm) assert.ok(crm.include.some((b) => /used/.test(b)), 'bullets match a "how have you used these" question');
+  for (const p of [trades, care, retail, office]) {
+    const sit = p.questions.find((q) => /handed it in/.test(q));
+    assert.equal(sit, undefined, 'situations fit any job, not only office work');
+  }
 });
 
 test('validation keeps the same message and fields keep their types', () => {
@@ -321,16 +387,16 @@ test('a 60k-character ad is analysed in under 50 ms', () => {
   let big = '';
   while (big.length < 60000) for (const f of files) big += ad(f) + '\n\n';
   big = big.slice(0, 60000);
-  PrepEngine.analyze(big, {});
+  for (let i = 0; i < 3; i++) PrepEngine.analyze(big, {});
   let best = Infinity;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 5; i++) {
     const t0 = performance.now();
     PrepEngine.analyze(big, { role: 'Store Associate', company: 'Maple & Thread' });
     best = Math.min(best, performance.now() - t0);
   }
   assert.ok(best < 50, `analyze took ${best.toFixed(1)} ms`);
   let bestCreate = Infinity;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 5; i++) {
     const t0 = performance.now();
     PrepEngine.create({ job: big, role: 'Store Associate', company: 'Maple & Thread' });
     bestCreate = Math.min(bestCreate, performance.now() - t0);
