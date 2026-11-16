@@ -25,13 +25,25 @@ const groups = {
 };
 const groupLabels = { experience: 'Experience', stage: 'Interview stage', focus: 'Focus', time: 'Time today' };
 const defaults = { experience: 'Prefer not to say', stage: 'Not sure yet', focus: 'Balanced', time: '30 minutes' };
-const STAR = {
-  Situation: 'Where and when. Set the scene with a real example.',
-  Task: 'What was needed from you.',
-  Action: 'What you personally did. Say I, and keep it specific.',
-  Result: 'What changed, or what you learned.'
-};
 const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* Module seams. Later classic scripts (flow.js, interview.js, ...) share these
+   top-level globals and register: screens.<view> = () => html, binders.<view> = () => wiring,
+   actions['data-action name'] = (el, event) => {}. Never use inline style attributes:
+   the CSP (style-src 'self') blocks them; use classes or el.style from JS. */
+const binders = {};
+const actions = {};
+const analysisCache = new Map();
+/* Deterministic ad analysis, recomputed from the saved ad text (works for older preparations too). */
+function analysisOf(p) {
+  if (!p || !globalThis.PrepEngine || typeof PrepEngine.analyze !== 'function') return null;
+  const key = p.id + ':' + String(p.job || '').length;
+  if (!analysisCache.has(key)) {
+    try { analysisCache.set(key, PrepEngine.analyze(p.job, { role: p.role, company: p.company })); }
+    catch { analysisCache.set(key, null); }
+  }
+  return analysisCache.get(key);
+}
 
 let records = [];
 let active = null;
@@ -40,9 +52,7 @@ let storageOK = true;
 let view = 'welcome';
 let lessonIndex = 0;
 let renaming = false;
-let star = 'Action';
 let privacyFrom = 'welcome';
-let lastFeedback = null;
 try {
   records = JSON.parse(localStorage.getItem(KEY) || '[]');
   if (!Array.isArray(records) || records.some((p) => p.schema !== 1 || !p.id || !Array.isArray(p.course) || !p.mock)) throw Error('Invalid saved format');
@@ -69,24 +79,6 @@ function persist() {
 }
 function save() { active.updated = new Date().toISOString(); return persist(); }
 function wordCount(text) { const t = String(text || '').trim(); return t ? t.split(/\s+/).length : 0; }
-function feedback(text) {
-  const words = text.trim().split(/\s+/).length;
-  const length = words < 50 ? 'Try adding context, your specific action and an outcome.' : words > 250 ? 'Try a shorter first pass, then offer detail if asked.' : 'A useful length for a first pass.';
-  const contribution = /\bI\b/i.test(text) ? 'Make sure your personal contribution is specific.' : 'Clarify what you personally did.';
-  const result = /\d|result|outcome|improv|learn|reduc|increas/i.test(text) ? 'Check that your result is truthful and relevant.' : 'Add an observable result or lesson if you have one.';
-  return `Structure checklist: ${words} words. ${length} ${contribution} ${result}`;
-}
-function checks(text) {
-  const words = wordCount(text);
-  const lengthOk = words >= 50 && words <= 250;
-  const resultOk = /\d|result|outcome|improv|learn|reduc|increas/i.test(text);
-  return {
-    words,
-    length: { ok: lengthOk, title: 'Length', detail: words < 50 ? 'Try adding context, your specific action and an outcome.' : words > 250 ? 'Try a shorter first pass, then offer detail if asked.' : 'A useful length for a first pass.' },
-    contribution: { ok: false, title: 'Your contribution', detail: /\bI\b/i.test(text) ? 'Make sure your personal contribution is specific.' : 'Clarify what you personally did.' },
-    result: { ok: resultOk, title: 'Result', detail: resultOk ? 'Check that your result is truthful and relevant.' : 'Add an observable result or lesson if you have one.' }
-  };
-}
 function stats(p) {
   const lessonsDone = p.course.filter((c) => c.done).length;
   const answersDone = p.questions.filter((_, i) => (p.notes['answer-' + i] || '').trim()).length;
@@ -192,21 +184,6 @@ function bindNotes() {
     el.addEventListener('input', () => { active.notes[el.dataset.note] = el.value; save(); });
   });
 }
-function readRole() {
-  draft = draft || {};
-  if ($('#role')) draft.role = $('#role').value;
-  if ($('#company')) draft.company = $('#company').value;
-}
-function readJob() {
-  draft = draft || {};
-  if ($('#job')) draft.job = $('#job').value;
-  if ($('#url')) draft.url = $('#url').value;
-}
-function readIntake() {
-  draft = draft || {};
-  if ($('#intake')) draft.intake = Object.fromEntries(new FormData($('#intake')));
-}
-
 const screens = {
   welcome() {
     if (!records.length) {
@@ -223,6 +200,7 @@ const screens = {
         </div>
         <div class="install-row"><span>Add to your Home Screen first, so your work stays in one place.</span><button type="button" class="link" data-action="how">How</button></div>
         <button type="button" class="primary" data-action="start">Start your first preparation</button>
+        <button type="button" class="text-btn" data-action="try-sample">Try it with a sample job ad</button>
         <p class="fine">Free. No account. No trackers or AI calls.</p>
       </div>`;
     }
@@ -240,47 +218,6 @@ const screens = {
       <button type="button" class="text-btn" data-action="how">How to install</button>
       <p class="fine">Free. No account. No trackers or AI calls.</p>
     </div>`;
-  },
-  role() {
-    draft = draft || {};
-    return `<form class="screen" id="role-form" data-screen="role">
-      <div class="topbar">${iconBtn('back-welcome', 'Back', I.back)}<span class="label">Step 1 of 3</span></div>
-      <h1>What role are you preparing for?</h1>
-      <p class="italic lg">One role. One clear plan.</p>
-      <label class="field" for="role">Role title</label>
-      <input id="role" name="role" type="text" maxlength="120" value="${esc(draft.role || '')}" autocomplete="organization-title">
-      <label class="field" for="company">Company</label>
-      <input id="company" name="company" type="text" maxlength="120" value="${esc(draft.company || '')}" autocomplete="organization">
-      <div class="spacer"></div>
-      <button class="primary" type="submit">Continue</button>
-    </form>`;
-  },
-  jobad() {
-    draft = draft || {};
-    return `<form class="screen" id="job-form" data-screen="jobad">
-      <div class="topbar">${iconBtn('back-role', 'Back', I.back)}<span class="label">Step 2 of 3</span></div>
-      <h1>Paste the job ad</h1>
-      <p class="italic lg">Your plan starts with their words.</p>
-      <label class="field" for="job">Job-ad text</label>
-      <textarea class="tall" id="job" name="job" maxlength="60000" placeholder="Paste the full job ad here">${esc(draft.job || '')}</textarea>
-      <label class="field" for="url">Job-ad URL, optional</label>
-      <input id="url" name="url" type="url" maxlength="2000" value="${esc(draft.url || '')}" placeholder="Saved as a reference only" inputmode="url">
-      <div class="meta"><span id="fetch-status">Stays on this device.</span><button type="button" class="link" id="how-ad">How to add a job ad</button></div>
-      <button class="primary" type="submit">Build my plan</button>
-    </form>`;
-  },
-  setup() {
-    draft = draft || {};
-    const chosen = { ...defaults, ...(draft.intake || {}) };
-    return `<form class="screen" id="intake" data-screen="setup">
-      <div class="topbar">${iconBtn('back-job', 'Back', I.back)}<span class="label">Step 3 of 3</span></div>
-      <h1>Four quick choices</h1>
-      <p class="italic lg">About a minute. Or skip it.</p>
-      <div class="groups">${Object.entries(groups).map(([k, opts]) => `<fieldset><legend>${groupLabels[k]}</legend><div class="choices">${opts.map((v) => `<label class="choice"><input type="radio" name="${k}" value="${esc(v)}" ${v === chosen[k] ? 'checked' : ''}><span>${esc(v)}</span></label>`).join('')}</div></fieldset>`).join('')}</div>
-      <div class="spacer"></div>
-      <button class="primary" type="submit">Create my plan</button>
-      <button type="button" class="text-btn" id="skip">Skip for now</button>
-    </form>`;
   },
   today() {
     const p = active;
@@ -392,62 +329,6 @@ const screens = {
       <div class="stack">${p.course.map((c, i) => `<button type="button" class="row" data-action="open-lesson" data-index="${i}"><span class="copy"><strong>${c.done ? 'Done · ' : ''}${esc(c.title)}</strong><em>About ${c.minutes} min</em></span>${I.chev}</button>`).join('')}</div>
     </div>`;
   },
-  mock() {
-    const p = active;
-    const m = p.mock;
-    if (m.finished) {
-      return `<div class="screen" data-screen="mock">
-        <div class="topbar tight">${iconBtn('close-today', 'Close', I.close)}<span class="center">Mock interview</span><span class="count">${m.answers.length} of ${p.questions.length}</span></div>
-        <div class="feedback-orb"><div class="orb-slot lg"><div class="orb-anchor lg" data-orb data-env="1" data-s=".75" data-up="120,60" data-down="50,140" data-energy="${glow(p)}"></div></div></div>
-        <h1>Session complete.</h1>
-        <p class="italic saved-italic">You can pick it up again.</p>
-        <p class="muted gap-top">${m.answers.length} answers saved. Review your evidence and refine one answer before the real conversation.</p>
-        <div class="spacer"></div>
-        <button type="button" class="primary" data-action="open-answers">Refine in Answer bank</button>
-        <button type="button" class="text-btn" id="restart">Start another round</button>
-        ${logHtml(m)}
-      </div>`;
-    }
-    const q = p.questions[m.index];
-    const excerpt = quoteFrom(q, p.requirements[Math.min(m.index, p.requirements.length - 1)] || '');
-    const words = wordCount(m.draft);
-    return `<div class="screen" data-screen="mock">
-      <div class="topbar tight">${iconBtn('close-today', 'Close', I.close)}<span class="center">Mock interview</span><span class="count">${m.index + 1} of ${p.questions.length}</span></div>
-      ${segs(p.questions.length, m.index, m.index)}
-      <p class="italic ask-line">The interviewer asks</p>
-      <p class="question" data-say="1">${esc(q)}</p>
-      ${excerpt ? `<div class="glass pad-sm quote"><div class="kicker">From your job ad</div><p>${esc(excerpt)}</p></div>` : ''}
-      <div class="chips" role="group" aria-label="Answer shape">${Object.keys(STAR).map((name) => `<button type="button" class="chip" data-star="${name}" aria-pressed="${name === star}">${name}</button>`).join('')}</div>
-      <p class="hint" id="star-hint">${esc(STAR[star])}</p>
-      <label class="field tight" for="mock-answer">Your answer</label>
-      <textarea id="mock-answer" rows="5" placeholder="Use a real example. What did you do, what happened, and what did you learn?">${esc(m.draft)}</textarea>
-      <div class="meta"><span id="word-count">${words} ${words === 1 ? 'word' : 'words'}</span><span class="saved" id="save-line">${I.check}<span>Draft saved. Resume anytime.</span></span></div>
-      <button type="button" class="primary" id="submit-answer">Save answer and continue</button>
-      ${logHtml(m)}
-    </div>`;
-  },
-  feedback() {
-    const p = active;
-    const f = lastFeedback;
-    if (!f) { view = 'mock'; return screens.mock(); }
-    const left = Math.max(0, f.total - f.index);
-    return `<div class="screen" data-screen="feedback">
-      <div class="topbar tight">${iconBtn('close-today', 'Close', I.close)}<span class="center">Mock interview</span><span class="count">${f.index} of ${f.total}</span></div>
-      ${segs(f.total, f.index, -1)}
-      <div class="feedback-orb"><div class="orb-slot lg"><div class="orb-anchor lg" data-orb data-env="1" data-s=".75" data-up="125,60" data-down="50,150" data-energy="${glow(p)}"></div></div></div>
-      <h1 class="saved-title">Answer saved.</h1>
-      <p class="italic saved-italic">One step closer.</p>
-      <p class="muted gap-top">${f.index} of ${f.total} done.${left ? ' ' + left + ' to go.' : ''}</p>
-      <div class="glass flat">
-        <div class="card-head"><strong>Structure check</strong><span class="muted">${f.words} words</span></div>
-        <p class="muted">A writing checklist, not a hiring score.</p>
-        ${checkRow(f.length)}${checkRow(f.contribution)}${checkRow(f.result)}
-      </div>
-      <div class="spacer"></div>
-      <button type="button" class="primary gap-top" data-action="feedback-next"><span>${f.finished ? 'See your session' : 'Next question'}</span>${I.arrow}</button>
-      <button type="button" class="text-btn" data-action="open-answers">Refine in Answer bank</button>
-    </div>`;
-  },
   answers() {
     const p = active;
     return `<div class="screen" data-screen="answers">
@@ -506,34 +387,13 @@ The hosting provider receives normal requests for the app files, not your typed 
       <label class="field" for="import">Restore a backup</label>
       <input class="file" id="import" type="file" accept="application/json,.json">
       <button type="button" class="text-btn danger" id="delete-all">Delete all data</button>
-      <p class="version">Phone app v7 · storage schema v1 · rules-based preparation</p>
+      <p class="version">Phone app v8 · storage schema v1 · rules-based preparation</p>
     </div>`;
   }
 };
 
-function logHtml(m) {
-  if (!m.answers.length) return '';
-  return `<h2 class="log-title">Session log</h2>${m.answers.map((a, i) => `<details class="block"><summary>${i + 1}. ${esc(a.question)}</summary><p class="prose">${esc(a.text)}</p><p class="feedback">${esc(a.feedback)}</p></details>`).join('')}`;
-}
-
 function needPrep() { if (!active) { show('welcome'); return false; } return true; }
 function openLesson(i) { if (!needPrep()) return; lessonIndex = i; show('lesson'); }
-function openMock() { if (!needPrep()) return; show('mock'); }
-function createPrep(skip) {
-  try {
-    readRole();
-    readJob();
-    if ((draft.job || '').trim().length < 40) { notify('Paste at least 40 characters from the actual ad.'); show('jobad'); return; }
-    draft.intake = skip ? {} : Object.fromEntries(new FormData($('#intake')));
-    active = PrepEngine.create(draft);
-    records.unshift(active);
-    persist();
-    draft = null;
-    lessonIndex = 0;
-    renaming = false;
-    show('today');
-  } catch (err) { notify(err.message); }
-}
 function exportBackup(all) {
   const payload = { schema: 1, preparations: !all && active ? [active] : records };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -590,64 +450,7 @@ function bindImport() {
 }
 
 function bindScreen() {
-  const form = $('#role-form');
-  if (form) form.addEventListener('submit', (e) => { e.preventDefault(); readRole(); show('jobad'); });
-  const job = $('#job-form');
-  if (job) {
-    job.addEventListener('submit', (e) => {
-      e.preventDefault();
-      readJob();
-      if ((draft.job || '').trim().length < 40) { notify('Paste at least 40 characters from the actual ad.'); return; }
-      notify('');
-      show('setup');
-    });
-    $('#how-ad').addEventListener('click', () => {
-      readJob();
-      $('#fetch-status').textContent = 'Open the job ad, copy the responsibilities and requirements, then paste them here. This free edition cannot import websites. The optional URL is only your reference.';
-      $('#job').focus();
-    });
-  }
-  const intake = $('#intake');
-  if (intake) {
-    intake.addEventListener('submit', (e) => { e.preventDefault(); createPrep(false); });
-    $('#skip').addEventListener('click', () => createPrep(true));
-  }
   if (view === 'lesson' || view === 'answers' || view === 'rolemap') bindNotes();
-  if (view === 'mock' && active && !active.mock.finished) {
-    const box = $('#mock-answer');
-    box.addEventListener('input', () => {
-      active.mock.draft = box.value;
-      const ok = save();
-      const n = wordCount(box.value);
-      $('#word-count').textContent = n + (n === 1 ? ' word' : ' words');
-      $('#save-line').lastElementChild.textContent = ok ? 'Draft saved. Resume anytime.' : 'Not saved yet. Export a backup before leaving.';
-    });
-    $('#submit-answer').addEventListener('click', () => {
-      const text = box.value.trim();
-      if (text.length < 20) { notify('Add at least 20 characters so you have an answer to review.'); return; }
-      const review = checks(text);
-      const m = active.mock;
-      m.answers.push({ question: active.questions[m.index], text, feedback: feedback(text), at: new Date().toISOString() });
-      m.draft = '';
-      m.index += 1;
-      m.finished = m.index >= active.questions.length;
-      save();
-      lastFeedback = { ...review, index: m.answers.length, total: active.questions.length, finished: m.finished };
-      show('feedback');
-    });
-    document.querySelectorAll('[data-star]').forEach((el) => el.addEventListener('click', () => {
-      star = el.dataset.star;
-      document.querySelectorAll('[data-star]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.star === star)));
-      $('#star-hint').textContent = STAR[star];
-    }));
-  }
-  if ($('#restart')) $('#restart').addEventListener('click', () => {
-    if (confirm('Start another round? Export first to keep the current mock log.')) {
-      active.mock = { index: 0, answers: [], draft: '', finished: false };
-      save();
-      show('mock');
-    }
-  });
   if ($('#rename')) $('#rename').addEventListener('click', () => { renaming = true; show('today'); });
   const rename = $('#rename-form');
   if (rename) rename.addEventListener('submit', (e) => {
@@ -683,6 +486,7 @@ function bindScreen() {
     } catch { notify('Could not delete saved preparations.'); }
   });
   bindImport();
+  if (binders[view]) binders[view]();
 }
 
 document.body.addEventListener('click', (e) => {
@@ -691,13 +495,10 @@ document.body.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const action = el.dataset.action;
+  if (actions[action]) { actions[action](el, e); return; }
   if (action === 'how') { $('#install').hidden = false; return; }
   if (action === 'privacy') { privacyFrom = view; show('privacy'); return; }
   if (action === 'privacy-back') { show(privacyFrom || 'welcome'); return; }
-  if (action === 'start') { renaming = false; show('role'); return; }
-  if (action === 'back-welcome') { readRole(); show('welcome'); return; }
-  if (action === 'back-role') { readJob(); show('role'); return; }
-  if (action === 'back-job') { readIntake(); show('jobad'); return; }
   if (action === 'all-preps') { active = null; renaming = false; show('welcome'); return; }
   if (action === 'resume') {
     active = records.find((p) => p.id === el.dataset.id);
@@ -712,7 +513,6 @@ document.body.addEventListener('click', (e) => {
   if (action === 'all-lessons') { if (needPrep()) show('lessons'); return; }
   if (action === 'back-lesson') { if (needPrep()) show('lesson'); return; }
   if (action === 'open-lesson') { openLesson(+el.dataset.index || 0); return; }
-  if (action === 'open-mock' || action === 'lesson-practise' || action === 'feedback-next') { openMock(); return; }
   if (action === 'open-answers') { if (needPrep()) show('answers'); return; }
   if (action === 'open-quiz') { if (needPrep()) show('quiz'); return; }
   if (action === 'open-map') { if (needPrep()) show('rolemap'); return; }
@@ -724,4 +524,5 @@ document.body.addEventListener('click', (e) => {
   }
 });
 
-show('welcome');
+/* First render after every deferred module (flow.js, interview.js, ...) has registered. */
+document.addEventListener('DOMContentLoaded', () => show('welcome'));
