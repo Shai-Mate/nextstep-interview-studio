@@ -1094,8 +1094,12 @@ function create(input) {
     add(fill(scene), { kind: 'situational', theme: id, source: null, probe: t.probe,
       include: ['What you would do first, and why', 'Who you would tell or ask for help', 'How you would make sure it goes better next time'] });
   };
-  const sitPool = areaIds.filter((id) => !behaviouralThemes.includes(id));
-  const sitFirst = sitPool.find((id) => themeIds.includes(id)) || (themeIds.includes('pressure') ? 'pressure' : themeIds[0]) || 'pressure';
+  // The "what would you do" question goes where it matters most for this job: care work, the cash drawer,
+  // safety on site, or else the main area.
+  const sitFirst = themeIds[0] === 'care' ? 'care'
+    : cashJob && themeIds.slice(0, 5).includes('numbers') && /\b(?:cash|till|register|pos)\b/i.test(job) ? 'numbers'
+      : themeIds.slice(0, 3).includes('safety') ? 'safety'
+        : themeIds[0] || 'pressure';
   situational(sitFirst);
   if (stage === 'Final') {
     add(`What would you focus on in your first few weeks in ${jobName}?`, { kind: 'situational', theme: themeIds.includes('organisation') ? 'organisation' : (themeIds[0] || null), source: null,
