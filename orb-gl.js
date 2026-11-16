@@ -99,11 +99,11 @@ void main() {
   // inner light: a soft bloom around the hot core
   col += vec3(1.0, 0.84, 0.70) * exp(-dot(k, k) * 4.5) * (0.04 + 0.05 * en + 0.12 * beat + 0.18 * voice);
 
-  // caustic swirl: soft veils of light along a slowly turning contour; shimmer while speaking
+  // caustic swirl while speaking: veils of light along a slowly turning contour, with a shimmer
   float veil = 1.0 - smoothstep(0.0, 0.095, abs(w1.z - 0.5));
   float sh = 0.5 + 0.5 * (sin(f.z * 27.0) * uSh.x + cos(f.z * 27.0) * uSh.y);
   veil *= smoothstep(0.12, 0.45, g) * (1.0 - smoothstep(0.70, 0.97, d));
-  col += vec3(1.0, 0.78, 0.62) * veil * (0.025 + 0.05 * en + voice * (0.03 + 0.08 * sh));
+  col += vec3(1.0, 0.78, 0.62) * veil * voice * (0.03 + 0.08 * sh);
 
   // the plum field seen through the glass, inverted by the lens
   float shell = smoothstep(0.6, 0.99, d);
