@@ -822,8 +822,14 @@ function analyze(jobText, opts) {
     const code = it.kind === 'must' ? 1 : it.kind === 'nice' ? 2 : 0;
     if (code) paint.fill(code, it.start, it.end);
   }
-  for (const k of keywordList) for (const h of k.hits) if (!skills.ranges.some((r) => r.start < h.end && h.start < r.end)) paint.fill(3, h.start, h.end);
   for (const r of skills.ranges) paint.fill(4, r.start, r.end);
+  for (const k of keywordList) {
+    for (const h of k.hits) {
+      let clash = false;
+      for (let i = h.start; i < h.end && !clash; i++) clash = paint[i] === 4;
+      if (!clash) paint.fill(3, h.start, h.end);
+    }
+  }
   const highlights = [];
   for (let i = 0; i < paint.length;) {
     const c = paint[i];
