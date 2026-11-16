@@ -400,7 +400,7 @@ const CUE = {
   duty: /\b(?:you will|you'll|you would|responsible for|duties include|assist\w*|help\w*|install\w*|greet\w*|process\w*|build\w*|make|making|prepare\w*|serve|serving|clean\w*|maintain\w*|manage\w*|support\w*|handle\w*|take orders|operate\w*|deliver\w*|provide\w*|run|running|monitor\w*|repair\w*|record\w*|answer\w*|work with|working with|keep|keeping|stock\w*|restock\w*|sell\w*|teach\w*|care for|look after|cook\w*|pour\w*)\b/i
 };
 // Checks and clearances are yes/no gates. They stay requirements but never become questions, lessons or quiz items.
-const CHECK = /\b(?:criminal record|vulnerable sector|police (?:check|clearance|record)|security (?:check|clearance|screening)|background (?:check|screening)|references?(?: check)?\b(?= (?:required|check|available|on request))|reference checks?|drug (?:test|screen)\w*|work permit|eligib\w* to work|legally (?:entitled|eligible|able) to work|right to work|driver[’']?s abstract|driving abstract|driving record|(?:government|medical) clearance)\b/i;
+const CHECK = /\b(?:criminal record|vulnerable sector|police (?:check|clearance|record|information check)|security (?:check|clearance|screening)|background (?:check|screening)|references|(?:professional|work|employment|personal|character) reference|reference checks?|drug (?:test|screen)\w*|work permit|eligib\w* to work|legally (?:entitled|eligible|able) to work|right to work|driver[’']?s abstract|driving abstract|driving record|(?:government|medical) clearance)\b/i;
 const STRONG_MUST = /\b(?:must|required|requires|mandatory|essential|\d+\+? years?|certificat\w*|licen[cs]e\w*|degree|diploma)\b/i;
 const ABBR = /^(?:e\.g|i\.e|etc|st|dr|mr|mrs|ms|no|approx|incl|vs|a\.m|p\.m|jr|sr|inc|ltd|co)$/i;
 const BULLET = /^(\s*)(?:[-*•·▪◦‣●■➢➤►✓✔–—]|\d{1,2}[.)]|[a-z][.)])\s*/;
@@ -851,7 +851,7 @@ function analyze(jobText, opts) {
     const code = it.kind === 'must' ? 1 : it.kind === 'nice' ? 2 : 0;
     if (code) paint.fill(code, it.start, it.end);
   }
-  for (const r of skills.ranges) paint.fill(4, r.start, r.end);
+  for (const r of skills.ranges) if (!CHECK.test(src.slice(r.start, r.end))) paint.fill(4, r.start, r.end);
   for (const k of keywordList) {
     for (const h of k.hits) {
       let clash = false;
@@ -877,8 +877,8 @@ function analyze(jobText, opts) {
     sections: sections.map((s) => ({ kind: s.kind, title: s.title, lines: s.lines.map((l) => clean(l)) })),
     requirements: topReq.map((r) => ({ text: r.text, kind: r.kind, themes: r.themes, score: r.score })),
     themes,
-    skills: skills.list.slice(0, 12).map((s) => s.text),
-    keywords: keywordList.map((k) => clean(k.text)),
+    skills: skills.list.filter((s) => !CHECK.test(s.text)).slice(0, 12).map((s) => s.text),
+    keywords: keywordList.filter((k) => !CHECK.test(k.text)).map((k) => clean(k.text)),
     seniority,
     signals,
     highlights,
