@@ -436,3 +436,52 @@ test('answers in other languages are not flagged on English-only checks', () => 
   assert.match(check(es, 'structure').detail, /reads English answers/);
   assert.deepEqual(es.missing, []);
 });
+
+test('what you always or usually do is not one real time', () => {
+  // Trades fixture: a generic "we always" answer is not a story with all four parts.
+  const r = Coach.review("We always do lockout tagout on our sites. We check everything and we make sure it's safe. Our foreman is really strict about it so we never had any problems.", trades);
+  assert.equal(r.star.result, false);
+  assert.notEqual(r.starScore, 4);
+  assert.equal(check(r, 'structure').ok, false);
+  assert.equal(Coach.live('We always do lockout tagout on our sites.').star.situation, false);
+  assert.equal(Coach.live('At my last job, I always greeted customers.').star.situation, true);
+  assert.equal(Coach.live('One morning a regular who usually orders a latte came in upset.').star.situation, true);
+  const usual = Coach.review('I am a people person and I always help customers. I usually check the back if something is not on the floor.', retail);
+  assert.equal(check(usual, 'structure').detail, 'This says what you usually do; tell it as one real time it happened: where you were, what you did and how it turned out.');
+  assert.match(check(usual, 'ownership').detail, /you usually do yourself/);
+  // A real story that mentions a habit is still a real story.
+  assert.equal(check(Coach.review(`I usually work the morning shift. ${STRONG.cafe}`, cafe), 'structure').ok, true);
+});
+
+test('"me and my coworker" is a shared subject, and plain outcomes count as results', () => {
+  const r = Coach.review('Me and my coworker restocked the whole aisle before close.', retail);
+  assert.equal(r.star.action, true);
+  assert.equal(check(r, 'ownership').detail, 'You describe what the team did; add what you did yourself, starting with “I …”.');
+  assert.equal(Coach.live('My coworker and me restocked the whole aisle.').star.action, true);
+  assert.equal(Coach.live('She thanked my manager and me.').star.action, false);
+  assert.equal(Coach.live('She calmed down and bought the jacket.').star.result, true);
+  assert.equal(Coach.live('Everything worked after that.').star.result, true);
+  assert.equal(Coach.live('I calmed her down.').star.result, false);
+});
+
+test('a bare number of years is time in the job, not proof', () => {
+  const r = Coach.review('In my country I work in cafe 2 years. Many customers in morning. I make coffee fast and smile. Boss say I am good worker.', cafe);
+  assert.doesNotMatch(check(r, 'evidence').detail, /2 years/);
+  assert.equal(check(r, 'evidence').ok, false);
+  // A span that says how fast it worked is still proof.
+  const fast = Coach.review('At my last job I owned onboarding for new clients. I set up weekly check-ins and within 2 months all four accounts renewed.', OFFICE);
+  assert.match(check(fast, 'evidence').detail, /2 months/);
+  const early = Coach.review('On a renovation job last spring I planned the wiring with my journeyperson and we finished 2 weeks early.', trades);
+  assert.match(check(early, 'evidence').detail, /2 weeks/);
+});
+
+test('quoted words read as whole phrases, not fragments', () => {
+  const why = Coach.review('I love helping people put together outfits, and I shop at your Queen Street store a lot. I worked at a thrift shop where I sorted donations.', { question: 'What interests you in Store Associate at Maple & Thread?', info: { kind: 'motivation', source: null } });
+  assert.match(check(why, 'evidence').detail, /“Queen Street”/);
+  const star = Coach.review('At my last job at a coffee shop, a bus of tourists walked in at 7:30. I took orders while my coworker pulled shots. We served everyone and they left us a 5-star review.', cafe);
+  assert.match(check(star, 'evidence').detail, /“5-star review”/);
+  const nurse = Coach.review('During my practicum I noticed a resident was confused, so I called the nurse in charge right away and charted it in PointClickCare.', care);
+  assert.ok(!nurse.echoed.includes('charge'), JSON.stringify(nurse.echoed));
+  const vague = Coach.review('I felt really nervous but I knew I had to do something so I told my supervisor and she helped the resident.', care);
+  assert.doesNotMatch(check(vague, 'ownership').detail, /“do”/);
+});
