@@ -408,6 +408,7 @@ function coreKeptLine() {
    the mock answer. pointer-events: none in CSS, so it never blocks a tap. */
 function coreToastPlace(el) {
   el.classList.remove('top');
+  el.style.top = '';
   try {
     const keep = '#app .primary, #app textarea, #app input, #app select, #app button[type="submit"]';
     const covers = () => {
@@ -422,7 +423,10 @@ function coreToastPlace(el) {
     };
     if (covers()) {
       el.classList.add('top');
-      if (covers()) el.classList.remove('top');
+      /* Just below the top bar, so its Back button and the Privacy pill stay visible. */
+      const bar = document.querySelector('#app .topbar, #app .brandbar')?.getBoundingClientRect();
+      if (bar && bar.height > 0 && bar.bottom > 0 && bar.bottom < innerHeight / 3) el.style.top = Math.round(bar.bottom + 8) + 'px';
+      if (covers()) { el.classList.remove('top'); el.style.top = ''; }
     }
   } catch { /* placement is only a nicety */ }
 }
@@ -440,7 +444,7 @@ function notify(s, stay) {
   if (!sticky) toastTimer = setTimeout(() => {
     if (el.textContent !== s) return;
     el.classList.add('out');
-    toastTimer = setTimeout(() => { if (el.textContent === s) { el.textContent = ''; el.classList.remove('fresh', 'out', 'top'); } }, 240);
+    toastTimer = setTimeout(() => { if (el.textContent === s) { el.textContent = ''; el.classList.remove('fresh', 'out', 'top'); el.style.top = ''; } }, 240);
   }, 2200);
 }
 function persist() {
