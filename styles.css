@@ -684,9 +684,9 @@ details.block p.source { margin: 12px 0 0 36px; font-size: 13px; color: var(--mu
 .pips em { font-style: normal; font-size: 12px; color: var(--muted); }
 
 /* Screen change: the outgoing screen fades out above the incoming one (see render() in app.js). */
-.ghost { position: fixed; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
-.ghost *, .ghost *::before, .ghost *::after { animation: none !important; transition: none !important; }
-.ghost.keep-tabs .tabbar { visibility: hidden; }
+.core-ghost { position: fixed; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
+.core-ghost *, .core-ghost *::before, .core-ghost *::after { animation: none !important; transition: none !important; }
+.core-ghost.keep-tabs .tabbar { visibility: hidden; }
 
 @media (prefers-reduced-motion: no-preference) {
   .screen.with-tabs > .tabbar { animation: none; }
@@ -768,7 +768,7 @@ body.tabs-on #status { bottom: calc(72px + env(safe-area-inset-bottom)); }
 .day-card .point:last-child { padding-bottom: 4px; }
 
 @media print {
-  #aurora, #orb, .tabbar, #status, .icon-btn, .primary, .text-btn, .ghost, .sheet-wrap { display: none !important; }
+  #aurora, #orb, .tabbar, #status, .icon-btn, .primary, .text-btn, .core-ghost, .sheet-wrap { display: none !important; }
   html, body { background: #fff !important; }
   body, body * { color: #111 !important; text-shadow: none !important; }
   .screen, .scroll, .screen.with-tabs { min-height: 0 !important; height: auto !important; overflow: visible !important; padding: 0 !important; width: 100% !important; }

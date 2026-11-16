@@ -62,9 +62,12 @@ const CORE_DEFAULT_QUIZ = [
 ];
 let coreQuizJust = -1;
 let coreCelebrate = -1;
+/* Quiz items for a preparation. Indices stay stable (answers are keyed by index): an
+   unusable item in p.quizItems comes back as null and is skipped, never shifted out. */
 function coreQuizItems(p) {
-  const own = Array.isArray(p.quizItems) ? p.quizItems.filter((it) => it && typeof it.q === 'string' && Array.isArray(it.options) && it.options.length >= 2 && Number.isInteger(it.correct) && it.correct >= 0 && it.correct < it.options.length) : [];
-  if (own.length) return own;
+  const ok = (it) => it && typeof it.q === 'string' && Array.isArray(it.options) && it.options.length >= 2 && it.options.every((o) => typeof o === 'string') && Number.isInteger(it.correct) && it.correct >= 0 && it.correct < it.options.length;
+  const own = Array.isArray(p.quizItems) ? p.quizItems.map((it) => (ok(it) ? it : null)) : [];
+  if (own.some(Boolean)) return own;
   return CORE_DEFAULT_QUIZ.map((it) => ({ ...it, q: it.q.replace('{req}', p.requirements[0] || 'the main requirement') }));
 }
 function coreInfo(p, i) {
@@ -334,8 +337,9 @@ function wordCount(text) { const t = String(text || '').trim(); return t ? t.spl
 function stats(p) {
   const lessonsDone = p.course.filter((c) => c.done).length;
   const answersDone = p.questions.filter((_, i) => (p.notes['answer-' + i] || '').trim()).length;
-  const quiz = coreQuizItems(p).length;
-  const quizDone = Object.keys(p.quiz.answers || {}).filter((k) => /^\d+$/.test(k) && +k < quiz).length;
+  const quizItems = coreQuizItems(p);
+  const quiz = quizItems.filter(Boolean).length;
+  const quizDone = Object.keys(p.quiz.answers || {}).filter((k) => /^\d+$/.test(k) && quizItems[+k]).length;
   const mockDone = p.mock.answers.length;
   const mapDone = p.requirements.filter((_, i) => (p.notes['map-' + i] || '').trim()).length;
   const lessons = p.course.length;
@@ -424,7 +428,7 @@ function show(next, opts) {
   render({ ...(opts || {}), from });
 }
 function coreGhost(node, from, to) {
-  document.querySelectorAll('.ghost').forEach((g) => g.remove());
+  document.querySelectorAll('.core-ghost').forEach((g) => g.remove());
   if (!node || reduceMotion() || typeof node.animate !== 'function') return null;
   const sc = node.querySelector('.scroll');
   const top = sc ? sc.scrollTop : 0;
@@ -434,7 +438,7 @@ function coreGhost(node, from, to) {
     ['id', 'data-orb', 'data-action', 'data-say', 'data-screen', 'data-ring', 'data-bar'].forEach((a) => el.removeAttribute(a));
   });
   const wrap = document.createElement('div');
-  wrap.className = 'ghost';
+  wrap.className = 'core-ghost';
   wrap.setAttribute('aria-hidden', 'true');
   wrap.inert = true;
   wrap.appendChild(node);
@@ -617,7 +621,7 @@ const screens = {
     const readyHtml = ready && ready.length ? `<section class="readiness">
         <div class="section-head"><h2 class="section-title">Ready for each part of the job</h2><span class="muted">${covered} of ${ready.length}</span></div>
         <p class="hint">A part turns green once you write or practise an answer to one of its questions.</p>
-        <div class="theme-grid">${ready.map((t) => `<div class="theme-chip${t.done ? ' covered' : ''}"><span class="name">${t.done ? I.check : ''}${esc(t.label)}</span><span class="pips" aria-label="${t.done} of ${t.total} questions">${t.total ? Array.from({ length: t.total }, (_, k) => `<i class="${k < t.done ? 'on' : ''}"></i>`).join('') : '<em>No question for this yet</em>'}</span></div>`).join('')}</div>
+        <div class="theme-grid">${ready.map((t) => `<div class="theme-chip${t.done ? ' covered' : ''}"><span class="name">${t.done ? I.check : ''}${esc(t.label)}</span>${t.total ? `<span class="pips" role="img" aria-label="${t.done} of ${t.total} ${t.total === 1 ? 'question' : 'questions'} answered">${Array.from({ length: t.total }, (_, k) => `<i class="${k < t.done ? 'on' : ''}"></i>`).join('')}</span>` : '<span class="pips"><em>No question for this yet</em></span>'}</div>`).join('')}</div>
       </section>` : '';
     return shell('progress', `
       <h1>Progress</h1>
@@ -703,7 +707,7 @@ const screens = {
           ${info.probe ? `<div class="guide"><p class="kicker">What they want to hear</p><p>${esc(info.probe)}</p></div>` : ''}
           ${include.length ? `<div class="guide"><p class="kicker">A strong answer includes</p><ul class="includes">${include.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
           ${info.source ? `<p class="source">From the ad: “${esc(info.source)}”</p>` : ''}` : '<p class="muted">Situation, Task, your Action, Result, and what you learned.</p>';
-        return `<details class="block qa${drafted(i) ? ' drafted' : ''}" ${i === firstOpen ? 'open' : ''}><summary><span class="qnum" aria-hidden="true">${drafted(i) ? I.check : i + 1}</span><span class="qtext">${esc(q)}</span>${I.chev}</summary>
+        return `<details class="block qa${drafted(i) ? ' drafted' : ''}" ${i === firstOpen ? 'open' : ''}><summary><span class="qnum" aria-hidden="true">${drafted(i) ? I.check : i + 1}</span><span class="qtext">${drafted(i) ? '<span class="sr">Drafted: </span>' : ''}${esc(q)}</span>${I.chev}</summary>
           ${guide}
           <label class="field" for="answer-${i}">Your evidence and answer</label><textarea id="answer-${i}" rows="6" data-note="answer-${i}" placeholder="Describe something you actually did.">${esc(p.notes['answer-' + i] || '')}</textarea>
           <div class="meta live" data-live="${i}">${coreLiveHtml(p.notes['answer-' + i] || '')}</div></details>`;
@@ -712,10 +716,12 @@ const screens = {
   },
   quiz() {
     const p = active;
-    const items = coreQuizItems(p);
+    const all = coreQuizItems(p);
+    const items = all.filter(Boolean);
     const ans = p.quiz.answers || {};
-    const answered = items.filter((_, i) => ans[i] !== undefined).length;
-    const right = items.filter((it, i) => ans[i] === it.correct).length;
+    const answered = all.filter((it, i) => it && ans[i] !== undefined).length;
+    const right = all.filter((it, i) => it && ans[i] === it.correct).length;
+    let num = 0;
     const just = coreQuizJust;
     coreQuizJust = -1;
     const fromAd = Array.isArray(p.quizItems) && p.quizItems.length;
@@ -725,15 +731,17 @@ const screens = {
       <h1>Check your approach</h1>
       <p class="italic lg">Technique, not a score.</p>
       <p class="sub">${fromAd ? 'Built from your job ad. ' : ''}This checks interview technique, not technical certification or hiring readiness.</p>
-      <div class="quiz-dots" aria-hidden="true">${items.map((it, i) => `<span class="${ans[i] === undefined ? '' : ans[i] === it.correct ? 'ok' : 'miss'}"></span>`).join('')}</div>
-      ${items.map((q, i) => {
+      <div class="quiz-dots" aria-hidden="true">${all.map((it, i) => (it ? `<span class="${ans[i] === undefined ? '' : ans[i] === it.correct ? 'ok' : 'miss'}"></span>` : '')).join('')}</div>
+      ${all.map((q, i) => {
+        if (!q) return '';
+        num += 1;
         const pick = ans[i];
         const done = pick !== undefined;
         const ok = done && pick === q.correct;
-        return `<article class="quiz${done ? (ok ? ' is-ok' : ' is-miss') : ''}${i === just ? ' just' : ''}"><h2><span class="qn">${i + 1}</span>${esc(q.q)}</h2><div class="choices">${q.options.map((o, j) => {
+        return `<article class="quiz${done ? (ok ? ' is-ok' : ' is-miss') : ''}${i === just ? ' just' : ''}"><h2><span class="qn">${num}</span>${esc(q.q)}</h2><div class="choices">${q.options.map((o, j) => {
           const cls = done ? (j === q.correct ? ' correct' : j === pick ? ' wrong' : ' dim') : '';
           return `<button type="button" class="choice${cls}" data-action="quiz" data-q="${i}" data-choice="${j}" ${done ? 'disabled' : ''}><span><span class="opt">${esc(o)}${done && j === pick ? '<small>Your pick</small>' : ''}</span>${done && j === q.correct ? I.check : ''}</span></button>`;
-        }).join('')}</div>${done ? `<p class="result ${ok ? 'ok' : 'miss'}"${i === just ? ' role="status"' : ''}><strong>${ok ? 'Yes, that is the strongest choice.' : 'Good try. The stronger choice is marked in green.'}</strong> ${esc(q.why)}</p>` : ''}</article>`;
+        }).join('')}</div>${done ? `<p class="result ${ok ? 'ok' : 'miss'}" id="quiz-result-${i}" tabindex="-1"><strong>${ok ? 'Yes, that is the strongest choice.' : 'Good try. The stronger choice is marked in green.'}</strong> ${esc(q.why)}</p>` : ''}</article>`;
       }).join('')}
       ${summary}
       ${answered ? '<button type="button" class="text-btn" id="retry">Retry quiz</button>' : ''}
@@ -909,17 +917,22 @@ function coreRestore(p) {
     if (typeof v !== 'string' || v.length > 60000) throw Error('Invalid note');
     fresh.notes[k] = v;
   }
+  /* When the backup's own list is unusable the engine's list is used instead, and the notes
+     keyed by index into that list are dropped so they never attach to a different item. */
+  const dropNotes = (prefix) => Object.keys(fresh.notes).forEach((k) => { if (k.startsWith(prefix)) delete fresh.notes[k]; });
   const questions = coreStrList(p.questions, 20, 2000);
   if (questions) {
     fresh.questions = questions;
     const info = coreCleanInfo(p.questionInfo, questions.length);
     if (info) fresh.questionInfo = info;
     else delete fresh.questionInfo;
-  }
+  } else dropNotes('answer-');
   const requirements = coreStrList(p.requirements, 12, 2000);
   if (requirements) fresh.requirements = requirements;
+  else dropNotes('map-');
   const course = coreCleanCourse(p.course);
   if (course) fresh.course = course;
+  else dropNotes('lesson-');
   if (coreParseWhen(p.interviewAt)) fresh.interviewAt = p.interviewAt;
   /* Quiz: keep the backup's own items; a backup from before ad-specific quizzes answered the three
      default items, so it restores onto those. Answers are dropped if the items are unusable. */
@@ -933,7 +946,7 @@ function coreRestore(p) {
   if (quizOK && p.quiz?.answers && typeof p.quiz.answers === 'object') {
     const items = coreQuizItems(fresh);
     for (const [k, v] of Object.entries(p.quiz.answers)) {
-      if (/^\d{1,2}$/.test(k) && +k < items.length && Number.isInteger(v) && v >= 0 && v < items[+k].options.length) fresh.quiz.answers[k] = v;
+      if (/^\d{1,2}$/.test(k) && items[+k] && Number.isInteger(v) && v >= 0 && v < items[+k].options.length) fresh.quiz.answers[k] = v;
     }
   }
   /* Mock log: kept only when every saved answer still belongs to the same question. */
@@ -984,6 +997,10 @@ function coreBindAnswers() {
           block.classList.toggle('drafted', has);
           const num = block.querySelector('.qnum');
           if (num) num.innerHTML = has ? I.check : String(+i + 1);
+          const qt = block.querySelector('.qtext');
+          const sr = qt && qt.querySelector('.sr');
+          if (qt && has && !sr) qt.insertAdjacentHTML('afterbegin', '<span class="sr">Drafted: </span>');
+          else if (sr && !has) sr.remove();
           const count = $('#bank-count');
           if (count && active) count.textContent = active.questions.filter((_, k) => (active.notes['answer-' + k] || '').trim()).length + ' of ' + active.questions.length;
         }
@@ -1020,7 +1037,10 @@ function bindScreen() {
       try { window.NextStepOrb?.celebrate?.(); } catch { /* optional orb hook */ }
       const left = active.course.filter((x) => !x.done).length;
       notify(left ? 'Lesson done. ' + left + ' to go.' : 'Every lesson done. Now practise out loud.');
-    } else show('lesson', { keep: true });
+    } else {
+      show('lesson', { keep: true });
+      $('#mark')?.focus({ preventScroll: true });
+    }
   });
   if ($('#retry')) $('#retry').addEventListener('click', () => { active.quiz.answers = {}; save(); show('quiz'); });
   if ($('#delete-all')) $('#delete-all').addEventListener('click', () => {
@@ -1072,11 +1092,12 @@ document.body.addEventListener('click', (e) => {
   if (action === 'print-day') { window.print(); return; }
   if (action === 'set-when') { if (needPrep()) { coreWhenEditing = true; show('today', { keep: true }); $('#when-date')?.focus(); } return; }
   if (action === 'quiz') {
-    if (active.quiz.answers[el.dataset.q] !== undefined) return;
+    if (!active || active.quiz.answers[el.dataset.q] !== undefined || !coreQuizItems(active)[+el.dataset.q]) return;
     active.quiz.answers[el.dataset.q] = +el.dataset.choice;
     save();
     coreQuizJust = +el.dataset.q;
     show('quiz', { keep: true });
+    document.getElementById('quiz-result-' + el.dataset.q)?.focus({ preventScroll: true });
   }
 });
 
