@@ -256,10 +256,10 @@
       }
       words += n;
       inSentence += n;
-      if (EN.has(t)) en++;
+      if (EN.has(t) || STOP.has(t) || GENERIC.has(t) || NOT_ACTION.has(t) || baseOf(t)) en++;
     }
     if (inSentence) sentences.push(inSentence);
-    return { toks, words, sentences, english: words < 12 || en / words >= 0.15 };
+    return { toks, words, sentences, english: words < 12 || en / words >= 0.2 };
   }
 
   /* ---------- who did what ---------- */
@@ -463,7 +463,7 @@
 
   /* ---------- relevance to the ad ---------- */
 
-  const WORD_RE = /[\p{L}\p{N}]+(?:['+#.-][\p{L}\p{N}+#]+)*/gu;
+  const WORD_RE = /[\p{L}\p{N}]+(?:['.-][\p{L}\p{N}]+)*[+#]*/gu;
   function stem(w) {
     w = w.toLowerCase().replace(/'s$/, '');
     if (w.length <= 3) return w;
@@ -496,9 +496,10 @@
     return false;
   }
   function termHits(term, idx) {
-    const words = term.toLowerCase().match(WORD_RE) || [];
+    // Split the term exactly like the answer, so "C++", "Node.js" and "lockout/tagout" line up with what was typed.
+    const words = tokenize(clean(term)).toks.filter((t) => t !== ',' && t !== '.');
     if (words.length && idx.flat.includes(` ${words.join(' ')} `)) return { all: true, part: 1 };
-    const parts = contentParts(term);
+    const parts = words.filter((w) => !STOP.has(w));
     if (!parts.length) return { all: false, part: 0 };
     let hit = 0;
     for (const w of parts) if (w.length <= 2 ? idx.tokSet.has(w) : stemIn(stem(w), idx)) hit++;
@@ -617,8 +618,12 @@
       const lv = v.toLowerCase();
       if (v && !isYear(v) && nums.length < 4 && !nums.some((n) => n.toLowerCase().includes(lv) || lv.includes(n.toLowerCase()))) nums.push(v);
     };
-    for (const m of s.matchAll(NUM_RE)) push(numberPhrase(s, m));
+    for (const m of s.matchAll(NUM_RE)) {
+      push(numberPhrase(s, m));
+      if (nums.length >= 4) break;
+    }
     for (const m of s.matchAll(NUM_WORD_RE)) {
+      if (nums.length >= 4) break;
       const v = numberPhrase(s, m);
       if (v.includes(' ')) push(v.toLowerCase());
     }
@@ -626,12 +631,13 @@
     if (span) push(span[0].toLowerCase());
     const names = [];
     for (const sentence of s.split(/[.!?\n]+/)) {
+      if (names.length >= 4) break;
       const ws = sentence.match(/[\p{L}\p{N}][\p{L}\p{N}'&+-]*/gu) || [];
-      ws.forEach((w, i) => {
-        if (names.length >= 4 || CAPS_SKIP.has(w) || names.includes(w)) return;
-        const acronym = /^\p{Lu}{2,}$/u.test(w);
-        if ((i > 0 && /^\p{Lu}/u.test(w)) || acronym) names.push(w.slice(0, 28));
-      });
+      for (let i = 0; i < ws.length && names.length < 4; i++) {
+        const w = ws[i];
+        if (w.length < 2 || CAPS_SKIP.has(w) || names.includes(w)) continue;
+        if ((i > 0 && /^\p{Lu}/u.test(w)) || /^\p{Lu}{2,}$/u.test(w)) names.push(w.slice(0, 28));
+      }
     }
     // How people reacted afterwards ("she thanked me", a quoted comment) is proof too; look in the later part of the answer.
     const tail = s.slice(Math.floor(s.length * 0.4));

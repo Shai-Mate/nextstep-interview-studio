@@ -316,3 +316,17 @@ test('hypothetical and learning questions get their own plain titles', () => {
   assert.equal(check(gap, 'structure').ok, true);
   assert.match(check(gap, 'ownership').detail, /“sign up”/);
 });
+
+test('skills with symbols match the way people type them', () => {
+  const r = Coach.review('I know C++ and Node.js, I ran A/B tests and I follow lockout/tagout on every job.', { analysis: { skills: ['C++', 'Node.js', 'A/B tests', 'lockout/tagout', 'GraphQL'] } });
+  for (const s of ['C++', 'Node.js', 'A/B tests', 'lockout/tagout']) assert.ok(r.echoed.includes(s), s);
+  assert.ok(!r.echoed.includes('GraphQL'));
+  assert.doesNotMatch(check(r, 'evidence').detail, /“B”/);
+});
+
+test('short note-style English is still read as English', () => {
+  const r = Coach.review('Restocked shelves. Counted inventory. Trained 3 new hires. Reduced shrink 10%. Opened store Saturdays.', retail);
+  assert.doesNotMatch(check(r, 'structure').detail, /English/);
+  assert.equal(r.star.action, true);
+  assert.equal(r.star.result, true);
+});
