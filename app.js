@@ -37,12 +37,105 @@ const analysisCache = new Map();
 /* Deterministic ad analysis, recomputed from the saved ad text (works for older preparations too). */
 function analysisOf(p) {
   if (!p || !globalThis.PrepEngine || typeof PrepEngine.analyze !== 'function') return null;
-  const key = p.id + ':' + String(p.job || '').length;
+  const key = [p.id, String(p.job || '').length, p.role, p.company].join('\u0001');
   if (!analysisCache.has(key)) {
     try { analysisCache.set(key, PrepEngine.analyze(p.job, { role: p.role, company: p.company })); }
     catch { analysisCache.set(key, null); }
   }
   return analysisCache.get(key);
+}
+
+/* Core helpers for the richer engine output. Every one falls back cleanly for older
+   preparations that have no questionInfo / quizItems / analysis. Prefixed to avoid
+   clashing with top-level names in the other classic scripts. */
+const CORE_KIND_LABEL = { motivation: 'Why this job', behavioural: 'A time when…', role: 'Doing the job', situational: 'What would you do?', gap: 'Something new to you', closing: 'Your questions' };
+const CORE_REQ_KINDS = [
+  ['must', 'Must-haves', 'What the ad says you need. Try to bring one true example for each.'],
+  ['duty', 'Day to day', 'What you would actually do. Think of a time you did something like it.'],
+  ['nice', 'Nice to have', 'Extras, not deal-breakers. “Not yet, and here is how I would learn it” is a fine answer.'],
+  ['other', 'Also in the ad', 'Worth a sentence or two if it comes up.']
+];
+const CORE_DEFAULT_QUIZ = [
+  { q: 'Which answer best demonstrates a job requirement?', options: ['A confident claim with no example', 'A true example with your action and a clear outcome', 'Someone else’s experience presented as yours'], correct: 1, why: 'Specific, truthful evidence is more useful than polished claims.' },
+  { q: 'The job ad says: “{req}”. What should you prepare?', options: ['A relevant example and a question about success', 'An unrelated memorized speech', 'An invented company policy'], correct: 0, why: 'Connect your own evidence to the exact requirement and clarify what success means.' },
+  { q: 'You have not done part of this role before. What is the strongest approach?', options: ['Pretend you have', 'Avoid the topic entirely', 'Be honest, connect transferable skills and explain how you would learn'], correct: 2, why: 'An honest gap plus a credible learning plan protects your integrity and shows judgment.' }
+];
+let coreQuizJust = -1;
+let coreCelebrate = -1;
+function coreQuizItems(p) {
+  const own = Array.isArray(p.quizItems) ? p.quizItems.filter((it) => it && typeof it.q === 'string' && Array.isArray(it.options) && it.options.length >= 2 && Number.isInteger(it.correct) && it.correct >= 0 && it.correct < it.options.length) : [];
+  if (own.length) return own;
+  return CORE_DEFAULT_QUIZ.map((it) => ({ ...it, q: it.q.replace('{req}', p.requirements[0] || 'the main requirement') }));
+}
+function coreInfo(p, i) {
+  const info = Array.isArray(p.questionInfo) ? p.questionInfo[i] : null;
+  return info && typeof info === 'object' ? info : null;
+}
+function coreThemeLabel(id, a) {
+  if (!id) return '';
+  const t = a && Array.isArray(a.themes) ? a.themes.find((x) => x && x.id === id) : null;
+  const cat = globalThis.PrepEngine && PrepEngine.themes ? PrepEngine.themes[id] : null;
+  return (t && t.label) || (cat && cat.label) || String(id).replace(/[-_]+/g, ' ').replace(/^./, (c) => c.toUpperCase());
+}
+/* Kind + themes for each saved p.requirements[i], matched by text against the analysis. */
+function coreReqMeta(p, a) {
+  const list = a && Array.isArray(a.requirements) ? a.requirements : [];
+  const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  return p.requirements.map((r) => {
+    const n = norm(r);
+    if (!n) return null;
+    const hit = list.find((x) => {
+      const m = norm(x && x.text);
+      return m && (m === n || (m.length > 24 && n.length > 24 && (m.startsWith(n) || n.startsWith(m))));
+    });
+    if (!hit) return null;
+    const kind = ['must', 'duty', 'nice'].includes(hit.kind) ? hit.kind : 'other';
+    return { kind, themes: Array.isArray(hit.themes) ? hit.themes.filter(Boolean) : [] };
+  });
+}
+/* A theme is covered once an answer-bank note or a mock answer exists for one of its questions. */
+function coreThemeReadiness(p, a) {
+  if (!a || !Array.isArray(a.themes) || !a.themes.length || !Array.isArray(p.questionInfo)) return null;
+  const practised = new Set(p.mock.answers.map((x) => x && x.question));
+  return a.themes.filter((t) => t && t.id).map((t) => {
+    const qs = p.questions.map((_, i) => i).filter((i) => coreInfo(p, i)?.theme === t.id);
+    const done = qs.filter((i) => (p.notes['answer-' + i] || '').trim() || practised.has(p.questions[i])).length;
+    return { id: t.id, label: t.label || coreThemeLabel(t.id, a), total: qs.length, done };
+  });
+}
+/* Job ad with the analysis highlights (char ranges into p.job), escaped. */
+function coreHighlightAd(text, a) {
+  const src = String(text || '');
+  const hs = a && Array.isArray(a.highlights) ? a.highlights : [];
+  const kinds = new Set();
+  let out = '';
+  let at = 0;
+  for (const h of hs) {
+    const s = Number(h && h.start), e = Number(h && h.end);
+    if (!Number.isInteger(s) || !Number.isInteger(e) || s < at || e <= s || e > src.length) continue;
+    const kind = ['skill', 'keyword', 'must', 'nice'].includes(h.kind) ? h.kind : 'keyword';
+    kinds.add(kind);
+    out += esc(src.slice(at, s)) + `<mark class="hl hl-${kind}">${esc(src.slice(s, e))}</mark>`;
+    at = e;
+  }
+  return { html: out + esc(src.slice(at)), kinds };
+}
+function coreLive(text) {
+  try {
+    if (globalThis.Coach && typeof Coach.live === 'function') {
+      const r = Coach.live(String(text || ''));
+      if (r && typeof r === 'object' && Number.isFinite(r.words)) return r;
+    }
+  } catch { /* fall back below */ }
+  const words = wordCount(text);
+  return { words, seconds: Math.round((words / 140) * 60), star: null };
+}
+function coreLiveHtml(text) {
+  const r = coreLive(text);
+  const secs = Math.max(0, Math.round(r.seconds || 0));
+  const spoken = !r.words ? 'Nothing yet' : r.words + (r.words === 1 ? ' word' : ' words') + ' · about ' + (secs < 60 ? secs + ' s' : Math.floor(secs / 60) + ' min ' + String(secs % 60).padStart(2, '0') + ' s') + ' aloud';
+  const star = r.star && typeof r.star === 'object' ? `<span class="star-pips" title="Situation, Task, Action, Result" aria-label="Situation, Task, Action, Result: ${['situation', 'task', 'action', 'result'].filter((k) => r.star[k]).length} of 4 covered">${[['situation', 'S'], ['task', 'T'], ['action', 'A'], ['result', 'R']].map(([k, l]) => `<i class="${r.star[k] ? 'on' : ''}" aria-hidden="true">${l}</i>`).join('')}</span>` : '';
+  return `<span>${spoken}</span>${star}`;
 }
 
 let records = [];
@@ -82,12 +175,12 @@ function wordCount(text) { const t = String(text || '').trim(); return t ? t.spl
 function stats(p) {
   const lessonsDone = p.course.filter((c) => c.done).length;
   const answersDone = p.questions.filter((_, i) => (p.notes['answer-' + i] || '').trim()).length;
-  const quizDone = Object.keys(p.quiz.answers || {}).length;
+  const quiz = coreQuizItems(p).length;
+  const quizDone = Object.keys(p.quiz.answers || {}).filter((k) => /^\d+$/.test(k) && +k < quiz).length;
   const mockDone = p.mock.answers.length;
   const mapDone = p.requirements.filter((_, i) => (p.notes['map-' + i] || '').trim()).length;
   const lessons = p.course.length;
   const answers = p.questions.length;
-  const quiz = 3;
   const mock = p.questions.length;
   const map = p.requirements.length;
   const done = lessonsDone + answersDone + quizDone + mockDone + mapDone;
@@ -127,6 +220,9 @@ function segs(count, done, current) {
   for (let i = 0; i < count; i++) html += `<span class="${i < done ? 'done' : i === current ? 'now' : ''}"></span>`;
   return html + '</div>';
 }
+function coreLessonSegs(p, current, pop) {
+  return `<div class="segs" aria-hidden="true">${p.course.map((c, i) => `<span class="${c.done ? 'done' : i === current ? 'now' : ''}${i === pop ? ' pop' : ''}"></span>`).join('')}</div>`;
+}
 function ring(pct) {
   const circ = 163.4;
   const dash = Math.max(0, Math.min(circ, (pct / 100) * circ)).toFixed(1);
@@ -156,21 +252,73 @@ function mockLine(p) {
   return 'Resume at question ' + (p.mock.index + 1) + ' of ' + p.questions.length;
 }
 
-function show(next) {
+/* Screen changes stay synchronous (callers can query the new DOM right after show()).
+   Motion: the outgoing screen is kept as an inert, id-free snapshot that fades out over
+   ~220 ms while the new screen's content rises in. It never touches the #aurora / #orb
+   canvases, needs no View Transitions support (older iOS Safari included) and is skipped
+   under prefers-reduced-motion. show(view, { keep: true }) re-renders in place: scroll kept,
+   no entrance motion (used for quiz answers, rename, mark incomplete). */
+const CORE_DEPTH = { welcome: 0, today: 1, learn: 1, practise: 1, progress: 1, lessons: 3, privacy: 3 };
+function show(next, opts) {
+  const from = view;
   view = next;
-  render();
+  render({ ...(opts || {}), from });
 }
-function render() {
+function coreGhost(node, from, to) {
+  document.querySelectorAll('.ghost').forEach((g) => g.remove());
+  if (!node || reduceMotion() || typeof node.animate !== 'function') return null;
+  const sc = node.querySelector('.scroll');
+  const top = sc ? sc.scrollTop : 0;
+  const winY = window.scrollY || 0;
+  node.remove();
+  [node, ...node.querySelectorAll('[id],[data-orb],[data-action],[data-say],[data-screen],[data-ring],[data-bar]')].forEach((el) => {
+    ['id', 'data-orb', 'data-action', 'data-say', 'data-screen', 'data-ring', 'data-bar'].forEach((a) => el.removeAttribute(a));
+  });
+  const wrap = document.createElement('div');
+  wrap.className = 'ghost';
+  wrap.setAttribute('aria-hidden', 'true');
+  wrap.inert = true;
+  wrap.appendChild(node);
+  const d = (CORE_DEPTH[to] ?? 2) - (CORE_DEPTH[from] ?? 2);
+  return { wrap, node, sc, top, winY, dx: d > 0 ? -14 : d < 0 ? 14 : 0 };
+}
+function coreFadeGhost(g) {
+  if (!g) return;
+  if (g.node.classList.contains('with-tabs') && document.querySelector('#app .tabbar')) g.wrap.classList.add('keep-tabs');
+  document.body.appendChild(g.wrap);
+  if (g.sc) g.sc.scrollTop = g.top;
+  else if (g.winY) g.node.style.transform = `translate3d(0, ${-g.winY}px, 0)`;
+  const anim = g.wrap.animate(
+    [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translate3d(${g.dx}px, -6px, 0) scale(.985)` }],
+    { duration: 220, easing: 'cubic-bezier(.4, 0, .9, .6)', fill: 'forwards' }
+  );
+  const done = () => g.wrap.remove();
+  anim.onfinish = done;
+  setTimeout(done, 600);
+}
+function render(opts = {}) {
+  const app = $('#app');
   const screen = screens[view] || screens.welcome;
-  $('#app').innerHTML = screen();
+  const keep = !!opts.keep;
+  const oldScroll = document.querySelector('#app .scroll');
+  const keepTop = keep ? (oldScroll ? oldScroll.scrollTop : window.scrollY) : 0;
+  const ghost = keep ? null : coreGhost(app.firstElementChild, opts.from, view);
+  app.innerHTML = screen();
+  if (keep && app.firstElementChild) app.firstElementChild.classList.add('steady');
   bindScreen();
-  animateBits();
-  const sc = document.querySelector('.scroll');
-  if (sc) sc.scrollTop = 0;
-  window.scrollTo(0, 0);
+  animateBits(keep);
+  const sc = document.querySelector('#app .scroll');
+  if (keep) {
+    if (sc) sc.scrollTop = keepTop;
+    else window.scrollTo(0, keepTop);
+  } else {
+    if (sc) sc.scrollTop = 0;
+    window.scrollTo(0, 0);
+  }
+  coreFadeGhost(ghost);
 }
-function animateBits() {
-  if (reduceMotion()) return;
+function animateBits(keep) {
+  if (keep || reduceMotion()) return;
   document.querySelectorAll('[data-bar]').forEach((b, i) => {
     b.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: 1000, delay: 400 + i * 80, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' });
   });
@@ -200,18 +348,19 @@ const screens = {
         </div>
         <div class="install-row"><span>Add to your Home Screen first, so your work stays in one place.</span><button type="button" class="link" data-action="how">How</button></div>
         <button type="button" class="primary" data-action="start">Start your first preparation</button>
-        <button type="button" class="text-btn" data-action="try-sample">Try it with a sample job ad</button>
+        ${actions['try-sample'] ? '<button type="button" class="text-btn" data-action="try-sample">Try it with a sample job ad</button>' : ''}
         <p class="fine">Free. No account. No trackers or AI calls.</p>
       </div>`;
     }
-    const s = stats;
     return `<div class="screen welcome" data-screen="welcome">
       <div class="brandbar"><span class="logo">NextStep</span><button type="button" class="pill" data-action="privacy">${I.lock}<span>On this device</span></button></div>
       <div class="ask"><p class="italic lg">Pick up where you left off.</p><div class="orb-slot md"><div class="orb-anchor md" data-orb data-env=".6" data-s=".75" data-up="80,40" data-down="40,90" data-energy="${glow(records[0])}"></div></div></div>
-      <p class="sub">Your preparations stay on this device.</p>
+      <p class="sub">${records.length === 1 ? 'Your preparation stays on this device.' : records.length + ' preparations, all on this device.'}</p>
       <div class="prep-list">${records.map((p) => {
-        const st = s(p);
-        return `<article class="glass prep-card"><p class="kicker">${esc(p.company)}</p><h2>${esc(p.role)}</h2><p class="muted">${esc(p.intake.stage)} · ${esc(p.intake.time)}</p>${bar(Math.round(st.ratio * 100))}<p class="muted">${st.lessonsDone}/${st.lessons} lessons · mock ${p.mock.finished ? 'complete' : p.mock.index + '/' + p.questions.length}</p><button type="button" class="primary" data-action="resume" data-id="${esc(p.id)}">Resume preparation</button></article>`;
+        const st = stats(p);
+        const pct = Math.round(st.ratio * 100);
+        const next = p.course.find((c) => !c.done);
+        return `<article class="glass prep-card"><div class="prep-top"><div><p class="kicker">${esc(p.company)}</p><h2>${esc(p.role)}</h2></div><span class="prep-pct">${pct}%</span></div><p class="muted">${esc(p.intake.stage)} · ${esc(p.intake.time)} a day</p>${bar(pct)}<p class="next-up">${next ? 'Up next · ' + esc(next.title) : 'Every lesson done · keep practising'}</p><button type="button" class="primary" data-action="resume" data-id="${esc(p.id)}"><span>Resume preparation</span>${I.arrow}</button></article>`;
       }).join('')}</div>
       <div class="spacer"></div>
       <button type="button" class="primary gap-top" data-action="start">New preparation</button>
@@ -229,20 +378,31 @@ const screens = {
     const picks = todayPicks(p);
     const left = picks.filter((c) => !c.done).reduce((sum, c) => sum + (c.minutes || 5), 0);
     const allDone = p.course.every((c) => c.done);
+    const a = analysisOf(p);
+    const pop = coreCelebrate;
+    coreCelebrate = -1;
+    const themes = a && Array.isArray(a.themes) ? a.themes.filter((t) => t && t.label).slice(0, 3) : [];
+    const musts = a && Array.isArray(a.requirements) ? a.requirements.filter((r) => r && r.kind === 'must').length : 0;
+    const skills = a && Array.isArray(a.skills) ? a.skills.length : 0;
+    const facts = [musts ? musts + ' must-have' + (musts === 1 ? '' : 's') : '', skills ? skills + (skills === 1 ? ' skill' : ' skills') + ' the ad mentions' : '', a && a.seniority && a.seniority.level && a.seniority.level !== 'Unknown' ? a.seniority.level + ' level' : ''].filter(Boolean).join(' · ');
+    const decoded = a && actions['open-insights'] ? `<button type="button" class="glass button decoded" data-action="open-insights"><span class="copy"><span class="kicker">Your ad, decoded</span><strong>What this job is really about</strong>${themes.length ? `<span class="tags">${themes.map((t) => `<b class="tag">${esc(t.label)}</b>`).join('')}</span>` : ''}${facts ? `<span>${esc(facts)}</span>` : ''}</span>${I.chev}</button>` : '';
+    const ad = coreHighlightAd(p.job, a);
+    const legend = [['must', 'Must-have'], ['skill', 'Skill or tool'], ['nice', 'Nice to have'], ['keyword', 'Worth repeating']].filter(([k]) => ad.kinds.has(k));
     return shell('today', `
       <p class="date">${esc(longDate(now))}</p>
       <h1 class="italic greet">${esc(greeting(now))}</h1>
       <p class="role-name">${esc(p.role)}</p>
       <p class="muted">${esc(p.company)} · ${esc(p.intake.stage)}</p>
-      <div class="glass pad">
-        <div class="session-head"><div class="min-left">${allDone ? 'All lessons complete' : left + ' min left'}</div><div class="session-kicker">Today's ${budgetOf(p)}-minute session</div></div>
+      <div class="glass pad session${pop >= 0 ? ' celebrate' : ''}">
+        <div class="session-head"><div class="min-left">${pop >= 0 ? `<span class="done-badge">${I.check}Lesson ${pop + 1} done</span>` : allDone ? 'All lessons complete' : left + ' min left'}</div><div class="session-kicker">Today's ${budgetOf(p)}-minute session</div></div>
         <h2 class="session-title">${esc(lesson.title)}</h2>
         <p class="upnow">${allDone ? 'Review any lesson' : 'Up now · Lesson ' + (idx + 1) + ' of ' + p.course.length}</p>
-        ${segs(p.course.length, p.course.filter((c) => c.done).length, allDone ? -1 : idx)}
+        ${coreLessonSegs(p, allDone ? -1 : idx, pop)}
         <button type="button" class="primary" data-action="continue"><span>${allDone ? 'Review lessons' : 'Continue'}</span>${I.arrow}</button>
       </div>
+      ${decoded}
       <div class="glass flat" aria-label="${pct} percent prepared">
-        <div class="stat-row">${ring(pct)}<div><strong>Preparation so far</strong><p class="muted">${st.done} of ${st.total} steps done. Keep going, one small step at a time.</p></div></div>
+        <div class="stat-row">${ring(pct)}<div><strong>Preparation so far</strong><p class="muted">${st.done} of ${st.total} steps done. ${st.done ? 'Keep going, one small step at a time.' : 'Start with today’s first lesson.'}</p></div></div>
         <div class="stat-grid">
           <div><b>${st.lessonsDone}/${st.lessons}</b><span>Lessons</span></div>
           <div><b>${st.answersDone}/${st.answers}</b><span>Answers</span></div>
@@ -252,19 +412,20 @@ const screens = {
       </div>
       <button type="button" class="glass button" data-action="open-mock"><span class="copy"><strong>Mock interview</strong><span>${esc(mockLine(p))}</span></span>${I.chev}</button>
       ${renaming ? `<form class="rename" id="rename-form"><input id="rename-input" type="text" maxlength="120" value="${esc(p.role)}" aria-label="Job title"><button class="primary" type="submit">Save</button></form>` : `<div class="pager"><button type="button" class="quiet" id="rename">Rename</button><button type="button" class="quiet" id="export-one">Export backup</button><button type="button" class="quiet" data-action="all-preps">All preparations</button></div>`}
-      <details class="fold"><summary>Review original job ad</summary><pre>${esc(p.job)}</pre>${p.url ? `<p class="muted">Reference URL: ${esc(p.url)}</p>` : ''}</details>
+      <details class="fold"><summary>Review original job ad</summary>${legend.length ? `<p class="hl-legend">${legend.map(([k, l]) => `<mark class="hl hl-${k}">${l}</mark>`).join('')}</p>` : ''}<pre class="ad-text">${ad.html}</pre>${p.url ? `<p class="muted">Reference URL: ${esc(p.url)}</p>` : ''}</details>
     `);
   },
   practise() {
     const p = active;
     const st = stats(p);
+    const fromAd = Array.isArray(p.quizItems) && p.quizItems.length;
     return shell('practise', `
       <h1>Practise</h1>
       <p class="italic lg">Say it out loud first.</p>
       <p class="sub">Practise, pause, pick up again. Drafts save as you go.</p>
       <button type="button" class="row" data-action="open-mock"><span class="copy"><strong>Mock interview</strong><em>${esc(mockLine(p))}</em></span>${I.chev.replace('stroke="currentColor"', 'stroke="#FFC48A"')}</button>
-      <button type="button" class="row" data-action="open-answers"><span class="copy"><strong>Answer bank</strong><em>${st.answersDone} of ${st.answers} answers drafted</em></span>${I.chev}</button>
-      <button type="button" class="row" data-action="open-quiz"><span class="copy"><strong>Quiz</strong><em>${st.quizDone} of ${st.quiz} done</em></span>${I.chev}</button>
+      <button type="button" class="row" data-action="open-answers"><span class="copy"><strong>Answer bank</strong><em>${st.answersDone} of ${st.answers} answers drafted${Array.isArray(p.questionInfo) ? ' · with what they listen for' : ''}</em></span>${I.chev}</button>
+      <button type="button" class="row" data-action="open-quiz"><span class="copy"><strong>Quiz</strong><em>${st.quizDone} of ${st.quiz} done${fromAd ? ' · built from your ad' : ''}</em></span>${I.chev}</button>
       <button type="button" class="row" data-action="open-map"><span class="copy"><strong>Role map</strong><em>${st.mapDone} of ${st.map} ad excerpts mapped</em></span>${I.chev}</button>
     `);
   },
@@ -279,13 +440,21 @@ const screens = {
       ['Mock interview', st.mockDone, st.mock],
       ['Role map', st.mapDone, st.map]
     ];
+    const ready = coreThemeReadiness(p, analysisOf(p));
+    const covered = ready ? ready.filter((t) => t.done > 0).length : 0;
+    const readyHtml = ready && ready.length ? `<section class="readiness">
+        <div class="section-head"><h2 class="section-title">Ready for each part of the job</h2><span class="muted">${covered} of ${ready.length}</span></div>
+        <p class="hint">A part turns green once you write or practise an answer to one of its questions.</p>
+        <div class="theme-grid">${ready.map((t) => `<div class="theme-chip${t.done ? ' covered' : ''}"><span class="name">${t.done ? I.check : ''}${esc(t.label)}</span><span class="pips" aria-label="${t.done} of ${t.total} questions">${t.total ? Array.from({ length: t.total }, (_, k) => `<i class="${k < t.done ? 'on' : ''}"></i>`).join('') : '<em>No question for this yet</em>'}</span></div>`).join('')}</div>
+      </section>` : '';
     return shell('progress', `
       <h1>Progress</h1>
-      <p class="italic lg">Further than you think.</p>
+      <p class="italic lg">${pct >= 80 ? 'Ready to walk in.' : pct >= 40 ? 'More than halfway there.' : 'Further than you think.'}</p>
       <div class="progress-hero">
         <div class="copy"><div class="pct">${pct}%</div><p class="muted">${st.done} of ${st.total} steps done</p></div>
         <div class="orb-slot lg"><div class="orb-anchor lg" data-orb data-env=".8" data-s=".7" data-up="130,55" data-down="55,130" data-energy="${glow(p)}"></div></div>
       </div>
+      ${readyHtml}
       <div class="bars">${rows.map(([name, done, total]) => `<div><div class="bar-row"><span>${name}</span><span>${done} of ${total}</span></div>${bar(total ? (done / total) * 100 : 0)}</div>`).join('')}</div>
       <div class="spacer"></div>
       <button type="button" class="row" data-action="privacy"><span class="lock">${I.lock}</span><span class="copy"><strong>Privacy and your data</strong></span>${I.chev}</button>
@@ -296,9 +465,12 @@ const screens = {
     const i = Math.max(0, Math.min(lessonIndex, p.course.length - 1));
     lessonIndex = i;
     const c = p.course[i];
-    const quote = quoteFrom(c.body, p.requirements[0] || '');
+    const theme = c.theme ? coreThemeLabel(c.theme, analysisOf(p)) : '';
+    const quote = quoteFrom(c.body, '');
     return `<div class="screen" data-screen="lesson">
       <div class="topbar">${iconBtn('close-today', 'Close', I.close)}<span class="label">Lesson ${i + 1} of ${p.course.length}</span></div>
+      ${coreLessonSegs(p, i, -1)}
+      <p class="kicker lesson-kicker">${theme ? esc(theme) + ' · ' : ''}About ${c.minutes || 5} min${c.done ? ' · Done' : ''}</p>
       <h1>${esc(c.title)}</h1>
       <p class="italic lg">Small steps. Real evidence.</p>
       ${quote ? `<div class="glass pad-sm quote"><div class="kicker">From your job ad</div><p>${esc(quote)}</p></div>` : ''}
@@ -309,7 +481,7 @@ const screens = {
         <div class="point"><i>3</i><div><strong>Keep a true note</strong><span>A gap is something to prepare for, not something to invent.</span></div></div>
       </div>
       <label class="field" for="lesson-note">Your working notes</label>
-      <textarea id="lesson-note" rows="4" data-note="lesson-${i}">${esc(p.notes['lesson-' + i] || '')}</textarea>
+      <textarea id="lesson-note" rows="4" data-note="lesson-${i}" placeholder="What would you say? One true example is enough.">${esc(p.notes['lesson-' + i] || '')}</textarea>
       <div class="pager">
         <button type="button" class="quiet" id="prev" ${i === 0 ? 'disabled' : ''}>Previous</button>
         <button type="button" class="quiet" data-action="all-lessons">All lessons</button>
@@ -317,52 +489,112 @@ const screens = {
       </div>
       <div class="spacer"></div>
       <button type="button" class="primary" data-action="lesson-practise">Practise this answer</button>
-      <button type="button" class="text-btn" id="mark">${c.done ? 'Mark incomplete' : 'Mark lesson done'}</button>
+      <button type="button" class="text-btn mark${c.done ? '' : ' todo'}" id="mark">${c.done ? 'Mark incomplete' : I.check + '<span>Mark lesson done</span>'}</button>
     </div>`;
   },
   lessons() {
     const p = active;
+    const a = analysisOf(p);
+    const cur = currentLessonIndex(p);
+    const doneCount = p.course.filter((c) => c.done).length;
     return `<div class="screen" data-screen="lessons">
-      <div class="topbar">${iconBtn('back-lesson', 'Back', I.back)}<span class="label">Learn</span></div>
+      <div class="topbar">${iconBtn('back-lesson', 'Back', I.back)}<span class="label">Learn</span><span class="count">${doneCount} of ${p.course.length}</span></div>
       <h1>All lessons</h1>
       <p class="italic lg">One small step at a time.</p>
-      <div class="stack">${p.course.map((c, i) => `<button type="button" class="row" data-action="open-lesson" data-index="${i}"><span class="copy"><strong>${c.done ? 'Done · ' : ''}${esc(c.title)}</strong><em>About ${c.minutes} min</em></span>${I.chev}</button>`).join('')}</div>
+      <div class="stack">${p.course.map((c, i) => {
+        const theme = c.theme ? coreThemeLabel(c.theme, a) : '';
+        const next = !c.done && i === cur;
+        return `<button type="button" class="row lesson-row${c.done ? ' is-done' : ''}${next ? ' is-next' : ''}" data-action="open-lesson" data-index="${i}"><span class="tick" aria-hidden="true">${c.done ? I.check : i + 1}</span><span class="copy"><strong>${c.done ? '<span class="sr">Done: </span>' : ''}${esc(c.title)}</strong><em>${next ? 'Up next · ' : ''}${theme ? esc(theme) + ' · ' : ''}About ${c.minutes || 5} min</em></span>${I.chev}</button>`;
+      }).join('')}</div>
     </div>`;
   },
   answers() {
     const p = active;
+    const a = analysisOf(p);
+    const drafted = (i) => !!(p.notes['answer-' + i] || '').trim();
+    const total = p.questions.length;
+    const doneCount = p.questions.filter((_, i) => drafted(i)).length;
+    const firstOpen = Math.max(0, p.questions.findIndex((_, i) => !drafted(i)));
     return `<div class="screen" data-screen="answers">
-      <div class="topbar">${iconBtn('back-practise', 'Back', I.back)}<span class="label">Answer bank</span></div>
+      <div class="topbar">${iconBtn('back-practise', 'Back', I.back)}<span class="label">Answer bank</span><span class="count" id="bank-count">${doneCount} of ${total}</span></div>
       <h1>Your answer bank</h1>
       <p class="italic lg">True examples only.</p>
-      <p class="sub">Use something you actually did. A gap is something to prepare for, not something to fabricate. Notes save as you type.</p>
-      ${p.questions.map((q, i) => `<details class="block" ${i === 0 ? 'open' : ''}><summary>${esc(q)}</summary><p class="muted">Situation, task, your action, result, what you learned.</p><label class="field" for="answer-${i}">Your evidence and answer</label><textarea id="answer-${i}" rows="6" data-note="answer-${i}" placeholder="Describe something you actually did.">${esc(p.notes['answer-' + i] || '')}</textarea></details>`).join('')}
+      <p class="sub">Use something you actually did. A gap is something to prepare for, not something to make up. Notes save as you type.</p>
+      <p class="hint star-tip">Tell each story as Situation, Task, Action, Result (STAR). The letters under your answer light up as you cover them.</p>
+      ${p.questions.map((q, i) => {
+        const info = coreInfo(p, i);
+        const kind = info && CORE_KIND_LABEL[info.kind];
+        const theme = info && info.theme ? coreThemeLabel(info.theme, a) : '';
+        const include = info && Array.isArray(info.include) ? info.include.filter((x) => typeof x === 'string' && x.trim()).slice(0, 4) : [];
+        const guide = info ? `${kind || theme ? `<div class="tags">${kind ? `<b class="tag kind">${esc(kind)}</b>` : ''}${theme ? `<b class="tag">${esc(theme)}</b>` : ''}</div>` : ''}
+          ${info.probe ? `<div class="guide"><p class="kicker">What they want to hear</p><p>${esc(info.probe)}</p></div>` : ''}
+          ${include.length ? `<div class="guide"><p class="kicker">A strong answer includes</p><ul class="includes">${include.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+          ${info.source ? `<p class="source">From the ad: “${esc(info.source)}”</p>` : ''}` : '<p class="muted">Situation, Task, your Action, Result, and what you learned.</p>';
+        return `<details class="block qa${drafted(i) ? ' drafted' : ''}" ${i === firstOpen ? 'open' : ''}><summary><span class="qnum" aria-hidden="true">${drafted(i) ? I.check : i + 1}</span><span class="qtext">${esc(q)}</span>${I.chev}</summary>
+          ${guide}
+          <label class="field" for="answer-${i}">Your evidence and answer</label><textarea id="answer-${i}" rows="6" data-note="answer-${i}" placeholder="Describe something you actually did.">${esc(p.notes['answer-' + i] || '')}</textarea>
+          <div class="meta live" data-live="${i}">${coreLiveHtml(p.notes['answer-' + i] || '')}</div></details>`;
+      }).join('')}
     </div>`;
   },
   quiz() {
-    const items = [
-      { q: 'Which answer best demonstrates a job requirement?', options: ['A confident claim with no example', 'A true example with your action and a clear outcome', 'Someone else’s experience presented as yours'], correct: 1, why: 'Specific, truthful evidence is more useful than polished claims.' },
-      { q: 'The job ad says: “{req}”. What should you prepare?', options: ['A relevant example and a question about success', 'An unrelated memorized speech', 'An invented company policy'], correct: 0, why: 'Connect your own evidence to the exact requirement and clarify what success means.' },
-      { q: 'You have not done part of this role before. What is the strongest approach?', options: ['Pretend you have', 'Avoid the topic entirely', 'Be honest, connect transferable skills and explain how you would learn'], correct: 2, why: 'An honest gap plus a credible learning plan protects your integrity and shows judgment.' }
-    ];
     const p = active;
+    const items = coreQuizItems(p);
+    const ans = p.quiz.answers || {};
+    const answered = items.filter((_, i) => ans[i] !== undefined).length;
+    const right = items.filter((it, i) => ans[i] === it.correct).length;
+    const just = coreQuizJust;
+    coreQuizJust = -1;
+    const fromAd = Array.isArray(p.quizItems) && p.quizItems.length;
+    const summary = answered === items.length ? `<div class="glass pad-sm quiz-done${just >= 0 ? ' just' : ''}"><p class="kicker">All ${items.length} answered</p><p class="quiz-score"><b>${right}</b> of ${items.length} matched the strongest approach</p><p class="muted">${right === items.length ? 'Lovely. Now try saying one of these answers out loud in the mock interview.' : 'Read the note under each one. Retry whenever you like: this is practice, not a test.'}</p></div>` : '';
     return `<div class="screen" data-screen="quiz">
-      <div class="topbar">${iconBtn('back-practise', 'Back', I.back)}<span class="label">Quiz</span></div>
+      <div class="topbar">${iconBtn('back-practise', 'Back', I.back)}<span class="label">Quiz</span><span class="count">${answered} of ${items.length}</span></div>
       <h1>Check your approach</h1>
       <p class="italic lg">Technique, not a score.</p>
-      <p class="sub">This checks interview technique, not technical certification or hiring readiness.</p>
-      ${items.map((q, i) => `<article class="quiz"><h2>${i + 1}. ${esc(q.q.replace('{req}', p.requirements[0] || ''))}</h2><div class="choices">${q.options.map((o, j) => `<button type="button" class="choice" data-action="quiz" data-q="${i}" data-choice="${j}" ${p.quiz.answers[i] !== undefined ? 'disabled' : ''}><span>${esc(o)}</span></button>`).join('')}</div>${p.quiz.answers[i] !== undefined ? `<p class="result ${p.quiz.answers[i] === q.correct ? 'ok' : ''}">${p.quiz.answers[i] === q.correct ? 'Correct. ' : 'Try a different approach next time. '}${esc(q.why)}</p>` : ''}</article>`).join('')}
-      <button type="button" class="text-btn" id="retry">Retry quiz</button>
+      <p class="sub">${fromAd ? 'Built from your job ad. ' : ''}This checks interview technique, not technical certification or hiring readiness.</p>
+      <div class="quiz-dots" aria-hidden="true">${items.map((it, i) => `<span class="${ans[i] === undefined ? '' : ans[i] === it.correct ? 'ok' : 'miss'}"></span>`).join('')}</div>
+      ${items.map((q, i) => {
+        const pick = ans[i];
+        const done = pick !== undefined;
+        const ok = done && pick === q.correct;
+        return `<article class="quiz${done ? (ok ? ' is-ok' : ' is-miss') : ''}${i === just ? ' just' : ''}"><h2><span class="qn">${i + 1}</span>${esc(q.q)}</h2><div class="choices">${q.options.map((o, j) => {
+          const cls = done ? (j === q.correct ? ' correct' : j === pick ? ' wrong' : ' dim') : '';
+          return `<button type="button" class="choice${cls}" data-action="quiz" data-q="${i}" data-choice="${j}" ${done ? 'disabled' : ''}><span><span class="opt">${esc(o)}${done && j === pick ? '<small>Your pick</small>' : ''}</span>${done && j === q.correct ? I.check : ''}</span></button>`;
+        }).join('')}</div>${done ? `<p class="result ${ok ? 'ok' : 'miss'}"${i === just ? ' role="status"' : ''}><strong>${ok ? 'Yes, that is the strongest choice.' : 'Good try. The stronger choice is marked in green.'}</strong> ${esc(q.why)}</p>` : ''}</article>`;
+      }).join('')}
+      ${summary}
+      ${answered ? '<button type="button" class="text-btn" id="retry">Retry quiz</button>' : ''}
     </div>`;
   },
   rolemap() {
     const p = active;
+    const a = analysisOf(p);
+    const meta = coreReqMeta(p, a);
+    const hints = {
+      must: 'Ask: What would good performance on this look like in the first 90 days?',
+      duty: 'Think of a time you did something similar, even at a smaller scale.',
+      nice: 'Not there yet? “Here is how I would learn it” is an honest, strong answer.',
+      other: 'Ask: What would good performance on this look like in the first 90 days?'
+    };
+    const card = (r, i) => {
+      const m = meta[i];
+      const tags = m ? m.themes.slice(0, 2).map((id) => `<b class="tag">${esc(coreThemeLabel(id, a))}</b>`).join('') : '';
+      return `<article class="glass pad-sm map-card${(p.notes['map-' + i] || '').trim() ? ' has-note' : ''}"><div class="map-head"><p class="kicker">Excerpt ${i + 1}</p>${tags ? `<span class="tags">${tags}</span>` : ''}</div><p class="prose">${esc(r)}</p><label class="field" for="map-${i}">Your transferable evidence or gaps</label><textarea id="map-${i}" data-note="map-${i}" rows="3">${esc(p.notes['map-' + i] || '')}</textarea><p class="hint">${esc(hints[(m && m.kind) || 'other'])}</p></article>`;
+    };
+    let body;
+    if (meta.some(Boolean)) {
+      body = CORE_REQ_KINDS.map(([kind, title, blurb]) => {
+        const idx = p.requirements.map((_, i) => i).filter((i) => ((meta[i] && meta[i].kind) || 'other') === kind);
+        if (!idx.length) return '';
+        return `<section class="map-group"><div class="section-head"><h2 class="section-title">${title}</h2><span class="muted">${idx.length}</span></div><p class="hint">${blurb}</p>${idx.map((i) => card(p.requirements[i], i)).join('')}</section>`;
+      }).join('');
+    } else body = p.requirements.map(card).join('');
     return `<div class="screen" data-screen="rolemap">
-      <div class="topbar">${iconBtn('back-practise', 'Back', I.back)}<span class="label">Role map</span></div>
+      <div class="topbar">${iconBtn('back-practise', 'Back', I.back)}<span class="label">Role map</span><span class="count">${stats(p).mapDone} of ${p.requirements.length}</span></div>
       <h1>Map the role to your evidence</h1>
       <p class="italic lg">From the ad, not assumptions.</p>
       <p class="sub">These are excerpts, not verified facts about the employer. Confirm the priorities with your interviewer.</p>
-      ${p.requirements.map((r, i) => `<article class="glass pad-sm"><p class="kicker">Ad excerpt ${i + 1}</p><p class="prose">${esc(r)}</p><label class="field" for="map-${i}">Your transferable evidence or gaps</label><textarea id="map-${i}" data-note="map-${i}" rows="3">${esc(p.notes['map-' + i] || '')}</textarea><p class="hint">Ask: What would good performance on this look like in the first 90 days?</p></article>`).join('')}
+      ${body}
     </div>`;
   },
   privacy() {
@@ -373,7 +605,7 @@ const screens = {
       <div class="stack">
         <div class="privacy-block"><strong>Stored on this device</strong><span>Job ads, notes and answers stay in this browser's local storage. People who can open this browser profile can read them.</span></div>
         <div class="privacy-block"><strong>No account. No trackers.</strong><span>Nothing to sign up for, and no analytics. Preparations do not sync between devices.</span></div>
-        <div class="privacy-block"><strong>No AI calls</strong><span>Structure feedback runs on this device. It is a writing checklist, not an assessment.</span></div>
+        <div class="privacy-block"><strong>No AI calls</strong><span>Reading the ad, building your plan and the structure feedback all run on this device with plain rules. It is a writing checklist, not an assessment.</span></div>
         <div class="privacy-block"><strong>Free</strong><span>No trial, no upgrade, no ads. Paste the job ad yourself. This edition does not import websites.</span></div>
       </div>
       <details class="fold"><summary>Also good to know</summary>
@@ -387,10 +619,16 @@ The hosting provider receives normal requests for the app files, not your typed 
       <label class="field" for="import">Restore a backup</label>
       <input class="file" id="import" type="file" accept="application/json,.json">
       <button type="button" class="text-btn danger" id="delete-all">Delete all data</button>
+      <div class="about">
+        <a class="feedback-link" href="https://github.com/Shai-Mate/nextstep-interview-studio/issues/new" target="_blank" rel="noopener noreferrer">Send feedback</a>
+        <p class="hint">GitHub issues are public, so don't paste private answers.</p>
+        <p class="credit">Made by Prism</p>
+      </div>
       <p class="version">Phone app v8 · storage schema v1 · rules-based preparation</p>
     </div>`;
   }
 };
+
 
 function needPrep() { if (!active) { show('welcome'); return false; } return true; }
 function openLesson(i) { if (!needPrep()) return; lessonIndex = i; show('lesson'); }
@@ -404,6 +642,94 @@ function exportBackup(all) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   notify('Backup exported. It includes your job ads, notes and answers. Keep it private.');
 }
+/* Backup restore. A preparation is rebuilt with PrepEngine.create(p) for safe defaults, but when the
+   backup carries its own plan (questions, questionInfo, requirements, course, quizItems) that plan is
+   kept after shape and length checks, so saved notes, quiz answers and the mock log stay attached
+   to the questions they were written for. Anything that no longer matches is dropped, never moved. */
+const coreOkStr = (v, max) => typeof v === 'string' && v.length <= max;
+function coreStrList(v, max, len) {
+  return Array.isArray(v) && v.length >= 1 && v.length <= max && v.every((x) => coreOkStr(x, len) && x.trim()) ? v.slice() : null;
+}
+function coreCleanInfo(v, n) {
+  if (!Array.isArray(v) || v.length !== n) return null;
+  const kinds = Object.keys(CORE_KIND_LABEL);
+  const out = v.map((x) => {
+    if (!x || typeof x !== 'object') return null;
+    return {
+      kind: kinds.includes(x.kind) ? x.kind : 'role',
+      theme: coreOkStr(x.theme, 60) && x.theme ? x.theme : null,
+      source: coreOkStr(x.source, 600) && x.source ? x.source : null,
+      probe: coreOkStr(x.probe, 600) ? x.probe : '',
+      include: Array.isArray(x.include) ? x.include.filter((s) => coreOkStr(s, 400) && s.trim()).slice(0, 4) : []
+    };
+  });
+  return out.every(Boolean) ? out : null;
+}
+function coreCleanCourse(v) {
+  if (!Array.isArray(v) || !v.length || v.length > 20) return null;
+  const out = v.map((c) => (c && coreOkStr(c.title, 300) && c.title.trim() && coreOkStr(c.body, 6000) && coreOkStr(c.exercise, 3000) ? {
+    title: c.title,
+    minutes: Number.isInteger(c.minutes) && c.minutes > 0 && c.minutes <= 120 ? c.minutes : 5,
+    body: c.body,
+    exercise: c.exercise,
+    done: c.done === true,
+    ...(coreOkStr(c.theme, 60) && c.theme ? { theme: c.theme } : {})
+  } : null));
+  return out.every(Boolean) ? out : null;
+}
+function coreCleanQuiz(v) {
+  if (!Array.isArray(v) || !v.length || v.length > 12) return null;
+  const out = v.map((it) => (it && coreOkStr(it.q, 600) && it.q.trim() && Array.isArray(it.options) && it.options.length === 3 && it.options.every((o) => coreOkStr(o, 300)) && Number.isInteger(it.correct) && it.correct >= 0 && it.correct <= 2 && (it.why === undefined || coreOkStr(it.why, 800))
+    ? { q: it.q, options: it.options.slice(), correct: it.correct, why: it.why || '' } : null));
+  return out.every(Boolean) ? out : null;
+}
+function coreRestore(p) {
+  if (!p || typeof p !== 'object') throw Error('Invalid preparation');
+  const fresh = PrepEngine.create(p);
+  if (!p.notes || typeof p.notes !== 'object') throw Error('Invalid notes');
+  for (const [k, v] of Object.entries(p.notes)) {
+    if (typeof v !== 'string' || v.length > 60000) throw Error('Invalid note');
+    fresh.notes[k] = v;
+  }
+  const questions = coreStrList(p.questions, 20, 2000);
+  if (questions) {
+    fresh.questions = questions;
+    const info = coreCleanInfo(p.questionInfo, questions.length);
+    if (info) fresh.questionInfo = info;
+    else delete fresh.questionInfo;
+  }
+  const requirements = coreStrList(p.requirements, 12, 2000);
+  if (requirements) fresh.requirements = requirements;
+  const course = coreCleanCourse(p.course);
+  if (course) fresh.course = course;
+  /* Quiz: keep the backup's own items; a backup from before ad-specific quizzes answered the three
+     default items, so it restores onto those. Answers are dropped if the items are unusable. */
+  let quizOK = true;
+  if (p.quizItems === undefined) delete fresh.quizItems;
+  else {
+    const quiz = coreCleanQuiz(p.quizItems);
+    if (quiz) fresh.quizItems = quiz;
+    else quizOK = false;
+  }
+  if (quizOK && p.quiz?.answers && typeof p.quiz.answers === 'object') {
+    const items = coreQuizItems(fresh);
+    for (const [k, v] of Object.entries(p.quiz.answers)) {
+      if (/^\d{1,2}$/.test(k) && +k < items.length && Number.isInteger(v) && v >= 0 && v < items[+k].options.length) fresh.quiz.answers[k] = v;
+    }
+  }
+  /* Mock log: kept only when every saved answer still belongs to the same question. */
+  const m = p.mock;
+  if (m && Number.isInteger(m.index) && m.index >= 0 && m.index <= fresh.questions.length && Array.isArray(m.answers) && m.answers.length === m.index
+    && m.answers.every((a, k) => a && typeof a.text === 'string' && a.text.length <= 60000 && a.question === fresh.questions[k])) {
+    fresh.mock = {
+      index: m.index,
+      answers: m.answers.map((a) => ({ question: a.question, text: a.text, feedback: feedback(a.text), ...(coreOkStr(a.at, 40) ? { at: a.at } : {}) })),
+      draft: String(m.draft || '').slice(0, 60000),
+      finished: m.index === fresh.questions.length
+    };
+  }
+  return fresh;
+}
 function bindImport() {
   const input = $('#import');
   if (!input) return;
@@ -414,32 +740,7 @@ function bindImport() {
       if (f.size > 2000000) throw Error('Backup exceeds 2 MB');
       const b = JSON.parse(await f.text());
       if (b.schema !== 1 || !Array.isArray(b.preparations) || b.preparations.length > 50) throw Error('Unsupported backup');
-      const copies = b.preparations.map((p) => {
-        const fresh = PrepEngine.create(p);
-        if (!p.notes || typeof p.notes !== 'object') throw Error('Invalid notes');
-        for (const [k, v] of Object.entries(p.notes)) {
-          if (typeof v !== 'string' || v.length > 60000) throw Error('Invalid note');
-          fresh.notes[k] = v;
-        }
-        if (Array.isArray(p.course)) fresh.course.forEach((c, i) => { c.done = p.course[i]?.done === true; });
-        if (p.quiz?.answers && typeof p.quiz.answers === 'object') {
-          for (const [k, v] of Object.entries(p.quiz.answers)) {
-            if (/^[0-2]$/.test(k) && Number.isInteger(v) && v >= 0 && v <= 2) fresh.quiz.answers[k] = v;
-          }
-        }
-        if (p.mock && Number.isInteger(p.mock.index) && p.mock.index >= 0 && p.mock.index <= fresh.questions.length && Array.isArray(p.mock.answers) && p.mock.answers.length === p.mock.index) {
-          fresh.mock = {
-            index: p.mock.index,
-            answers: p.mock.answers.map((a) => {
-              if (typeof a.text !== 'string' || a.text.length > 60000) throw Error('Invalid mock');
-              return { question: String(a.question).slice(0, 2000), text: a.text, feedback: feedback(a.text) };
-            }),
-            draft: String(p.mock.draft || '').slice(0, 60000),
-            finished: p.mock.index === fresh.questions.length
-          };
-        }
-        return fresh;
-      });
+      const copies = b.preparations.map((p) => coreRestore(p));
       records.push(...copies);
       persist();
       active = null;
@@ -449,16 +750,39 @@ function bindImport() {
   });
 }
 
+function coreBindAnswers() {
+  document.querySelectorAll('textarea[data-note^="answer-"]').forEach((el) => {
+    const i = el.dataset.note.slice(7);
+    const live = document.querySelector(`[data-live="${i}"]`);
+    const block = el.closest('details');
+    let raf = 0;
+    el.addEventListener('input', () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (live) live.innerHTML = coreLiveHtml(el.value);
+        const has = !!el.value.trim();
+        if (block && block.classList.contains('drafted') !== has) {
+          block.classList.toggle('drafted', has);
+          const num = block.querySelector('.qnum');
+          if (num) num.innerHTML = has ? I.check : String(+i + 1);
+          const count = $('#bank-count');
+          if (count && active) count.textContent = active.questions.filter((_, k) => (active.notes['answer-' + k] || '').trim()).length + ' of ' + active.questions.length;
+        }
+      });
+    });
+  });
+}
 function bindScreen() {
   if (view === 'lesson' || view === 'answers' || view === 'rolemap') bindNotes();
-  if ($('#rename')) $('#rename').addEventListener('click', () => { renaming = true; show('today'); });
+  if (view === 'answers') coreBindAnswers();
+  if ($('#rename')) $('#rename').addEventListener('click', () => { renaming = true; show('today', { keep: true }); $('#rename-input')?.focus(); });
   const rename = $('#rename-form');
   if (rename) rename.addEventListener('submit', (e) => {
     e.preventDefault();
     const name = $('#rename-input').value.trim();
     if (name) { active.role = name.slice(0, 120); save(); }
     renaming = false;
-    show('today');
+    show('today', { keep: true });
   });
   if ($('#export-one')) $('#export-one').addEventListener('click', () => exportBackup(false));
   if ($('#all-export')) $('#all-export').addEventListener('click', () => exportBackup(true));
@@ -469,8 +793,13 @@ function bindScreen() {
     const done = !c.done;
     c.done = done;
     save();
-    if (done) show('today');
-    else show('lesson');
+    if (done) {
+      coreCelebrate = lessonIndex;
+      show('today');
+      try { window.NextStepOrb?.celebrate?.(); } catch { /* optional orb hook */ }
+      const left = active.course.filter((x) => !x.done).length;
+      notify(left ? 'Lesson done. ' + left + ' to go.' : 'Every lesson done. Now practise out loud.');
+    } else show('lesson', { keep: true });
   });
   if ($('#retry')) $('#retry').addEventListener('click', () => { active.quiz.answers = {}; save(); show('quiz'); });
   if ($('#delete-all')) $('#delete-all').addEventListener('click', () => {
@@ -520,7 +849,8 @@ document.body.addEventListener('click', (e) => {
     if (active.quiz.answers[el.dataset.q] !== undefined) return;
     active.quiz.answers[el.dataset.q] = +el.dataset.choice;
     save();
-    show('quiz');
+    coreQuizJust = +el.dataset.q;
+    show('quiz', { keep: true });
   }
 });
 
