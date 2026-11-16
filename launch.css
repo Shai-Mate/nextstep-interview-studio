@@ -88,10 +88,12 @@
 .install-more a:hover, a.quiet-link:hover { text-decoration: underline; }
 .install-sheet .text-btn { margin-top: 8px; }
 
-/* Once installed, the app does not need to ask to be installed. */
-@media (display-mode: standalone) {
+/* Once installed, the app does not need to ask to be installed. iOS 17 can report the Home Screen app as
+   display-mode: fullscreen (WebKit bug 264218), so pwa.js also marks it with .is-installed from navigator.standalone. */
+@media (display-mode: standalone), (display-mode: fullscreen) {
   .install-row { display: none; }
 }
+.is-installed .install-row { display: none; }
 
 /* Standalone privacy page (privacy.html, no scripts) */
 .privacy-page h1 { margin-top: 16px; }
