@@ -867,6 +867,9 @@ function withArticle(s) {
 }
 function trimTail(t) { return t.replace(/[\s.;:,!?–—-]+$/, ''); }
 function niceCore(t) {
+  // "Confident on the phone; Dentrix or another practice system is a plus": the plus is the last part.
+  const parts = String(t).split(/;\s+/);
+  if (parts.length > 1 && CUE.nice.test(parts[parts.length - 1])) t = parts[parts.length - 1];
   return trimTail(t.replace(/\s+(?:is|are|would be|will be)\s+(?:preferred|an asset|a plus|great|nice|desirable|helpful|an advantage|a bonus|welcome|nice to have)\b.*$/i, '')
     .replace(/^(?:nice to have|bonus|preferred|ideally|a plus)\s*[:,-]\s*/i, ''));
 }
@@ -1044,7 +1047,7 @@ function create(input) {
   const motivation = exp === 'Career change'
     ? `What made you want to move into this kind of work, and what from your past jobs will help you in ${jobName}?`
     : exp === 'Early career'
-      ? `What made you want to apply for ${jobName}${at}? What have you done so far, at school, work or elsewhere, that prepared you?`
+      ? `What made you want to apply for ${jobName}${at}, and what have you done so far, at school, work or elsewhere, that prepared you?`
       : `What made you want to apply for ${jobName}${at}, and why do you think it suits you?`;
   add(motivation, { kind: 'motivation', theme: null, source: null,
     probe: 'They want to hear real reasons that connect you to this job, not a memorised speech.',
