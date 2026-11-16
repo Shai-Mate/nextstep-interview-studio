@@ -623,8 +623,14 @@ Object.assign(actions, {
     if (!needPrep()) return;
     show('insights');
     if (el && el.dataset && el.dataset.to === 'ad') {
+      /* Scroll only the page's own scroller: scrollIntoView can also shift the overflow-hidden
+         screen around it and hide the back button. */
+      const sc = document.querySelector('#app .scroll');
       const ad = document.getElementById('flow-ad');
-      if (ad) ad.scrollIntoView({ block: 'start', behavior: reduceMotion() ? 'auto' : 'smooth' });
+      if (sc && ad) {
+        const top = ad.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 8;
+        sc.scrollTo({ top: Math.max(0, Math.round(top)), behavior: reduceMotion() ? 'auto' : 'smooth' });
+      }
     }
   }
 });
