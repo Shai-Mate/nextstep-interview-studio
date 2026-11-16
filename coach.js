@@ -208,9 +208,9 @@
   function slotHas(slot, t) {
     return slot.has(t) || (isNum(t) && (slot.has('#num') || (slot.has('#year') && isYear(t))));
   }
-  const hasPhrase = (toks, map) => findPhrase(toks, map) !== '';
-  // The first phrase from the map found in the tokens, as text ('' when none).
-  function findPhrase(toks, map) {
+  const hasPhrase = (toks, map, skip) => findPhrase(toks, map, skip) !== '';
+  // The first phrase from the map found in the tokens, as text ('' when none). skip(toks, i) can veto a match at i.
+  function findPhrase(toks, map, skip) {
     for (let i = 0; i < toks.length; i++) {
       const t = toks[i];
       let list = map.get(t);
@@ -219,11 +219,27 @@
       for (const rest of list) {
         let j = 0;
         while (j < rest.length && i + 1 + j < toks.length && slotHas(rest[j], toks[i + 1 + j])) j++;
-        if (j === rest.length) return toks.slice(i, i + 1 + j).join(' ');
+        if (j === rest.length && !(skip && skip(toks, i))) return toks.slice(i, i + 1 + j).join(' ');
       }
     }
     return '';
   }
+  // "make sure they are happy" and "they would be safe" are hopes, not how it turned out.
+  const STATE = bag('safe safely happy happier satisfied pleased relieved calmer');
+  const HOPE = bag(`would will could should might must can gonna i'd we'd i'll we'll he'd she'd they'd you'd it'd he'll she'll
+    they'll it'll you'll`);
+  function hoped(toks, i, modal) {
+    if (!STATE.has(toks[i])) return false;
+    for (let k = i - 1; k >= 0 && k >= i - 8; k--) {
+      const t = toks[k];
+      if (t === '.' || t === ',' || (CONJ.has(t) && !(t === 'and' && STATE.has(toks[k - 1])))) return false;
+      if ((t === 'sure' && /^mak/.test(toks[k - 1] || '')) || /^ensur/.test(t)) return true;
+      if (modal && HOPE.has(t)) return true;
+    }
+    return false;
+  }
+  const hopedStrict = (toks, i) => hoped(toks, i, true);
+  const hopedSure = (toks, i) => hoped(toks, i, false);
   function clean(text) {
     let s = typeof text === 'string' ? text : typeof text === 'number' && Number.isFinite(text) ? String(text) : '';
     if (s.length > MAX_CHARS) s = s.slice(0, MAX_CHARS);
@@ -328,6 +344,7 @@
     let sub = false;
     let pos = 0;
     let hyp = false;
+    let had = false;
     let form = null;
     let inherited = false;
     const record = (who, word, f, k) => {
@@ -335,7 +352,8 @@
       const t = PARTICLE.has(toks[k + 1]) ? `${word} ${toks[k + 1]}` : word;
       if (who === 'i') {
         r.i++;
-        if (hyp) r.hyp++;
+        // "I'd already finished" is "I had": a past form after "I'd" is something you did.
+        if (hyp && !(had && f === 'past')) r.hyp++;
         if (!r.iVerbs.includes(t) && r.iVerbs.length < 6) r.iVerbs.push(t);
       } else {
         r.we++;
@@ -344,11 +362,12 @@
     };
     for (let k = 0; k < toks.length; k++) {
       const t = toks[k];
-      if (t === '.') { lead = cur = null; win = 0; sub = false; pos = 0; form = null; hyp = false; continue; }
+      if (t === '.') { lead = cur = null; win = 0; sub = false; pos = 0; form = null; hyp = had = false; continue; }
       if (t === ',') { cur = lead; win = cur ? 3 : 0; inherited = true; sub = false; continue; }
       if (win > 0 && (t === 'sort' || t === 'kind') && toks[k + 1] === 'of') { k++; continue; }
       if (win > 0 && (SKIP.has(t) || (t.length > 4 && t.endsWith('ly') && !BASE.has(t)))) {
         if (MODAL.has(t)) hyp = true;
+        if (t === 'have') had = false;
         pos++;
         continue;
       }
@@ -365,6 +384,7 @@
         win = 4;
         inherited = false;
         hyp = HYP_FORMS.has(t);
+        had = t === "i'd" || t === "we'd";
         pos++;
         continue;
       }
@@ -400,7 +420,9 @@
     const tk = tokenize(s);
     const toks = tk.toks;
     const acts = scanActions(toks);
-    let result = hasPhrase(toks, RESULT);
+    let result = hasPhrase(toks, RESULT, hopedStrict);
+    // For "what would you do" questions a hoped-for outcome ("so they would be happy") is the point, so keep it apart.
+    const hopeResult = result || (full && hasPhrase(toks, RESULT, hopedSure));
     let late = false;
     let percent = false;
     if (!result) {
@@ -423,6 +445,7 @@
     };
     const a = { words: tk.words, seconds: Math.round((tk.words / WPM) * 60), star, english: tk.english };
     if (!full) return a;
+    a.hopeResult = Boolean(hopeResult || result);
     a.toks = toks;
     a.sentences = tk.sentences;
     a.acts = acts;
@@ -715,9 +738,14 @@
     if (kind === 'situational') {
       const t = 'Your steps';
       if (!st.action) return { ok: false, title: t, detail: 'Say what you would do first, then next, starting with “I would …”.' };
-      if (st.result) return { ok: true, title: t, detail: 'You say what you would do and how you would know it worked.' };
+      if (st.result || a.hopeResult) return { ok: true, title: t, detail: 'You say what you would do and how you would know it worked.' };
       if (st.task) return { ok: true, title: t, detail: 'You say what you would do and why; you could finish with how you would know it worked.' };
       return { ok: false, title: t, detail: 'You say what you would do; add why it matters and how you would know it worked.' };
+    }
+    // "Tell me about a time" asks for something that really happened, not the steps you would take.
+    const r = a.acts;
+    if (r.i > 0 && r.hyp * 2 > r.i) {
+      return { ok: false, title, detail: 'This says what you would do; tell it as a real time it happened: where you were, what you did and how it turned out.' };
     }
     const have = PARTS.filter((p) => st[p]);
     const lack = PARTS.filter((p) => !st[p]);
@@ -797,10 +825,14 @@
     return { ok: false, title, detail: miss.length ? `Tie it to the ad by using its words where they are true for you, like ${list(miss, 'or')}.` : 'Tie it to the ad by using its words where they are true for you.' };
   }
 
+  // Typed answers run shorter than speech: people add detail when they say them out loud. So a typed answer is
+  // long enough from `min` seconds (about 50 words for a story, 30 for a reason) and a comfortable spoken length from `full`.
   const LENGTHS = {
-    closing: { min: 8, max: 90, cap: 'a minute and a half' },
-    motivation: { min: 25, max: 120, cap: '2 minutes' },
-    other: { min: 40, max: 150, cap: '2 and a half minutes' }
+    closing: { min: 4, full: 4, max: 90, cap: 'a minute and a half' },
+    motivation: { min: 13, full: 25, max: 120, cap: '2 minutes', aim: '30 seconds' },
+    situational: { min: 13, full: 35, max: 150, cap: '2 and a half minutes', aim: 'a minute' },
+    gap: { min: 13, full: 35, max: 150, cap: '2 and a half minutes', aim: 'a minute' },
+    other: { min: 20, full: 40, max: 150, cap: '2 and a half minutes', aim: 'a minute' }
   };
   function lengthCheck(a, kind) {
     const title = 'Time to say it';
@@ -808,13 +840,20 @@
     const L = LENGTHS[kind] || LENGTHS.other;
     const t = spoken(a.seconds);
     if (a.seconds < L.min) {
-      const aim = !a.english ? 'most answers take 1 to 2 minutes to say'
+      const st = a.star;
+      const add = !a.english ? 'most answers take about a minute to say'
         : kind === 'closing' ? 'one or two short questions of your own is plenty'
-        : kind === 'motivation' ? 'aim for 30 seconds to a minute and a half, with one reason and one example'
-          : `most answers like this take 1 to 2 minutes, so add ${!a.star.action ? 'what you did, step by step' : !a.star.result ? 'how it turned out' : 'a little more detail on what you did'}`;
-      return { ok: false, title, detail: `About ${t} out loud; ${aim}.` };
+        : kind === 'motivation' ? 'add one reason and one example, so it runs about 30 seconds'
+        : kind === 'situational' ? `add ${!st.action ? 'what you would do first, then next' : 'what you would do next and why'}, so it runs closer to a minute`
+        : kind === 'gap' ? `add ${!st.action ? 'the steps you would take to learn it' : 'a time you learned something new quickly'}, so it runs closer to a minute`
+        : `add ${!st.action ? 'what you did, step by step' : !st.result ? 'how it turned out' : 'a little more on what you did'}, so it runs closer to a minute`;
+      return { ok: false, title, detail: `About ${t} out loud; ${add}.` };
     }
     if (a.seconds > L.max) return { ok: false, title, detail: `About ${t} out loud; try to keep it under ${L.cap} and save extra detail for follow-up questions.` };
+    if (a.seconds < L.full) {
+      const near = kind === 'motivation' || a.seconds >= 30 ? 'about' : 'closer to';
+      return { ok: true, title, detail: `About ${t} as written; said out loud with a little detail it will run ${near} ${L.aim}, which is a good length.` };
+    }
     return { ok: true, title, detail: `About ${t} out loud, a comfortable length.` };
   }
 

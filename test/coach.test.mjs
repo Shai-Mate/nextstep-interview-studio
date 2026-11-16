@@ -330,3 +330,68 @@ test('short note-style English is still read as English', () => {
   assert.equal(r.star.action, true);
   assert.equal(r.star.result, true);
 });
+
+// Realistic typed answers, written against the fixture ads in qa/fixtures (all fictional).
+const OFFICE = {
+  question: 'Tell me about a time you turned around an account at risk.',
+  info: { kind: 'behavioural', source: 'Monitor account health using product usage data and act early on churn risk', include: ['A real example', 'What you did yourself', 'How it turned out'] },
+  analysis: { skills: ['Salesforce', 'Excel', 'Google Sheets'], keywords: ['churn risk', 'onboarding', 'renewal', 'product usage data'] }
+};
+const TYPED = {
+  retail: 'Last December I worked weekends at a busy gift shop. A woman came in looking for a present for her dad and she was stressed because the store was packed. I greeted her, asked what he liked and showed her three options in her budget. I also checked the stockroom for a bigger size. She bought a sweater and came back the next week to thank me.',
+  office: 'At my last job I owned onboarding for 30 small business clients. Usage data showed four accounts were at risk, so I set up weekly check-ins, rebuilt the training deck and ran a short workshop for each team. I tracked logins in a simple Google Sheets report. Within one quarter all four renewed and average weekly usage rose by 22 percent.'
+};
+
+test('strong typed answers are a good length, with encouragement instead of a warning', () => {
+  const cases = [[TYPED.retail, retail], [TYPED.office, OFFICE], [STRONG.trades, trades], [STRONG.tech, tech], [STRONG.cafe, cafe]];
+  for (const [text, ctx] of cases) {
+    const r = Coach.review(text, ctx);
+    assert.ok(r.words >= 50 && r.words <= 90, `${r.words} words`);
+    const len = check(r, 'length');
+    assert.equal(len.ok, true, len.detail);
+    assert.match(len.detail, /^About \d+ seconds as written; said out loud with a little detail it will run (?:about|closer to) a minute, which is a good length\.$/);
+  }
+  // Too short is still asked for more, in kind words that fit the question.
+  const short = check(Coach.review('At my old job at a grocery store I helped a lady find gluten free bread.', retail), 'length');
+  assert.equal(short.ok, false);
+  assert.match(short.detail, /^About \d+ seconds out loud; add how it turned out, so it runs closer to a minute\.$/);
+  const why = check(Coach.review('I love helping people put together outfits, and I shop at your store a lot. I worked at a thrift shop for a year where I sorted donations and helped customers.', { question: 'Why do you want to work at Maple & Thread?', info: { kind: 'motivation' } }), 'length');
+  assert.equal(why.ok, true, why.detail);
+  assert.match(why.detail, /it will run about 30 seconds, which is a good length\.$/);
+  const sit = check(Coach.review('I would stay calm and ask her why.', { question: 'What would you do if a resident refused their bath?', info: { kind: 'situational' } }), 'length');
+  assert.equal(sit.ok, false);
+  assert.doesNotMatch(sit.detail, /turned out/);
+  assert.match(sit.detail, /what you would do next and why/);
+  const gap = check(Coach.review('I would ask my journeyperson.', { question: 'How would you learn to work on commercial panels?', info: { kind: 'gap' } }), 'length');
+  assert.doesNotMatch(gap.detail, /turned out/);
+});
+
+test('a "would" answer to a tell-me-about-a-time question asks for a real time', () => {
+  const r = Coach.review('I would greet them, ask what they need and find it for them. I would make sure they are happy.', retail);
+  const s = check(r, 'structure');
+  assert.equal(s.ok, false);
+  assert.equal(s.detail, 'This says what you would do; tell it as a real time it happened: where you were, what you did and how it turned out.');
+  assert.equal(r.star.result, false);
+  const care2 = Coach.review('I would tell the nurse in charge right away and write it in PointClickCare. Then I would check on her every hour.', care);
+  assert.match(check(care2, 'structure').detail, /^This says what you would do/);
+  // Without question info, the wording of an old question still says it wants a real example.
+  const old = Coach.review('If a customer needs help I would go over and help them find it, and I would check the back if it is not on the floor.', { question: 'Tell me about a time you helped a customer.' });
+  assert.match(check(old, 'structure').detail, /^This says what you would do/);
+  // The same steps are exactly right for a "what would you do" question.
+  const sit = Coach.review('I would greet them, ask what they need and find it for them, so they would leave happy.', { question: 'What would you do if a customer could not find what they need?', info: { kind: 'situational' } });
+  assert.equal(check(sit, 'structure').ok, true);
+  assert.equal(check(sit, 'structure').detail, 'You say what you would do and how you would know it worked.');
+  // A real story with one "next time I would" stays a real story, and "I'd already" means "I had".
+  const real = Coach.review(`${STRONG.retail} Next time I would check the stockroom first.`, retail);
+  assert.equal(check(real, 'structure').ok, true);
+  const had = Coach.review("One Saturday at the cafe, I'd already restocked the cups when the rush hit. I took orders and called them out clearly, and we served everyone in about 20 minutes.", cafe);
+  assert.equal(check(had, 'structure').ok, true, check(had, 'structure').detail);
+});
+
+test('"make sure it is safe" and "would be happy" are hopes, not how it turned out', () => {
+  assert.equal(Coach.live('We check everything and we make sure it is safe.').star.result, false);
+  assert.equal(Coach.live('I would make sure they are happy and safe.').star.result, false);
+  assert.equal(Coach.live('I knew the customer would be happy.').star.result, false);
+  assert.equal(Coach.live('I found her size and she left happy.').star.result, true);
+  assert.equal(Coach.live('We finished the panel change safely.').star.result, true);
+});
