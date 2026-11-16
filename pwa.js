@@ -25,7 +25,7 @@
   const iOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
   const android = /Android/.test(ua);
   // In-app browsers cannot add to the Home Screen and may not keep storage. "; wv)" marks any Android WebView.
-  const inApp = /FBAN|FBAV|FB_IAB|FBIOS|Instagram|LinkedInApp|Messenger|Snapchat|musical_ly|BytedanceWebview|Pinterest|MicroMessenger|\bLine\/|GSA\/|; wv\)/.test(ua);
+  const inApp = /FBAN|FBAV|FB_IAB|FBIOS|Instagram|LinkedInApp|Messenger|Snapchat|musical_ly|BytedanceWebview|Pinterest|MicroMessenger|\bLine\/|GSA\/|Barcelona|; wv\)/.test(ua);
   const otherIOSBrowser = /CriOS|FxiOS|EdgiOS|OPiOS|OPT\/|YaBrowser|DuckDuckGo|Ddg\//.test(ua);
   const platform = inApp ? 'in-app' : iOS ? (otherIOSBrowser ? 'ios-browser' : 'ios-safari') : android ? 'android' : 'desktop';
 
@@ -129,15 +129,19 @@
   }
 
   // Focus moves into the sheet when it opens and back to where it was when it closes; Escape closes it.
+  // While it is open the app behind it is inert, so Tab and screen readers stay in the sheet (#install is not inside #app).
+  const appRoot = byId('app');
   let opener = null;
   if (window.MutationObserver) {
     new MutationObserver(() => {
       if (!sheet.hidden) {
         render();
         opener = document.activeElement;
+        if (appRoot) appRoot.inert = true;
         if (title) title.focus({ preventScroll: true });
-      } else if (opener && opener.isConnected && typeof opener.focus === 'function') {
-        opener.focus({ preventScroll: true });
+      } else {
+        if (appRoot) appRoot.inert = false;
+        if (opener && opener.isConnected && typeof opener.focus === 'function') opener.focus({ preventScroll: true });
         opener = null;
       }
     }).observe(sheet, { attributes: true, attributeFilter: ['hidden'] });
