@@ -3,7 +3,8 @@
    Registers the service worker (it only caches this app's own files) and tailors the #install sheet to the device:
    iPhone Safari, other iPhone browsers, in-app browsers (Instagram, Facebook, LinkedIn, Messenger...), Android, computer.
    On browsers that offer it (Android Chrome, desktop Chrome/Edge) the sheet shows a real "Install app" button.
-   Exposes window.NextStepInstall = { canPrompt(), prompt(), platform, installed } for the rest of the app.
+   Exposes window.NextStepInstall = { canPrompt(), prompt(), platform, installed } for the rest of the app,
+   and fires a 'nextstep-install-change' event on window whenever canPrompt() or installed may have changed.
    No network calls, no tracking. */
 (function () {
   const byId = (id) => document.getElementById(id);
@@ -35,18 +36,22 @@
 
   const state = () => (standalone() ? 'installed' : added ? 'added' : platform);
   const canPrompt = () => !!deferred && !standalone() && !added;
+  const changed = () => {
+    render();
+    window.dispatchEvent(new Event('nextstep-install-change'));
+  };
 
   async function prompt() {
     const event = deferred;
     if (!event || !canPrompt()) return 'unavailable';
     deferred = null;
-    render();
+    changed();
     try {
       await event.prompt();
       const choice = await event.userChoice;
       if (choice && choice.outcome === 'accepted') {
         added = true;
-        render();
+        changed();
         return 'accepted';
       }
       return 'dismissed';
@@ -65,12 +70,12 @@
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault(); // offer it calmly from the install sheet instead of a surprise banner
     deferred = event;
-    render();
+    changed();
   });
   window.addEventListener('appinstalled', () => {
     added = true;
     deferred = null;
-    render();
+    changed();
   });
 
   if (!sheet) return;
@@ -142,7 +147,7 @@
   });
   if (window.matchMedia) {
     const mode = window.matchMedia('(display-mode: standalone)');
-    if (mode.addEventListener) mode.addEventListener('change', render);
+    if (mode.addEventListener) mode.addEventListener('change', changed);
   }
   render();
 })();
