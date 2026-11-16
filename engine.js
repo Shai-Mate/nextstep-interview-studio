@@ -35,7 +35,7 @@ const THEMES = [
     include: ['What the team was trying to get done', 'Your part, and how you helped someone else', 'What you achieved together'],
     story: 'Tell me about a time you worked closely with others to get something done. What was your part?',
     scene: 'Imagine a teammate is falling behind and it is starting to affect your work. What would you do?',
-    rx: /\b(?:teams?|teammates?|team players?|crew|colleagues?|co-?workers?|together|collaborat\w*|cooperat\w*|works? well with|working well with|alongside|journey(?:person|man)|nurse in charge|stand-?ups?|code reviews?|planning|pitch in|supervision of)\b/g },
+    rx: /\b(?:teams?|teammates?|team players?|crew|colleagues?|co-?workers?|together|collaborat\w*|cooperat\w*|works? well with|working well with|(?:work|works|working) closely with|alongside|journey(?:person|man)|nurse in charge|stand-?ups?|code reviews?|planning|pitch in|supervision of)\b/g },
   { id: 'communication', label: 'Communication',
     probe: 'They want to hear that you explain things clearly, listen well and keep the right people in the loop.',
     include: ['Who you needed to talk to, and why', 'How you made it clear and checked they understood', 'What happened because the message got through'],
@@ -47,7 +47,7 @@ const THEMES = [
     include: ['A time someone was counting on you', 'What you did to be there or get it done', 'How you kept it up over time'],
     story: 'Tell me about a time someone was counting on you. How did you make sure you came through?',
     scene: 'Imagine you wake up sick on a day you are scheduled to work. What would you do?',
-    rx: /\b(?:reliab\w*|dependab\w*|punctual\w*|on time|show up|shows up|showing up|attendance|availab\w*|shifts?|weekends?|evenings?|nights?|overnight|early mornings?|rotating|holidays?|transportation|follow(?:s|ing)? through|follow-through|consisten\w*|committed|commitment|trustworth\w*|criminal record|vulnerable sector|police check|background check|driver'?s licen[cs]e)\b/g },
+    rx: /\b(?:reliab\w*|dependab\w*|punctual\w*|on time|show up|shows up|showing up|attendance|availab\w*|shifts?|weekends?|evenings?|nights?|overnight|early mornings?|rotating (?:shifts?|schedules?|days|weekends)|holidays?|transportation|follow(?:s|ing)? through|follow-through|consisten\w*|committed|commitment|trustworth\w*|criminal record|vulnerable sector|police check|background check|driver'?s licen[cs]e)\b/g },
   { id: 'safety', label: 'Safety and following procedures',
     probe: 'They want to hear how you keep yourself and others safe on the job, with a real example.',
     include: ['The risk or rule involved', 'The steps you followed, and why they matter', 'How everyone stayed safe'],
@@ -59,7 +59,7 @@ const THEMES = [
     include: ['The hands-on task and the conditions', 'How you did it properly and safely', 'The finished result'],
     story: 'Tell me about a hands-on job you did that took care and stamina.',
     scene: 'Imagine a physical task is taking much longer than planned and you are getting tired. What would you do?',
-    rx: /\b(?:lift|lifts|lifting|carry\w*|standing|on your feet|physical\w*|ladders?|crawl spaces?|outdoors?|all weather|kg|kilograms?|lbs?|pounds|heavy|bending|hand tools|power tools|install\w*|repair\w*|wiring|wire|conduit|terminate|restock\w*|deliveries|boxes|cleaning|dishes|labou?r|warehouse|forklift|hands-on|manual|transfers?|pour-?overs?|espresso|drinks|cook\w*|sweep\w*|mop\w*|keep (?:job sites|the counter|the \w+ floor|the floor|the store|work areas?))\b/g },
+    rx: /\b(?:lift|lifts|lifting|carry\w*|standing|on your feet|physical\w*|ladders?|crawl spaces?|outdoors?|all weather|kg|kilograms?|lbs?|pounds|heavy|bending|hand tools|power tools|install\w*|repair\w*|wiring|wire|conduit|terminate|restock\w*|deliveries|boxes|cleaning|dishes|labou?r|warehouse|forklift|hands-on|manual|transfers?|pour-?overs?|espresso|drinks|cook\w*|grill\w*|saut[eé]\w*|fryers?|knife|knives|chop\w*|prep (?:vegetables|food|ingredients|stations?)|food prep|sweep\w*|mop\w*|keep (?:job sites|the counter|the \w+ floor|the floor|the store|work areas?))\b/g },
   { id: 'care', label: 'Care and compassion',
     probe: 'They want to hear how you treat people with patience, dignity and kindness, especially when they need help.',
     include: ['Who you were helping and what they needed', 'What you did to keep them comfortable and respected', 'How they, or their family, responded'],
@@ -97,7 +97,7 @@ const THEMES = [
     include: ['Something new you had to learn', 'How you learned it: asking, practising, feedback', 'How you used it afterwards'],
     story: 'Tell me about a time you had to learn something new quickly, or changed how you worked after feedback.',
     scene: 'Imagine you are asked to do a task you have never done before and your supervisor is busy. What would you do?',
-    rx: /\b(?:learn\w*|eager\w*|curio\w*|willing\w*|ask for help|ask questions|(?:take|taking|accept\w*|act on|acting on|use|using|welcome|open to|receive|receiving) feedback|coaching|coached|mentoring|mentorship|apprentice\w*|supervision|grow (?:your|with)|new skills|study\w*|school|working toward|adapt\w*|attitude|pick up|will train|we train|on-the-job training|training provided|bootcamp|internships?)\b/g },
+    rx: /\b(?:learn\w*|eager\w*|curio\w*|willing\w*|ask for help|ask questions|(?:take|taking|accept\w*|act on|acting on|use|using|welcome|open to|receive|receiving) feedback|(?:get|getting|receive|receiving|ongoing|with) coaching|coaching and (?:feedback|support|mentoring|training)|coached|mentoring|mentorship|apprentice\w*|supervision|grow (?:your|with)|new skills|study\w*|school|working toward|adapt\w*|attitude|pick up|will train|we train|on-the-job training|training provided|bootcamp|internships?)\b/g },
   { id: 'pressure', label: 'Staying calm under pressure',
     probe: 'They want to hear how you stay calm and kind when things get busy or tense, and still get it right.',
     include: ['How busy or tense it was', 'What you did to stay calm and keep going', 'How it turned out'],
@@ -394,11 +394,13 @@ function guessHeadingKind(s) {
 /* ---------- cue words for lines without a clear section ---------- */
 const CUE = {
   nice: /\b(?:nice[- ]to[- ]have|(?:we'd|we would|would) love|bonus|preferred|preferably|an asset|is an asset|asset but not required|not required|desirable|a plus|is a plus|would be great|is great but|great but we will train|ideally|an advantage|helpful but not|not essential|not necessary|we will train)\b/i,
-  exclude: /\b(?:we offer|we provide|benefits (?:include|package)|(?:extended|health|full|great|competitive) (?:health )?benefits|perks|staff discount|employee discount|discounts?|tips|salary|wages?|per hour|an hour|hourly|pay range|compensation|pension|vacation|paid time off|dental|apply|applicants?|resumes?|résumé|cover letter|equal opportunit\w*|accommodations? (?:are|is) available|diversity|we are an?|we're an?|is an? (?:fictional|small|leading|growing|family|local|global|well-known|busy|friendly|new|fast-growing)|is home to|an? fictional|our (?:values|mission|story|team of|company|founders?)|founded|headquartered)\b|[$£€]\s?\d/i,
+  exclude: /^(?:help wanted|now hiring|we(?:'|’)re hiring|we are hiring)[.!:]*$|\b(?:we offer|we provide|we pay|pay (?:is |starts at )?(?:weekly|biweekly|bi-weekly|every|\$)|paid (?:weekly|biweekly|bi-weekly|every two weeks)|bonus(?:es)? (?:for|of|after|program)|signing bonus|tip share|tips? (?:and|plus|on top)|free (?:parking|meals?|drinks?|coffee|uniforms?)|staff meals?|has been (?:serving|providing|helping|operating|proudly)|(?:serving|in business|operating|family business|family-owned|family-run|founded)[^.]{0,40}\bsince (?:19|20)\d\d|benefits (?:include|package)|(?:extended|health|full|great|competitive) (?:health )?benefits|perks|staff discount|employee discount|discounts?|tips|salary|wages?|per hour|an hour|hourly|pay range|compensation|pension|vacation|paid time off|dental|apply|applicants?|resumes?|résumé|cover letter|equal opportunit\w*|accommodations? (?:are|is) available|diversity|we are an?|we're an?|is an? (?:fictional|small|leading|growing|family|local|global|well-known|busy|friendly|new|fast-growing)|is home to|an? fictional|our (?:values|mission|story|team of|company|founders?)|founded|headquartered)\b|[$£€]\s?\d/i,
   role: /\b(?:we(?:'re| are) (?:looking for|hiring|seeking)|join (?:our|the) (?:small )?team|is hiring|are hiring|reporting to|reports to)\b/i,
   must: /\b(?:must|we need|someone who (?:can|is|has)|required|requires|requirement|mandatory|essential|you have|you(?:'ll| will)? need|need to|needs to|you should|you are|you're|experience (?:with|in|as|of|using)|\d+\+? years?|ability to|able to|certificat\w*|licen[cs]e\w*|degree|diploma|registered|knowledge of|proficien\w*|familiar\w*|understanding of|comfortable|available|availability|valid|current)\b/i,
   duty: /\b(?:you will|you'll|you would|responsible for|duties include|assist\w*|help\w*|install\w*|greet\w*|process\w*|build\w*|make|making|prepare\w*|serve|serving|clean\w*|maintain\w*|manage\w*|support\w*|handle\w*|take orders|operate\w*|deliver\w*|provide\w*|run|running|monitor\w*|repair\w*|record\w*|answer\w*|work with|working with|keep|keeping|stock\w*|restock\w*|sell\w*|teach\w*|care for|look after|cook\w*|pour\w*)\b/i
 };
+// Checks and clearances are yes/no gates. They stay requirements but never become questions, lessons or quiz items.
+const CHECK = /\b(?:criminal record|vulnerable sector|police (?:check|clearance|record)|security (?:check|clearance|screening)|background (?:check|screening)|references?(?: check)?\b(?= (?:required|check|available|on request))|reference checks?|drug (?:test|screen)\w*|work permit|eligib\w* to work|legally (?:entitled|eligible|able) to work|right to work|driver[’']?s abstract|driving abstract|driving record|(?:government|medical) clearance)\b/i;
 const STRONG_MUST = /\b(?:must|required|requires|mandatory|essential|\d+\+? years?|certificat\w*|licen[cs]e\w*|degree|diploma)\b/i;
 const ABBR = /^(?:e\.g|i\.e|etc|st|dr|mr|mrs|ms|no|approx|incl|vs|a\.m|p\.m|jr|sr|inc|ltd|co)$/i;
 const BULLET = /^(\s*)(?:[-*•·▪◦‣●■➢➤►✓✔–—]|\d{1,2}[.)]|[a-z][.)])\s*/;
@@ -493,7 +495,7 @@ function readAd(src, company) {
           text.split(/\s+/).filter((w) => w.length > 3).every((w) => /^[A-Z]/.test(w))) {
         section = guessHeadingKind(text); openSection(section, text); return;
       }
-      if (idx === 0 && wc <= 14 && text.length <= 110 && !/[.!?]$/.test(text) && !/^(?:we|our|join|are you|looking)\b/i.test(text)) {
+      if (idx === 0 && wc <= 14 && text.length <= 110 && !/[!?]$/.test(text) && (!/\.$/.test(text) || /\b(?:Co|Inc|Ltd|Corp|LLC|Bros)\.$/.test(text)) && !/^(?:we|our|join|are you|looking)\b/i.test(text)) {
         titleLine = ln;
         items.push({ text, start: ln.start, end: ln.end, section: 'title', kind: 'title', bullet: false });
         return;
@@ -523,10 +525,21 @@ function readAd(src, company) {
 }
 
 /* ---------- skills ---------- */
-function findSkills(src, items) {
+function companyRanges(src, company) {
+  const out = [];
+  const c = clean(company);
+  if (c.length < 3 || /^company$/i.test(c)) return out;
+  const low = src.toLowerCase(), key = c.toLowerCase().replace(/\.$/, '');
+  for (let i = low.indexOf(key); i >= 0 && out.length < 200; i = low.indexOf(key, i + key.length)) out.push([i, i + key.length]);
+  return out;
+}
+function findSkills(src, items, company) {
   const found = new Map();
   const ranges = [];
-  const skip = { about: 1, offer: 1, apply: 1, eeo: 1, meta: 1 };
+  const skip = { about: 1, offer: 1, apply: 1, eeo: 1, meta: 1, title: 1 };
+  const own = companyRanges(src, company);
+  // A company called "Swift Parcel" or "Square One" also gets called "Swift" or "Square" for short; that is not a skill.
+  const coFirst = own.length ? clean(company).toLowerCase().split(/\s+/)[0] : '';
   const eligible = items.filter((it) => !skip[it.kind]);
   const index = new Map();
   for (const it of eligible) {
@@ -552,6 +565,7 @@ function findSkills(src, items) {
         let text = m[0], off = m.index;
         for (let g = 1; g < m.length; g++) if (m[g]) { text = m[g]; off = m.index + m[0].indexOf(m[g]); break; }
         const start = it.start + off, end = start + text.length;
+        if (own.length && (own.some((r) => r[0] < end && start < r[1]) || (coFirst.length > 2 && text.toLowerCase() === coFirst))) continue;
         const taken = it.taken || (it.taken = []);
         if (taken.some((r) => r[0] < end && start < r[1])) continue;
         taken.push([start, end]);
@@ -596,12 +610,16 @@ const KW_LEAD = new Set(('comfortable available able willing eager happy keen re
   'long short good strong excellent basic some own new previous current valid clear great various other similar simple small big high low ' +
   'main every each all any many more most right quick friendly patient reliable cheerful positive solid proven relevant related minimum certain ' +
   'pull stay terminate join bring show agree control love enjoy want know get become do go come see let put another sq ft km kg lbs').split(' '));
-const KW_TAIL = new Set(('tidy clean safe calm accurate ready busy great welcome preferred required needed reported count move moves well daily early every private public smooth').split(' '));
+const KW_TAIL = new Set(('tidy clean safe calm accurate ready busy great welcome preferred required needed reported count move moves well daily early every private public smooth follow help keep make take get use learn stay').split(' '));
 const KW_BREAK = new Set(('under over across within through during after before between without per via using including like such up down out off upon toward towards among around near').split(' '));
 const KW_NOUN_LY = /^(?:family|supply|assembly|anomaly|ally|rally|reply|july|italy)$/;
 const KW_SCHEDULE = /\b(?:evenings?|weekends?|nights?|overnight|holidays?|mornings|schedules?|shifts?|season)\b/;
-function findKeywords(items, skillNames) {
+function findKeywords(items, skillNames, company) {
   const cands = new Map();
+  // The company's own name is never a keyword: skip its full name, and its first word when written as a name ("Swift").
+  const co = clean(company || '').replace(/\.$/, '').toLowerCase();
+  const coName = co.length >= 3 && co !== 'company' ? co : '';
+  const coFirst = coName ? coName.split(/\s+/)[0] : '';
   const skillLow = skillNames.map((s) => ' ' + flat(s).replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim() + ' ');
   const nearSkill = (key) => { const k = ' ' + key + ' '; return skillLow.some((s) => s.includes(k) || k.includes(s)); };
   const weakLead = (low) => VERBS.has(low) || KW_LEAD.has(low);
@@ -611,6 +629,8 @@ function findKeywords(items, skillNames) {
     if (!w) continue;
     const re = /[A-Za-z][A-Za-z0-9+#'’\/.-]*[A-Za-z0-9+#]|[A-Za-z]|[,;:()!?]|\s(?:and|or|but|-|–|—)\s/g;
     let m, run = [];
+    const coAt = [];
+    if (coName) { const low = it.text.toLowerCase(); for (let i = low.indexOf(coName); i >= 0 && coAt.length < 20; i = low.indexOf(coName, i + coName.length)) coAt.push([i, i + coName.length]); }
     const flush = () => {
       let a = 0, b = run.length;
       while (a < b && weakLead(run[a].low)) a++;
@@ -619,7 +639,10 @@ function findKeywords(items, skillNames) {
       run = [];
       if (seg.length < 2 || seg.length > 4) return;
       const key = seg.map((x) => x.low).join(' ');
-      if (key.length < 6 || KW_SCHEDULE.test(key) || nearSkill(key)) return;
+      const textKey = flat(it.text.slice(seg[0].s, seg[seg.length - 1].e));
+      if (key.length < 6 || KW_SCHEDULE.test(key) || nearSkill(key) || nearSkill(textKey)) return;
+      if (coAt.some((r) => r[0] < seg[seg.length - 1].e && seg[0].s < r[1])) return;
+      if (coFirst && coFirst.length > 2 && !STOP.has(coFirst) && seg.some((x) => x.low === coFirst && /^[A-Z]/.test(it.text[x.s]))) return;
       let c = cands.get(key);
       if (!c) cands.set(key, (c = { text: it.text.slice(seg[0].s, seg[seg.length - 1].e), key, score: 0, first: it.start + seg[0].s, n: seg.length, hits: [] }));
       c.score += w;
@@ -658,18 +681,23 @@ const SIGNALS = [
   ['Customer-facing', /\bcustomers?\b(?! orders?\b)|\bclients?\b|\bguests?\b|\bclient-facing\b|\bcustomer-facing\b|\bhomeowners?\b|\bthe public\b|\bshoppers?\b|\bpatrons?\b/i],
   ['Hands-on care', /\bpersonal care\b|\b(?:bathing|dressing|grooming|toileting|feeding|transfer techniques|wound care|vital signs|medications?|patient care|resident care)\b|\bcare (?:for|to) (?:residents|patients|clients|seniors|children)\b/i],
   ['Fast-paced', /\bfast[- ]paced\b|\bbusy\b|\brush\b|\bhigh[- ]volume\b|\bpeak (?:times|hours|season)\b|\bholiday season\b/i],
-  ['Driving or travel', /\b(?:driver[’']?s|driving) licen[cs]e\b|\breliable transportation\b|\bown vehicle\b|\btravel (?:to|between|required|across|within|up to)\b|\bsome travel\b/i],
+  ['Driving or travel', /\b(?:driver[’']?s|driving) licen[cs]e\b|\bclass [1-7][a-z]?(?: licen[cs]e)?\b|\byour (?:van|vehicle|truck|car)\b|\bvehicle check\b|\bdriv(?:e|ing) (?:a |the |our |company )?(?:van|vehicle|truck|car|bus)\b|\breliable transportation\b|\bown vehicle\b|\btravel (?:to|between|required|across|within|up to)\b|\bsome travel\b/i],
   ['Training and support', /\bwe will train\b|\bwe train\b|\bwill train\b|\bpaid training\b|\btraining (?:is )?provided\b|\bon-the-job training\b|\bmentoring\b|\blearning (?:budget|stipend)\b|\bpaid (?:school time|education days)\b|\bunder the supervision\b/i],
   ['Certificates or checks', /\bcriminal record check\b|\bvulnerable sector\b|\bpolice check\b|\bcertificat\w+\b|\blicen[cs]e\b|\bregistered (?:apprentice|nurse)\b|\bred seal\b|\bwhmis\b|\bfirst aid\b|\bcpr\b|\bfood ?safe\b|\bsmart ?serve\b/i],
   ['Small team', /\bsmall team\b|\bfamily-run\b|\bsmall, family\b|\bteam of (?:[2-9]|1\d|20)\b/i]
 ];
-const SCHEDULE = [['early mornings', /\bearly mornings?\b|\b(?:at|from|by|before) [4-6] ?am\b/i], ['evenings', /\bevenings?\b/i], ['nights', /\bnights\b|\bovernight\b|\bnight shifts?\b/i], ['weekends', /\bweekends?\b|\bsaturdays?\b|\bsundays?\b/i], ['holidays', /\bholidays?\b|\bholiday season\b/i], ['rotating shifts', /\brotating\b|\bshift work\b/i]];
+const SCHEDULE = [['weekdays', /\bmonday (?:to|through|-|–) friday\b|\bweekdays only\b/i], ['early mornings', /\bearly mornings?\b|\b(?:at|from|by|before) [4-6] ?am\b/i], ['evenings', /\bevenings?\b/i], ['nights', /\bnights\b|\bovernight\b|\bnight shifts?\b/i], ['weekends', /\bweekends?\b|\bsaturdays?\b|\bsundays?\b/i], ['holidays', /\bholidays?\b|\bholiday season\b/i], ['rotating shifts', /\brotating (?:shifts?|schedules?|days|weekends)\b|\bshifts? (?:will )?rotate\b|\bshift work\b/i]];
 function findSignals(items) {
   const out = [];
   const eligible = items.filter((it) => it.kind !== 'about');
   const excerpt = (t) => { const c = clean(t); return c.length > 100 ? c.slice(0, 99).replace(/\s+\S*$/, '') + '…' : c; };
   for (const [label, rx] of SIGNALS) {
     if (out.length >= 6) break;
+    if (label === 'On-site') {
+      const it = eligible.find((x) => rx.test(x.text) && !/\bapply\b/i.test(x.text));
+      if (it) out.push({ label, detail: excerpt(it.text) });
+      continue;
+    }
     if (label === 'schedule') {
       const hits = [];
       let detail = '';
@@ -722,7 +750,7 @@ function findSeniority(items, roleText) {
 
 /* ---------- analyze ---------- */
 const RELIABLE_CORE = /\b(?:reliab\w*|dependab\w*|punctual\w*|on time|show up|shows up|showing up|attendance|follow(?:s|ing)? through|follow-through|consisten\w*|committed|commitment|trustworth\w*|transportation|criminal record|vulnerable sector|police check|background check|driver'?s licen[cs]e)\b/;
-const SCHEDULE_WORDS = /\b(?:availab\w*|shifts?|weekends?|evenings?|nights?|overnight|early mornings?|rotating|holidays?)\b/;
+const SCHEDULE_WORDS = /\b(?:availab\w*|shifts?|weekends?|evenings?|nights?|overnight|early mornings?|rotating (?:shifts?|schedules?)|holidays?)\b/;
 const LATER_CREDENTIAL = /\bwithin (?:your|the) first\b|\bwilling(?:ness)? to (?:get|obtain)\b|\b(?:must|will need to|able to) obtain\b|\bobtain(?:ed)? (?:within|after|once)\b|\bafter (?:you are )?hired\b/;
 const PHYSICAL_CONDITION = /\b(?:standing|on your feet|lift|lifting|kg|kilograms?|lbs?|pounds|heavy|bending|ladders?|crawl spaces?|outdoors?|all weather)\b/;
 function analyze(jobText, opts) {
@@ -733,7 +761,7 @@ function analyze(jobText, opts) {
   const companyIn = clean(o.company);
   const company = /^company$/i.test(companyIn) ? '' : companyIn;
   const { items, sections } = readAd(src, company);
-  const skills = findSkills(src, items);
+  const skills = findSkills(src, items, company);
 
   // Theme scores from what the job asks for, weighted must > duty > nice.
   const scores = Object.fromEntries(THEMES.map((t) => [t.id, 0]));
@@ -756,6 +784,7 @@ function analyze(jobText, opts) {
     it.themeHits = hits;
     it.firstTheme = THEMES.map((t) => t.id).filter((id) => hits[id]).sort((a, b) => hits[b] - hits[a] || THEME_INDEX[a] - THEME_INDEX[b])[0] || null;
     it.cred = isCredential(it.text, (it.skills || []).length);
+    it.check = CHECK.test(it.text);
     const sched = hits.reliability && !RELIABLE_CORE.test(low) && SCHEDULE_WORDS.test(low);
     const later = LATER_CREDENTIAL.test(low) ? 0.5 : 1;
     const condition = hits.physical && it.kind === 'must' && PHYSICAL_CONDITION.test(low);
@@ -764,7 +793,7 @@ function analyze(jobText, opts) {
       const add = Math.min(2, hits[id]) * w * later * ((id === 'reliability' && sched) ? 0.75 : (id === 'physical' && condition) ? 0.5 : 1);
       scores[id] += add;
       reach[id] += 1;
-      if (it.kind !== 'title') evid[id].push({ text: it.clean, add, start: it.start, key: Math.min(2, hits[id]) + (it.firstTheme === id ? 2 : 0) + (it.kind === 'duty' ? 3 : 0) - (it.cred ? 3 : 0) });
+      if (it.kind !== 'title' && !it.check) evid[id].push({ text: it.clean, add, start: it.start, key: Math.min(2, hits[id]) + (it.firstTheme === id ? 2 : 0) + (it.kind === 'duty' ? 3 : 0) - (it.cred ? 3 : 0) });
     }
   }
   // The job title says a lot about what the work is (a store associate helps customers, a care aide gives care).
@@ -805,7 +834,7 @@ function analyze(jobText, opts) {
     const themeIds = Object.keys(hits).sort((a, b) => hits[b] - hits[a] || THEMES.findIndex((t) => t.id === a) - THEMES.findIndex((t) => t.id === b)).slice(0, 3);
     const score = KIND_BASE[it.kind] + specificity(it) + Math.max(0, 0.6 - (pos - 1) * 0.1) - (it.section === 'role' ? 2 : 0);
     ranked.push({ text, kind: it.kind, themes: themeIds, score: Math.round(score * 100) / 100, start: it.start, _skills: (it.skills || []).map((s) => s.text),
-      _tech: (it.skills || []).filter((s) => s.theme === 'technical' && !/seal|ticket|certif|licen/i.test(s.name)).map((s) => s.text), _hits: hits, _cred: !!it.cred, _sched: !!it.scheduleOnly, _fallback: !!it.fallback });
+      _tech: (it.skills || []).filter((s) => s.theme === 'technical' && !/seal|ticket|certif|licen/i.test(s.name)).map((s) => s.text), _hits: hits, _cred: !!it.cred, _sched: !!it.scheduleOnly, _fallback: !!it.fallback, _check: !!it.check });
   }
   ranked.sort((a, b) => b.score - a.score || a.start - b.start);
   // Keep room for up to two nice-to-haves in the top 12, after every must-have and duty that fits.
@@ -813,7 +842,7 @@ function analyze(jobText, opts) {
   const coreRanked = ranked.filter((r) => r.kind !== 'nice');
   const topReq = coreRanked.slice(0, 12 - Math.min(2, niceRanked.length)).concat(niceRanked).slice(0, 12);
 
-  const keywordList = findKeywords(items, skills.list.map((s) => s.text));
+  const keywordList = findKeywords(items.filter((it) => !CHECK.test(it.text)), skills.list.map((s) => s.text), company);
 
   // Highlights: must and nice lines, then keywords, then skills on top; flattened into sorted, non-overlapping ranges.
   const paint = new Uint8Array(src.length);
@@ -865,7 +894,11 @@ const VERBS = new Set(('assist help greet process keep receive share install rep
   'test design develop create plan organise organize coordinate lead train mentor work ensure identify review update schedule book collect respond communicate explain document ' +
   'set open close count measure cut lift move transport wash sweep mop file enter track analyse analyze report present negotiate research assess evaluate administer give ' +
   'collaborate partner participate contribute attend act use apply inspect diagnose fix replace assemble paint guide welcome seat host recommend price label unpack rotate ' +
-  'be greet visit drive support prepare protect respond complete perform conduct oversee calm book confirm pick ship fill prep').split(' '));
+  'be greet visit drive support prepare protect respond complete perform conduct oversee calm book confirm pick ship fill prep stay plate vacuum dust empty wipe stack scan carry fold iron scrub polish garnish bake grill fry chop slice ' +
+  'dice brew blend shelve tidy wrap mount sand drill weld supervise coach tutor type invoice reconcile deposit bathe feed transfer reposition accompany ' +
+  'escort guard patrol lock unlock liaise upsell promote demonstrate advise investigate debug deploy refactor optimise optimize draft edit proofread ' +
+  'translate interpret motivate engage dispatch gather').split(' '));
+const NOUN_START = /^(?:a|an|the|our|your|their|all|any|some|this|these|those|each|every|general|various|other|daily|weekly|monthly|[a-z]+ing)\b/i;
 // Everyday tools read better with an article ("a multimeter"); names, plurals and mass nouns do not need one.
 function withArticle(s) {
   if (!/^[a-z]/.test(s) || /s$/.test(s) || /\b(?:code|conduit|wiring|wire|data|software|equipment|safety|care|control|charting|accessibility|protection)$/.test(s)) return s;
@@ -911,6 +944,7 @@ function isSentence(t) { return /^(?:you|we|our|they|this|the successful)\b/i.te
 /* Role and company, only used when the person left those fields empty. */
 const NOT_COMPANY = /^(?:(?:night|day|evening|weekend|morning|overnight|afternoon|graveyard)s?(?: shifts?)?|.*\bshifts?\b.*|part[- ]time|full[- ]time|remote|hybrid|on[- ]site|contract|temporary|temp|seasonal|casual|permanent|internship|co-?op|summer)$/i;
 const ROLE_ADJ = /^(?:cheerful|friendly|motivated|reliable|experienced|enthusiastic|passionate|hard-?working|part-time|full-time|new|great|talented|positive|energetic|skilled|dedicated|caring|organized|organised|detail-oriented|outgoing|keen|qualified)$/i;
+const HIRING_WORDS = /^(?:help wanted|now hiring|hiring|we(?:'|’)re hiring|we are hiring|job opening|job posting|job opportunity)$/i;
 function guessNames(a) {
   let role = '', company = '';
   const title = a._items.find((it) => it.kind === 'title');
@@ -918,6 +952,8 @@ function guessNames(a) {
     const parts = title.text.split(/\s+[–—|·@]\s+|\s+-\s+|\s+at\s+/);
     role = clean(parts[0]);
     if (parts[1] && !NOT_COMPANY.test(clean(parts[1]))) company = clean(parts[1].replace(/\s*\([^)]*\)/g, ''));
+    // "Help Wanted – Cashier": the second part is the job, not the company.
+    if (HIRING_WORDS.test(role)) { role = parts[1] && !NOT_COMPANY.test(clean(parts[1])) ? clean(parts[1]) : ''; company = parts[2] ? clean(parts[2].replace(/\s*\([^)]*\)/g, '')) : ''; }
   }
   const cue = a._items.find((it) => /\b(?:hiring|looking for|seeking)\b/i.test(it.text));
   if (!role && cue) {
@@ -936,10 +972,18 @@ function guessNames(a) {
     else if (cue) { const m = cue.text.match(/\bat ((?:[A-Z][\w&'’.-]*\s?){1,5})/); if (m) company = clean(m[1]); }
     if (!company) {
       for (const it of a._items.slice(0, 8)) {
-        const m = it.text.match(/^((?:(?:[A-Z][\w'’.-]*|&)\s+){0,4}[A-Z][\w'’.-]*)\s+(?:\([^)]*\)\s+)?(?:is|are)\s+(?:a|an)\b/);
+        const m = it.text.match(/^((?:(?:[A-Z][\w'’.-]*|&)\s+){0,4}[A-Z][\w'’.-]*)\s+(?:\([^)]*\)\s+)?(?:(?:is|are)\s+(?:a|an)\b|ha(?:s|ve) been\b)/);
         if (m && !/^(?:This|The|It|We|Our|You|Your|There|Here)\b/.test(m[1])) { company = clean(m[1]); break; }
       }
     }
+  }
+  if (role) role = role.replace(/\s+(?:needed|wanted|required)\b.*$/i, '');
+  if (!role) {
+    const first = a._items.find((it) => it.kind !== 'about' && !HIRING_WORDS.test(clean(it.text).replace(/[.!:]+$/, '')));
+    const w = first && first.text.match(/^([A-Z][a-z-]+(?:\s+[a-z-]+)?)\s+(?:wanted|needed|for)\b/);
+    const h = a._items.map((it) => it.text).join(' ').match(/\b(?:now hiring|hiring)\s*:?\s+(?:an?\s+)?([a-z][a-z-]+(?:\s+[a-z][a-z-]+)?)\s*[.!,]/i);
+    const pick = w ? w[1] : h ? h[1] : '';
+    if (pick && !/^(?:help|staff|people|someone|workers?|you|we)\b/i.test(pick)) role = cap1(pick);
   }
   const ok = (s) => s && s.length <= 80 && countWords(s) <= 8 && !/[!?]$/.test(s) && (!/\.$/.test(s) || /\b(?:Co|Inc|Ltd|Corp|Bros|LLC|Ltée)\.$/.test(s));
   return { role: ok(role) ? role.slice(0, 120) : '', company: ok(company) ? company.slice(0, 120) : '' };
@@ -1009,7 +1053,7 @@ function create(input) {
   })();
   const techAll = ranked.reduce((acc, r) => acc.concat(r._tech.filter((x) => !acc.includes(x))), []);
   const cashJob = /\b(?:cash|till|register|pos|money|payments?|tips)\b/i.test(job);
-  const fill = (s, r) => s.replace(/\{person\}/g, people)
+  const fill = (s, r) => s.replace(/\{person\}/g, people).replace(/refuses care they need/, /^(?:student|child)$/.test(people) ? 'refuses help they need' : 'refuses care they need')
     .replace(/\{skills\}/g, joinAnd((r && r._tech.length ? r._tech : techAll).slice(0, 2).map(withArticle)) || 'a tool or skill from this job');
   const storyOf = (id, r) => fill(id === 'numbers' && cashJob ? THEME.numbers.storyCash : THEME[id].story, r);
 
@@ -1017,7 +1061,7 @@ function create(input) {
   const byTheme = (id, kinds) => {
     let best = null, bestScore = 0;
     for (const r of ranked) {
-      if (used.has(r.text) || !kinds.includes(r.kind)) continue;
+      if (used.has(r.text) || !kinds.includes(r.kind) || r._check) continue;
       const h = r._hits[id] || 0;
       const firstIs = r.themes[0] === id;
       if (!h || (!firstIs && h < 2)) continue;
@@ -1029,13 +1073,25 @@ function create(input) {
     return best;
   };
   const ADJ_START = /^(?:able|comfortable|available|friendly|reliable|willing|eager|patient|organi[sz]ed|detail-oriented|flexible|happy|keen|confident|fluent|passionate|motivated|calm|punctual|physically|proficient|familiar|knowledgeable|skilled|outgoing|positive|respectful|honest|dependable|curious|good at|great at)\b/i;
-  const lead = (r, max) => {
-    if (r._fallback) return `The ad says “${quoteText(r.text, max)}”.`;
-    if (r.kind === 'duty') {
-      const d = lcFirst(quoteText(dutyPhrase(r.text), max), keep);
-      if (/^\w+ing\b/i.test(d)) return `This job involves “${d}”.`;
-      return isVerbStart(d) ? `Part of this job is to “${d}”.` : `This job involves “${d}”.`;
+  // A long duty line lists several tasks; quote the one that fits the area being asked about.
+  const clauseFor = (text, id) => {
+    const t = dutyPhrase(clean(text));
+    if (!id || !THEME[id] || t.length <= 105) return t;
+    const parts = t.split(/,\s+(?:and\s+)?|;\s+/);
+    for (let i = 0; i < parts.length && parts.length > 1; i++) {
+      const rx = THEME[id].rx;
+      rx.lastIndex = 0;
+      const hit = rx.test(flat(parts[i]));
+      rx.lastIndex = 0;
+      if (hit && isVerbStart(parts[i]) && countWords(parts[i]) >= 3) return trimTail(parts[i]);
     }
+    return t;
+  };
+  const dutyLead = (d) => isVerbStart(d) ? `Part of this job is to “${d}”.`
+    : (NOUN_START.test(d) || /^[A-Z]/.test(d)) ? `This job involves “${d}”.` : `The ad lists this task: “${d}”.`;
+  const lead = (r, max, id) => {
+    if (r._fallback) return `The ad says “${quoteText(r.text, max)}”.`;
+    if (r.kind === 'duty') return dutyLead(lcFirst(quoteText(clauseFor(r.text, id), max), keep));
     const q = lcFirst(quoteText(r.kind === 'nice' ? niceCore(r.text) : r.text, max), keep);
     if (ADJ_START.test(q)) return `The ad says you should be “${q}”.`;
     return isSentence(q) ? `The ad says “${q}”.` : `The ad asks for “${q}”.`;
@@ -1079,17 +1135,18 @@ function create(input) {
     behaviouralThemes.push(id);
     if (r) used.add(r.text);
     if (r && id === 'reliability' && r._sched) {
-      add(`${lead(r, 105)} How would that schedule work for you, and how do you make sure people can count on you?`, { kind: 'behavioural', theme: id, source: r.text, probe: t.probe,
+      add(`${lead(r, 105, id)} How would that schedule work for you, and how do you make sure people can count on you?`, { kind: 'behavioural', theme: id, source: r.text, probe: t.probe,
         include: ['The days and times you can work, said plainly', 'How you make sure you are on time and ready', 'A time someone counted on you and you came through'] });
       continue;
     }
     const stem = storyOf(id, r);
-    add(r ? `${lead(r, 105)} ${stem}` : stem, { kind: 'behavioural', theme: id, source: r ? r.text : null, probe: t.probe, include: t.include.slice() });
+    add(r ? `${lead(r, 105, id)} ${stem}` : stem, { kind: 'behavioural', theme: id, source: r ? r.text : null, probe: t.probe, include: t.include.slice() });
   }
 
   // 3. Role-specific: the line with the most skills or tools, "walk me through"
-  const roleLines = ranked.filter((r) => (r.kind === 'duty' || r.kind === 'must') && !used.has(r.text));
-  const roleRank = (r) => (r.kind === 'duty' && r._skills.length ? 0 : r.kind === 'must' && r._skills.length ? 1 : 2);
+  const askable = (r) => !r._check && !(r._cred && (CRED.test(r.text) || !r._skills.length || r._hits.safety));
+  const roleLines = ranked.filter((r) => (r.kind === 'duty' || r.kind === 'must') && !used.has(r.text) && askable(r));
+  const roleRank = (r) => (r.kind === 'duty' && r._skills.length ? 0 : r.kind === 'must' && r._skills.length ? 1 : r.kind === 'duty' ? 2 : 3);
   const skillLine = roleLines.slice().sort((x, y) => roleRank(x) - roleRank(y) || y._skills.length - x._skills.length || y.score - x.score || x.start - y.start)[0];
   const roleQuestion = (r) => {
     const theme = r.themes.includes('technical') ? 'technical' : r.themes[0] || 'technical';
@@ -1097,7 +1154,8 @@ function create(input) {
     let q;
     if (r.kind === 'duty') {
       const d = lcFirst(quoteText(dutyPhrase(r.text), 110), keep);
-      q = isVerbStart(d) ? `Walk me through how you would “${d}”, step by step.` : `Walk me through how you would handle “${d}”, step by step.`;
+      q = isVerbStart(d) ? `Walk me through how you would “${d}”, step by step.`
+        : (NOUN_START.test(d) || /^[A-Z]/.test(d)) ? `Walk me through how you would handle “${d}”, step by step.` : `Walk me through this task from the ad, step by step: “${d}”.`;
     } else if (r._skills.length) {
       q = `${lead(r, 100)} Tell me how you have used or learned ${r._skills.length > 1 ? 'these' : 'this'}, with a real example.`;
       add(q, { kind: 'role', theme, source: r.text, probe: 'They want to hear what you have really done with these tools or skills, or how quickly you could learn them.',
@@ -1111,7 +1169,7 @@ function create(input) {
   };
   if (skillLine) roleQuestion(skillLine);
   if (extraRole) {
-    const second = ranked.filter((r) => (r.kind === 'duty' || r.kind === 'must') && !used.has(r.text)).sort((x, y) => roleRank(x) - roleRank(y) || y._skills.length - x._skills.length || y.score - x.score || x.start - y.start)[0];
+    const second = ranked.filter((r) => (r.kind === 'duty' || r.kind === 'must') && !used.has(r.text) && askable(r)).sort((x, y) => roleRank(x) - roleRank(y) || y._skills.length - x._skills.length || y.score - x.score || x.start - y.start)[0];
     if (second) roleQuestion(second);
   }
 
@@ -1135,7 +1193,7 @@ function create(input) {
   }
 
   // 5. Gap or stretch, from a nice-to-have
-  const nice = ranked.filter((r) => r.kind === 'nice' && !used.has(r.text)).sort((x, y) => y._skills.length - x._skills.length || y.score - x.score || x.start - y.start)[0];
+  const nice = ranked.filter((r) => r.kind === 'nice' && !used.has(r.text) && !r._check && countWords(niceCore(r.text)) >= 2).sort((x, y) => y._skills.length - x._skills.length || y.score - x.score || x.start - y.start)[0];
   if (nice) {
     used.add(nice.text);
     const core = lcFirst(quoteText(niceCore(nice.text), 100), keep);
@@ -1161,7 +1219,7 @@ function create(input) {
       const r = byTheme(nextBeh, ['must', 'duty']);
       behaviouralThemes.push(nextBeh);
       if (r) used.add(r.text);
-      add(r ? `${lead(r, 105)} ${storyOf(nextBeh, r)}` : storyOf(nextBeh, r), { kind: 'behavioural', theme: nextBeh, source: r ? r.text : null, probe: t.probe, include: t.include.slice() });
+      add(r ? `${lead(r, 105, nextBeh)} ${storyOf(nextBeh, r)}` : storyOf(nextBeh, r), { kind: 'behavioural', theme: nextBeh, source: r ? r.text : null, probe: t.probe, include: t.include.slice() });
       continue;
     }
     const nextSit = areaIds.find((id) => id !== sitFirst && !info.some((x) => x.kind === 'situational' && x.theme === id) && !behaviouralThemes.includes(id))
@@ -1182,23 +1240,27 @@ function create(input) {
   // Lessons: short, plain and built around the top areas and must-haves.
   const tip = expTip(exp);
   const topLabels = a.themes.slice(0, 3).map((t) => t.label.toLowerCase());
-  const leadLine = (a.themes[0] && a.themes[0].evidence[0]) || requirements[0];
+  const plainLine = (ranked.find((r) => !r._check) || {}).text || '';
+  const leadLine = (a.themes[0] && a.themes[0].evidence[0]) || plainLine;
   const course = [];
   course.push({ title: 'What this job is really about', minutes: 5,
-    body: `${topLabels.length > 1 ? `This ad keeps coming back to ${topLabels.length === 2 ? 'two' : 'three'} areas: ${topLabels.join('; ')}.` : topLabels.length ? `This ad keeps coming back to one area: ${topLabels[0]}.` : 'Start with what the ad asks for most.'} The ad says “${quoteText(leadLine, 150)}”.\nYour answers should keep pointing back to these. You do not need to be perfect at all of them: real examples of a few go a long way.`,
+    body: `${topLabels.length > 1 ? `This ad keeps coming back to ${topLabels.length === 2 ? 'two' : 'three'} areas: ${topLabels.join('; ')}.` : topLabels.length ? `This ad keeps coming back to one area: ${topLabels[0]}.` : 'Start with what the ad asks for most.'}${leadLine ? ` The ad says “${quoteText(leadLine, 150)}”.` : ''}\nYour answers should keep pointing back to these. You do not need to be perfect at all of them: real examples of a few go a long way.`,
     exercise: 'Say in one sentence what this job is for and who it helps. Then write down one true example from your life for each area above.', done: false });
   const lessonThemes = a.themes.slice(0, 3);
   for (const t of lessonThemes) {
     const cat = THEME[t.id];
     const ev = t.evidence[0];
+    const evItem = ev && ev.length > 140 ? ranked.find((r) => r.kind === 'duty' && clean(r.text) === ev) : null;
+    const evText = evItem ? dutyLead(lcFirst(quoteText(clauseFor(evItem.text, t.id), 140), keep)) : ev ? `The ad says “${quoteText(ev, 140)}”.` : '';
     course.push({ title: t.label, minutes: 5, theme: t.id,
-      body: `${cat.probe}${ev ? ` The ad says “${quoteText(ev, 140)}”.` : ''}\n${tip}`,
+      body: `${cat.probe}${evText ? ' ' + evText : ''}\n${tip}`,
       exercise: `Write a short story using Situation, Task, Action, Result (STAR): where you were, what needed doing, what you did and how it turned out. Include: ${cat.include.map((s) => s.toLowerCase()).join('; ')}.${focusTip(focus)}`, done: false });
   }
   const musts = ranked.filter((r) => r.kind === 'must');
+  const plainMusts = musts.filter((r) => !r._check);
   if (musts.length) {
     course.push({ title: 'Check the must-haves', minutes: 5,
-      body: `The ad lists ${musts.length === 1 ? 'one thing it needs' : musts.length + ' things it needs'}, such as “${quoteText(musts[0].text, 140)}”.\nFor each one, know where you got it or how you show it. If one is missing, say so honestly and explain how you are working on it. That is a strong answer, not a weak one.`,
+      body: `The ad lists ${musts.length === 1 ? 'one thing it needs' : musts.length + ' things it needs'}${plainMusts.length ? `, such as “${quoteText(plainMusts[0].text, 140)}”` : ''}.\nFor each one, know where you got it or how you show it. If one is missing, say so honestly and explain how you are working on it. That is a strong answer, not a weak one.`,
       exercise: 'Write one line for each must-have: where you got it, or how you are getting it.', done: false });
   }
   course.push({ title: stageTitle(stage), minutes: 5, body: stageLesson(stage),
@@ -1215,7 +1277,7 @@ function create(input) {
     exercise: 'Prepare two questions, for example: What does a great first month look like? How does training work for new people? Then say one sentence on why you want this job.', done: false });
   while (course.length < 6) {
     course.splice(course.length - 2, 0, { title: 'Turn the duties into stories', minutes: 5,
-      body: `Take one thing the ad asks for, like “${quoteText(requirements[0], 120)}”, and think of a time you did something similar.\n${tip}`,
+      body: `${plainLine ? `Take one thing the ad asks for, like “${quoteText(plainLine, 120)}”, and think` : 'Take one thing the ad asks for and think'} of a time you did something similar.\n${tip}`,
       exercise: 'Write a short story using Situation, Task, Action, Result (STAR). Keep it true and specific.', done: false });
   }
 
@@ -1232,15 +1294,16 @@ function create(input) {
     ['Smart Serve', 'safety'], ['Python', 'technical'], ['HVAC', 'technical'], ['Salesforce', 'customers'], ['CPR', 'safety'], ['WHMIS', 'safety'], ['Excel', 'numbers'], ['React', 'technical'], ['Food Safe', 'safety']];
   const topIds = themeIds.slice(0, 3);
   let qi = 0;
-  const firstMust = musts[0] || ranked[0];
+  const firstMust = plainMusts[0] || ranked.find((r) => !r._check);
   if (firstMust) {
     const right = cap1(quoteText(firstMust.kind === 'nice' ? niceCore(firstMust.text) : firstMust.text, 90));
     const wrong = pick(REQ_DISTRACT.filter(([, rx]) => !rx.test(lowJob)).map(([t]) => t), 2, 'req');
     const { options, correct } = place(right, wrong, qi++);
     quizItems.push({ q: 'Which of these does the ad ask for?', options, correct, why: `The ad says “${quoteText(firstMust.text, 120)}”. The other two are not in this ad.` });
   }
-  if (a.skills.length) {
-    const right = a.skills[0];
+  const quizSkill = a.skills.find((x) => !CHECK.test(x));
+  if (quizSkill) {
+    const right = quizSkill;
     const pool = SKILL_DISTRACT.filter(([s]) => !lowJob.includes(s.toLowerCase().split(' ')[0]) && !a.skills.some((x) => x.toLowerCase() === s.toLowerCase()));
     const far = pool.filter(([, th]) => !topIds.includes(th));
     const wrong = pick((far.length >= 2 ? far : pool).map(([s]) => s), 2, 'skill');
@@ -1258,7 +1321,7 @@ function create(input) {
     const low = DISTINCT.filter((id) => !absent.includes(id) && !topIds.includes(id)).sort((x, y) => a._scores[x] - a._scores[y]);
     const wrong = pick(absent.length >= 2 ? absent : absent.concat(low).slice(0, Math.max(2, absent.length)), 2, 'theme').map((id) => THEME[id].label);
     const { options, correct } = place(right, wrong, qi++);
-    quizItems.push({ q: 'What is this job mostly about?', options, correct, why: `The ad keeps coming back to it, for example: “${quoteText(a.themes[0].evidence[0] || requirements[0], 110)}”.` });
+    quizItems.push({ q: 'What is this job mostly about?', options, correct, why: a.themes[0].evidence[0] || plainLine ? `The ad keeps coming back to it, for example: “${quoteText(a.themes[0].evidence[0] || plainLine, 110)}”.` : 'It is the area the ad comes back to most.' });
   }
   {
     const right = closeTask ? `How do new people learn to “${closeTask}”?` : 'What does a great first month look like in this job?';
@@ -1272,17 +1335,25 @@ function create(input) {
       why: 'Interviewers want to hear what you did. Keep the background short, then finish with how it turned out.' });
   }
   if (quizItems.length < 6) {
-    const n = ranked.find((r) => r.kind === 'nice');
+    const n = ranked.find((r) => r.kind === 'nice' && !r._check && countWords(niceCore(r.text)) >= 2);
     const right = 'Be honest, mention anything related, and say how you would learn it';
     const { options, correct } = place(right, ['Say you have it anyway', 'Avoid the topic and hope it does not come up'], qi++);
     quizItems.push({ q: n ? `The ad says “${lcFirst(quoteText(niceCore(n.text), 80), keep)}” would be a plus, and you do not have it yet. What should you do?` : 'You have not done part of this job before. What is the strongest approach?',
       options, correct, why: 'An honest gap with a real plan to learn is a strong answer. Making things up is never worth it.' });
   }
 
-  if (quizItems.length < 5) {
-    const { options, correct } = place('About a minute: what you do now, one example that fits this job, and why you want it', ['Your whole life story, starting from school', 'Say there is not much to tell'], qi++);
-    quizItems.push({ q: 'They ask you to tell them about yourself. What is a strong answer?', options, correct,
-      why: 'A short, focused introduction gives them a clear picture and leads into your examples.' });
+  const GENERIC_QUIZ = [
+    ['They ask you to tell them about yourself. What is a strong answer?', 'About a minute: what you do now, one example that fits this job, and why you want it',
+      ['Your whole life story, starting from school', 'Say there is not much to tell'], 'A short, focused introduction gives them a clear picture and leads into your examples.'],
+    ['You do not know the answer to a question. What is the best thing to do?', 'Say so honestly, then explain how you would find out',
+      ['Make up an answer that sounds confident', 'Change the subject quickly'], 'Honesty plus a plan to find out shows you can be trusted and can learn.'],
+    ['How should you finish the interview?', 'Thank them and say clearly that you want the job',
+      ['Ask how soon you can take time off', 'Leave as soon as the last question is done'], 'A clear, warm ending leaves a good last impression.']
+  ];
+  for (const [q, right, wrong, why] of GENERIC_QUIZ) {
+    if (quizItems.length >= 5) break;
+    const { options, correct } = place(right, wrong, qi++);
+    quizItems.push({ q, options, correct, why });
   }
   return { schema: 1, id: uid(), company, role, job, url: String(input.url || '').slice(0, 2000), intake, requirements, course, questions, questionInfo: info, quizItems,
     notes: {}, quiz: { answers: {} }, mock: { index: 0, answers: [], draft: '', finished: false }, created: new Date().toISOString(), updated: new Date().toISOString() };
