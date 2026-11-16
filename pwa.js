@@ -87,7 +87,7 @@
   const copyButton = byId('install-copy');
   const copyLabel = byId('install-copy-label');
   const titles = {
-    'in-app': 'Open this page in your browser first',
+    'in-app': iOS ? 'Open this page in Safari first' : 'Open this page in your browser first',
     desktop: 'Install NextStep',
     installed: "You're using the app",
     added: 'NextStep is installed'
