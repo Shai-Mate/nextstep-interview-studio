@@ -709,7 +709,7 @@ const screens = {
           <div><b>${st.mockDone}/${st.mock}</b><span>Mock</span></div>
         </div>
       </div>
-      ${renaming ? `<form class="rename" id="rename-form"><label class="sr" for="rename-input">Job title</label><input id="rename-input" type="text" maxlength="120" value="${esc(p.role)}"><button class="primary" type="submit">Save</button></form>` : `<div class="pager tools"><button type="button" class="quiet" id="rename">Rename</button><button type="button" class="quiet" id="export-one">Export backup</button><button type="button" class="quiet" data-action="all-preps">All preparations</button></div>`}
+      ${renaming ? `<form class="rename" id="rename-form"><label class="sr" for="rename-input">Job title</label><input id="rename-input" type="text" maxlength="120" value="${esc(p.role)}"><button class="primary" type="submit">Save</button></form>` : `<div class="pager tools"><button type="button" class="quiet" id="rename">Rename</button><button type="button" class="quiet" id="export-one">Export backup</button><button type="button" class="quiet" data-action="all-preps">All preparations</button></div><button type="button" class="quiet danger delete-prep" id="delete-prep">Delete this preparation</button>`}
       <details class="fold"><summary>Review original job ad</summary>${legend.length ? `<p class="hl-legend">${legend.map(([k, l]) => `<mark class="hl hl-${k}">${l}</mark>`).join('')}</p>` : ''}<pre class="ad-text">${ad.html}</pre>${p.url ? `<p class="muted">Reference URL: ${esc(p.url)}</p>` : ''}</details>
     `);
   },
@@ -1154,6 +1154,18 @@ function bindScreen() {
     if (name) { active.role = name.slice(0, 120); save(); }
     renaming = false;
     show('today', { keep: true });
+  });
+  if ($('#delete-prep')) $('#delete-prep').addEventListener('click', () => {
+    const p = active;
+    const at = p ? records.indexOf(p) : -1;
+    if (at < 0) return;
+    const name = [p.role, p.company].filter(Boolean).join(' at ') || 'this preparation';
+    if (!confirm('Delete ' + name + ' from this device? Its notes and answers go too, and this cannot be undone. Export a backup first if you want to keep it.')) return;
+    records.splice(at, 1);
+    if (storageOK && !persist()) { records.splice(at, 0, p); return; }
+    active = null;
+    show('welcome');
+    notify(storageOK ? 'Preparation deleted.' : 'Preparation removed. Nothing saved on this device was changed.');
   });
   if ($('#export-one')) $('#export-one').addEventListener('click', () => exportBackup(false));
   if ($('#all-export')) $('#all-export').addEventListener('click', () => exportBackup(true));

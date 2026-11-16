@@ -856,6 +856,7 @@ input::-webkit-calendar-picker-indicator { filter: invert(.85) sepia(.4) saturat
 .list-row:active { transform: scale(.98); }
 .glass.flat.quiet-card { background-color: rgba(255, 255, 255, .02); }
 .pager.tools { margin-top: 16px; }
+.delete-prep { display: block; margin: 0 auto; }
 .when-line { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 14px; color: var(--soft); }
 .when-line svg { flex: none; color: var(--amber); }
 .when-line.soon { color: var(--amber); }
