@@ -20,6 +20,7 @@ const IV_KIND_TIP = {
 };
 const IV_PREFS_KEY = 'nextstep.prefs.v1';
 const IV_FEEDBACK_URL = 'https://github.com/Shai-Mate/nextstep-interview-studio/issues/new';
+const IV_MIC = '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3a2.5 2.5 0 012.5 2.5v4a2.5 2.5 0 01-5 0v-4A2.5 2.5 0 0110 3zM5 9.5a5 5 0 0010 0M10 14.5V17"></path></svg>';
 const IV_SPEAKER = '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8v4h3l4 3.5v-11L6.5 8z"></path><path class="iv-wave" d="M13.5 7.5a3.5 3.5 0 010 5M15.5 5.5a6.5 6.5 0 010 9"></path></svg>';
 let ivPart = 'action';
 let lastFeedback = null;
@@ -27,6 +28,7 @@ let ivSpeech = null;
 let ivSpeakTimer = 0;
 let ivSpeechSeq = 0;
 let ivReadAloud = ivPrefs().readAloud === true;
+let ivMic = null;
 
 /* ---------- small helpers ---------- */
 
@@ -234,8 +236,8 @@ function ivReport(p) {
   return `<div class="screen" data-screen="mock">
     <div class="topbar tight">${iconBtn('close-today', 'Close', I.close)}<span class="center">Mock interview</span><span class="count">${n} of ${p.questions.length}</span></div>
     <div class="feedback-orb iv-report-orb"><div class="orb-slot lg"><div class="orb-anchor lg" data-orb data-env="1" data-s=".75" data-up="120,60" data-down="50,140" data-energy="${glow(p)}"></div></div></div>
-    <h1 class="saved-title">Round complete.</h1>
-    <p class="italic saved-italic">You did the whole thing.</p>
+    <h1 class="saved-title iv-focus" tabindex="-1">Round complete.</h1>
+    <p class="italic saved-italic">You did it.</p>
     <p class="muted gap-top">Every answer you practise now is one you will not have to invent on the day. Here is how this round went.</p>
     <div class="glass flat iv-stats">
       <div><b>${n}</b><span>${n === 1 ? 'answer' : 'answers'}</span></div>
@@ -243,8 +245,8 @@ function ivReport(p) {
       <div><b>${n ? ivShortTime(avg) : '0 sec'}</b><span>to say each, on average</span></div>
     </div>
     <div class="glass flat">
-      <div class="card-head"><strong>Answer shape</strong><span class="muted">of 4 parts</span></div>
-      <p class="muted">Situation, Task, Action, Result in each answer.</p>
+      <div class="card-head"><strong>Answer shape</strong></div>
+      <p class="muted">How many of Situation, Task, Action, Result each answer had.</p>
       <ol class="iv-rows">${rows.map((r) => `<li><span class="iv-qn">${r.k + 1}</span><span class="iv-qt">${esc(r.ans.question)}</span>${r.parts === null ? '<span class="iv-na">Not checked</span>' : r.story ? ivBars(r.parts) : '<span class="iv-na">No story needed</span>'}</li>`).join('')}</ol>
     </div>
     ${best ? `<div class="glass flat iv-picks">
@@ -272,7 +274,7 @@ Object.assign(screens, {
   mock() {
     const p = active;
     const m = p.mock;
-    if (m.finished) return ivReport(p);
+    if (m.finished || !p.questions[m.index]) return ivReport(p);
     const i = m.index;
     const q = p.questions[i];
     const info = ivInfo(p, i);
@@ -286,7 +288,7 @@ Object.assign(screens, {
       <div class="iv-stage"><div class="orb-slot iv-slot"><div class="orb-anchor iv-anchor" data-orb data-voice="1" data-env="1" data-s=".8" data-up="110,55" data-down="50,120" data-energy="${glow(p)}"></div></div></div>
       <div class="iv-askrow"><p class="italic iv-asks">The interviewer asks</p><button type="button" class="iv-speak" id="iv-speak" aria-pressed="${ivReadAloud}" hidden>${IV_SPEAKER}<span>Read aloud</span></button></div>
       <p class="iv-note" id="iv-speak-note" hidden>Read aloud needs an English voice that works offline on this phone.</p>
-      <h1 class="question iv-q${reduceMotion() ? '' : ' iv-reveal'}" data-say="1">${ivQuestionHtml(q)}</h1>
+      <h1 class="question iv-q iv-focus${reduceMotion() ? '' : ' iv-reveal'}" data-say="1" tabindex="-1">${ivQuestionHtml(q)}</h1>
       ${excerpt ? `<div class="glass pad-sm quote"><div class="kicker">From your job ad</div><p>${esc(excerpt)}</p></div>` : ''}
       <p class="iv-calm">This is practice, and nobody is grading you. Take your time.</p>
       ${ivWant(info)}
@@ -296,8 +298,13 @@ Object.assign(screens, {
         ${ivMeter(live.star)}
         <p class="hint" id="star-hint"><strong>${part.name}:</strong> ${esc(part.tip)}</p>
         <label class="field tight" for="mock-answer">Your answer</label>
-        <textarea id="mock-answer" rows="6" placeholder="Use a real example. What happened, what did you do, and how did it turn out?">${esc(m.draft)}</textarea>
+        <textarea id="mock-answer" rows="5" placeholder="Use a real example. What happened, what did you do, and how did it turn out?">${esc(m.draft)}</textarea>
         <div class="meta"><span id="word-count">${ivWords(live.words)}${live.words ? ' · ' + ivSpoken(live.seconds) + ' to say' : ''}</span><span class="saved" id="save-line">${I.check}<span>Draft saved. Resume anytime.</span></span></div>
+      </div>
+      <div class="iv-mic" id="iv-mic" hidden>
+        <div class="iv-mic-row"><button type="button" class="iv-mic-btn" id="iv-mic-btn">${IV_MIC}<span>Practise out loud</span></button><button type="button" class="quiet iv-mic-del" id="iv-mic-del" hidden>Delete recording</button></div>
+        <audio class="iv-mic-play" id="iv-mic-play" controls preload="metadata" hidden></audio>
+        <p class="iv-mic-note">Optional. Say your answer out loud, then listen back. The recording stays in this phone’s memory only: never saved, never sent, and gone when you leave this question.</p>
       </div>
       <button type="button" class="primary" id="submit-answer">Save answer and continue</button>
       ${logHtml(m)}
@@ -322,8 +329,8 @@ Object.assign(screens, {
       <div class="topbar tight">${iconBtn('close-today', 'Close', I.close)}<span class="center">Mock interview</span><span class="count">${f.count} of ${f.total}</span></div>
       ${segs(f.total, f.count, -1)}
       <div class="feedback-orb iv-fb-orb"><div class="orb-slot lg"><div class="orb-anchor lg" data-orb data-env="1" data-s=".75" data-up="125,60" data-down="50,150" data-energy="${glow(p)}"></div></div></div>
-      <h1 class="saved-title">${f.finished ? 'Round complete.' : 'Answer saved.'}</h1>
-      <p class="italic saved-italic">${f.finished ? 'You did the whole thing.' : 'One step closer.'}</p>
+      <h1 class="saved-title iv-focus" tabindex="-1">${f.finished ? 'Last answer saved.' : 'Answer saved.'}</h1>
+      <p class="italic saved-italic">${f.finished ? 'That’s the round.' : 'One step closer.'}</p>
       <p class="muted gap-top">${f.count} of ${f.total} done.${left ? ' ' + left + ' to go.' : ' Your session report is ready.'}</p>
       <div class="glass flat iv-check">
         <div class="card-head"><strong>Structure check</strong><span class="muted">${ivWords(words)} · ${ivSpoken(secs)}</span></div>
@@ -349,13 +356,15 @@ Object.assign(screens, {
 function ivSynth() {
   return 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function' ? window.speechSynthesis : null;
 }
+/* Novelty voices some phones ship as ordinary local English voices: never the interviewer. */
+const IV_ODD_VOICE = /\b(albert|bad news|bahh|bells|boing|bubbles|cellos|deranged|good news|hysterical|jester|organ|superstar|trinoids|whisper|wobble|zarvox)\b/i;
 function ivVoices() {
   const s = ivSynth();
   let list = [];
   try { list = s ? s.getVoices() || [] : []; } catch { list = []; }
-  const local = list.filter((v) => v && v.localService === true && /^en([-_]|$)/i.test(v.lang || ''));
+  const local = list.filter((v) => v && v.localService === true && /^en([-_]|$)/i.test(v.lang || '') && !IV_ODD_VOICE.test(v.name || ''));
   const want = String(navigator.language || 'en-GB').toLowerCase().replace('_', '-');
-  const voice = local.find((v) => String(v.lang).toLowerCase().replace('_', '-') === want) || local.find((v) => v.default) || local[0] || null;
+  const voice = local.find((v) => v.default) || local.find((v) => String(v.lang).toLowerCase().replace('_', '-') === want) || local[0] || null;
   return { loaded: list.length > 0, voice };
 }
 function ivStopSpeech() {
@@ -428,8 +437,10 @@ function ivBindSpeech(question) {
     ivReadAloud = !ivReadAloud;
     ivSetPref('readAloud', ivReadAloud);
     btn.setAttribute('aria-pressed', String(ivReadAloud));
-    if (ivReadAloud) ivSpeak(question);
-    else ivStopSpeech();
+    if (ivReadAloud) {
+      if (ivMic && ivMic.live) { ivMicStop(true); ivMicPaint(); }
+      ivSpeak(question);
+    } else ivStopSpeech();
   });
 }
 (function ivWatchLeave() {
@@ -438,11 +449,132 @@ function ivBindSpeech(question) {
     new MutationObserver(() => {
       if (ivSpeech && app.firstElementChild !== ivSpeech.el) ivStopSpeech();
       else if (ivSpeakTimer && view !== 'mock') ivStopSpeech();
+      if (ivMic && app.firstElementChild !== ivMic.el) ivMicStop(false);
     }).observe(app, { childList: true });
   }
-  document.addEventListener('visibilitychange', () => { if (document.hidden) ivStopSpeech(); });
-  window.addEventListener('pagehide', ivStopSpeech);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) return;
+    ivStopSpeech();
+    if (ivMic && ivMic.live) { ivMicStop(true); ivMicPaint(); }
+  });
+  window.addEventListener('pagehide', () => { ivStopSpeech(); ivMicStop(false); });
 })();
+
+/* ---------- practise out loud (microphone, in memory only) ---------- */
+
+function ivMicOK() {
+  return !!(window.isSecureContext !== false && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function' && typeof window.MediaRecorder === 'function');
+}
+/* Stops the microphone. keep=false also forgets the recording (leaving the question). */
+function ivMicStop(keep) {
+  const me = ivMic;
+  if (!me) return;
+  me.keep = !!keep;
+  clearTimeout(me.limit);
+  try { if (me.rec && me.rec.state !== 'inactive') me.rec.stop(); } catch { /* already stopped */ }
+  try { me.stream.getTracks().forEach((t) => t.stop()); } catch { /* already stopped */ }
+  try { if (me.ctx) me.ctx.close(); } catch { /* already closed */ }
+  me.ctx = null;
+  me.an = null;
+  me.live = false;
+  if (!keep) {
+    if (me.url) { try { URL.revokeObjectURL(me.url); } catch { /* gone */ } }
+    me.url = null;
+    me.chunks = [];
+    ivMic = null;
+  }
+}
+function ivMicPaint() {
+  const root = document.getElementById('app');
+  const btn = root && root.querySelector('#iv-mic-btn');
+  if (!btn) return;
+  const me = ivMic;
+  const label = btn.lastElementChild;
+  const play = root.querySelector('#iv-mic-play');
+  const del = root.querySelector('#iv-mic-del');
+  if (me && me.live) {
+    const sec = Math.floor((performance.now() - me.t0) / 1000);
+    label.textContent = 'Stop recording · ' + Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+    btn.classList.add('rec');
+  } else {
+    label.textContent = me && me.url ? 'Record again' : 'Practise out loud';
+    btn.classList.remove('rec');
+  }
+  if (play) {
+    const url = me && !me.live ? me.url : null;
+    play.hidden = !url;
+    if (url && play.src !== url) play.src = url;
+    if (!url && play.getAttribute('src')) { play.removeAttribute('src'); try { play.load(); } catch { /* nothing loaded */ } }
+  }
+  if (del) del.hidden = !(me && me.url && !me.live);
+}
+async function ivMicStart() {
+  const app = document.getElementById('app');
+  const screen = app && app.firstElementChild;
+  if (!ivMicOK() || !screen) return;
+  ivStopSpeech();
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  } catch (err) {
+    notify(err && err.name === 'NotAllowedError' ? 'No microphone access, and that is fine: typing your answer works just as well.' : 'The microphone is not available right now. Typing your answer works just as well.');
+    return;
+  }
+  if (app.firstElementChild !== screen) { stream.getTracks().forEach((t) => t.stop()); return; }
+  ivMicStop(false);
+  let rec;
+  try { rec = new MediaRecorder(stream); } catch {
+    stream.getTracks().forEach((t) => t.stop());
+    notify('Recording is not supported in this browser. Typing your answer works just as well.');
+    return;
+  }
+  const me = { stream, rec, chunks: [], ctx: null, an: null, data: null, el: screen, t0: performance.now(), url: null, live: true, keep: true, limit: 0 };
+  ivMic = me;
+  rec.ondataavailable = (e) => { if (e.data && e.data.size) me.chunks.push(e.data); };
+  rec.onstop = () => {
+    if (ivMic !== me || !me.keep || !me.chunks.length) return;
+    try { me.url = URL.createObjectURL(new Blob(me.chunks, { type: rec.mimeType || 'audio/webm' })); } catch { me.url = null; }
+    ivMicPaint();
+  };
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC && !reduceMotion()) {
+      me.ctx = new AC();
+      me.an = me.ctx.createAnalyser();
+      me.an.fftSize = 512;
+      me.ctx.createMediaStreamSource(stream).connect(me.an);
+      me.data = new Uint8Array(me.an.fftSize);
+    }
+  } catch { me.ctx = null; me.an = null; }
+  try { rec.start(250); } catch { ivMicStop(false); notify('Recording could not start. Typing your answer works just as well.'); ivMicPaint(); return; }
+  me.limit = setTimeout(() => { if (ivMic === me && me.live) { ivMicStop(true); ivMicPaint(); } }, 180000);
+  let lastPaint = 0;
+  const tick = (now) => {
+    if (ivMic !== me || !me.live) return;
+    if (me.an) {
+      me.an.getByteTimeDomainData(me.data);
+      let sum = 0;
+      for (let k = 0; k < me.data.length; k++) { const v = (me.data[k] - 128) / 128; sum += v * v; }
+      const rms = Math.sqrt(sum / me.data.length);
+      try { window.NextStepOrb?.level?.(Math.min(1, Math.max(0, (rms - 0.015) * 6))); } catch { /* optional */ }
+    }
+    if (now - lastPaint > 250) { lastPaint = now; ivMicPaint(); }
+    requestAnimationFrame(tick);
+  };
+  ivMicPaint();
+  requestAnimationFrame(tick);
+}
+function ivBindMic() {
+  const root = document.getElementById('app');
+  const box = root && root.querySelector('#iv-mic');
+  if (!box || !ivMicOK()) return;
+  box.hidden = false;
+  root.querySelector('#iv-mic-btn').addEventListener('click', () => {
+    if (ivMic && ivMic.live) { ivMicStop(true); ivMicPaint(); }
+    else ivMicStart();
+  });
+  root.querySelector('#iv-mic-del').addEventListener('click', () => { ivMicStop(false); ivMicPaint(); root.querySelector('#iv-mic-btn')?.focus(); });
+}
 
 /* ---------- wiring ---------- */
 
@@ -469,15 +601,22 @@ function ivRevealQuestion() {
     t += 0.06 + (/[.?!][”"’)]*$/.test(s) ? 0.24 : /[,;:][”"’)]*$/.test(s) ? 0.1 : 0);
   });
 }
+function ivFocusTitle() {
+  const h = document.querySelector('#app .iv-focus');
+  if (h) { try { h.focus({ preventScroll: true }); } catch { /* focus is a nicety */ } }
+}
+binders.feedback = ivFocusTitle;
 binders.mock = () => {
   const p = active;
   if (!p) return;
   const root = document.getElementById('app');
+  ivFocusTitle();
   if (!p.mock.finished) {
     const box = root.querySelector('#mock-answer');
     const question = p.questions[p.mock.index];
     ivRevealQuestion();
     ivBindSpeech(question);
+    ivBindMic();
     let pending = 0;
     box.addEventListener('input', () => {
       active.mock.draft = box.value;
@@ -493,6 +632,7 @@ binders.mock = () => {
       const k = m.index;
       const r = ivReview(active, k, text, question);
       ivStopSpeech();
+      ivMicStop(false);
       m.answers.push({ question, text, feedback: r ? 'Structure checklist: ' + r.summary + '.' : feedback(text), at: new Date().toISOString(), review: ivSnapOf(r, text) });
       m.draft = '';
       m.index = m.answers.length;

@@ -229,7 +229,7 @@
         sp: 1.1 + Math.random() * 2.1,
         life: 1.1 + Math.random() * 0.9,
         age: -Math.random() * 0.12,
-        sz: 1.4 + Math.random() * 2.6,
+        sz: 2 + Math.random() * 3.2,
         lift: 0.15 + Math.random() * 0.35,
         img: sprites[i % 4 === 0 ? 1 : i % 3 === 0 ? 2 : 0]
       });

@@ -14,12 +14,12 @@
 .iv-stage { height: 124px; display: flex; align-items: center; justify-content: center; }
 .iv-slot { position: relative; width: 160px; height: 124px; }
 .iv-anchor { position: absolute; left: 50%; top: 50%; width: 92px; height: 92px; margin: -46px 0 0 -46px; }
-.iv-askrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
-.iv-asks { font-size: 26px; margin: 0; }
+.iv-askrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; min-height: 44px; }
+.iv-asks { flex: 1 1 auto; font-size: 24px; margin: 0; }
 .iv-speak {
   flex: none;
   min-height: 44px;
-  padding: 0 14px 0 12px;
+  padding: 0 12px 0 10px;
   border-radius: 99px;
   background: rgba(255, 255, 255, .06);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 0 0 1px rgba(255, 255, 255, .06);
@@ -38,6 +38,7 @@
 .iv-note { font-size: 13px; color: var(--muted); margin-top: 4px; }
 
 .iv-q { margin-top: 10px; }
+.iv-focus:focus { outline: none; }
 .iv-ad { color: #FFDCC2; }
 .iv-calm { display: flex; align-items: baseline; gap: 8px; font-size: 14px; line-height: 1.45; color: var(--soft); margin-top: 16px; }
 .iv-calm::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--green); transform: translateY(-2px); }
@@ -108,6 +109,29 @@ details.iv-want[open] summary::after { transform: translateY(2px) rotate(-135deg
 #star-hint strong { color: var(--ink); font-weight: 600; }
 .iv-screen .meta { flex-wrap: wrap; }
 
+/* Practise out loud (optional microphone, in memory only) */
+.iv-mic { margin: 4px 0 16px; padding: 12px 16px 14px; border-radius: 16px; background: rgba(255, 255, 255, .035); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07); }
+.iv-mic[hidden], .iv-mic-del[hidden], .iv-mic-play[hidden] { display: none; }
+.iv-mic-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.iv-mic-btn {
+  min-height: 44px;
+  padding: 0 16px 0 12px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, .07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 0 0 1px rgba(255, 255, 255, .07);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.iv-mic-btn svg { color: var(--amber); }
+.iv-mic-btn.rec { background: rgba(255, 158, 142, .16); box-shadow: inset 0 0 0 1px rgba(255, 158, 142, .6); }
+.iv-mic-btn.rec svg { color: var(--danger); }
+.iv-mic-play { display: block; width: 100%; height: 44px; margin-top: 12px; }
+.iv-mic-note { margin-top: 10px; font-size: 13px; line-height: 1.45; color: var(--muted); }
+
 /* Feedback after each answer */
 .feedback-orb.iv-fb-orb, .feedback-orb.iv-report-orb { flex: 0 0 150px; min-height: 150px; }
 .iv-shape { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
@@ -123,6 +147,8 @@ details.iv-want[open] summary::after { transform: translateY(2px) rotate(-135deg
   color: var(--muted);
 }
 .iv-shape li.on { color: var(--ink); }
+.iv-check .card-head { flex-wrap: wrap; row-gap: 2px; }
+.iv-check .card-head strong { white-space: nowrap; }
 .iv-group { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 18px; }
 .iv-gentle { margin-top: 8px; }
 .iv-sub { font-size: 13px; color: var(--muted); margin-top: 12px; }
