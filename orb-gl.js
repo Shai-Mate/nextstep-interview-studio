@@ -14,7 +14,9 @@
                                     true: drawn (skip the 2D glass); false: draw the 2D glass instead
      clear()                        nothing to show on this screen
      destroy()
-   } */
+   }
+   Wiring in orb.js: GL = NextStepOrbGL.init() ? NextStepOrbGL : null at start; GL.resize(vw, vh, dprCap)
+   in resize(); GL.clear() when there is no anchor; drawGlass() only when GL.draw(...) returns false. */
 (function () {
   const T0 = 37;            // phase offset: t = 0 (reduced motion still frame) is a calm, full composition
   const EXT = 1.72;         // canvas half-size in orb radii (the glow and the beat swell fit inside)
@@ -441,6 +443,9 @@ void main() {
       }
       return true;
     } catch (err) {
+      try {
+        hide(); // no stale GL frame next to the 2D glass orb.js draws instead
+      } catch (e) { /* ignore */ }
       return false;
     }
   }
