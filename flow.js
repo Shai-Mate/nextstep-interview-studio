@@ -189,7 +189,7 @@ function flowFacts(p) {
   const duty = of('duty');
   const nice = of('nice');
   const fallback = flowList(p.requirements).map(flowStr).filter(Boolean);
-  const asks = must.length ? must : duty.length ? duty : a ? [] : fallback;
+  const asks = must.length ? must : duty.length ? duty : fallback;
   const seen = new Set();
   const skills = flowList(a && a.skills).map(flowStr).filter((s) => {
     const k = s.toLowerCase();
@@ -262,10 +262,13 @@ function flowStrengthBar(pct) {
   return `<svg class="track" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect width="100" height="4" rx="2" fill="rgba(255,255,255,.12)"></rect><rect class="bar" data-bar width="${w}" height="4" rx="2" fill="#FFC48A"></rect></svg>`;
 }
 function flowStatsHtml(f) {
-  const third = f.skills.length ? [f.skills.length, ['skill the ad mentions', 'skills the ad mentions']]
-    : f.nice.length ? [f.nice.length, ['nice-to-have', 'nice-to-haves']]
-      : [f.lessons, ['short lesson', 'short lessons']];
-  const stats = [[f.asks.length, f.asksLabel], third, [f.questions, ['practice question', 'practice questions']]];
+  const lead = [
+    [f.asks.length, f.asksLabel],
+    [f.skills.length, ['skill the ad mentions', 'skills the ad mentions']],
+    [f.nice.length, ['nice-to-have', 'nice-to-haves']],
+    [f.words, ['word read', 'words read']]
+  ].filter(([n]) => n > 0).slice(0, 2);
+  const stats = [...lead, [f.questions, ['practice question', 'practice questions']]];
   return `<div class="glass reveal-stats">${stats.map(([n, [one, many]]) => `<div class="reveal-stat"><b data-count="${n}" aria-hidden="true">${n}</b><span class="flow-sr">${n} </span><span>${n === 1 ? one : many}</span></div>`).join('')}</div>`;
 }
 /* The decoded view shared by the reveal and insights screens. */
@@ -480,7 +483,7 @@ Object.assign(screens, {
         ${flowDecodedHtml(p, f)}
         <section class="flow-sec" id="flow-ad" aria-labelledby="flow-ad-title">
           <div class="flow-head"><h2 class="flow-title" id="flow-ad-title">${legend.length ? 'Your ad, highlighted' : 'Your job ad'}</h2></div>
-          ${legend.length ? `<p class="flow-legend">${legend.map(([k, l]) => `<mark class="hl hl-${k}">${l}</mark>`).join('')}</p>` : ''}
+          ${legend.length ? `<p class="flow-legend"><span class="flow-sr">Key: </span>${legend.map(([k, l]) => `<span class="key hl-${k}">${l}</span>`).join('')}</p>` : ''}
           <div class="glass flow-ad"><p class="flow-ad-text">${ad.html}</p></div>
           ${p.url ? `<p class="hint">Reference URL: ${esc(p.url)}</p>` : ''}
         </section>

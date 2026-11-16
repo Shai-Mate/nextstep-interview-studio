@@ -98,7 +98,8 @@
 
 .reveal-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   margin-top: 20px;
   padding: 18px 6px 16px;
   border-radius: 20px;
@@ -181,12 +182,12 @@
 .flow-ad { margin-top: 12px; padding: 16px 18px; border-radius: 20px; }
 .flow-ad-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14.5px; line-height: 1.7; color: var(--soft); }
 .flow-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
-.flow-ad mark, .flow-legend mark { color: inherit; background: none; border-radius: 4px; }
-.flow-legend mark { padding: 0 4px; }
-.flow-ad mark.hl-must, .flow-legend mark.hl-must { color: var(--ink); background: rgba(255, 180, 134, .16); box-shadow: 0 0 0 2px rgba(255, 180, 134, .16); }
-.flow-ad mark.hl-skill, .flow-legend mark.hl-skill { color: var(--amber); font-weight: 500; }
-.flow-ad mark.hl-nice, .flow-legend mark.hl-nice { color: var(--green); }
-.flow-ad mark.hl-keyword, .flow-legend mark.hl-keyword { color: var(--ink); text-decoration: underline dotted rgba(255, 196, 138, .7); text-underline-offset: 3px; }
+.flow-ad mark { color: inherit; background: none; border-radius: 4px; }
+.flow-legend .key { padding: 0 4px; border-radius: 4px; }
+.flow-ad mark.hl-must, .flow-legend .hl-must { color: var(--ink); background: rgba(255, 180, 134, .16); box-shadow: 0 0 0 2px rgba(255, 180, 134, .16); }
+.flow-ad mark.hl-skill, .flow-legend .hl-skill { color: var(--amber); font-weight: 500; }
+.flow-ad mark.hl-nice, .flow-legend .hl-nice { color: var(--green); }
+.flow-ad mark.hl-keyword, .flow-legend .hl-keyword { color: var(--ink); text-decoration: underline dotted rgba(255, 196, 138, .7); text-underline-offset: 3px; }
 
 @media (prefers-reduced-motion: no-preference) {
   .decode:not(.still) .decode-step { animation: flow-step .5s cubic-bezier(.22, 1.22, .36, 1) var(--flow-d, 0s) backwards; }
@@ -197,4 +198,4 @@
 }
 @keyframes flow-step { from { opacity: 0; transform: translate3d(0, 10px, 0); } to { opacity: 1; transform: none; } }
 @keyframes flow-tick { from { opacity: 0; transform: scale(.3); } to { opacity: 1; transform: none; } }
-@keyframes flow-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .62; } }
+@keyframes flow-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .74; } }
