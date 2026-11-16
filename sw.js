@@ -31,7 +31,20 @@ const ASSETS = [
 ];
 const SCOPE = new URL('./', self.location).pathname;
 const SHELL = new URL('./index.html', self.location).href;
-self.addEventListener('install', (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())));
+// Precache straight from the network: GitHub Pages lets browsers keep files for 10 minutes, so a plain addAll could
+// store a stale v7 index.html in this cache and leave the phone stuck on the old version. If the page that arrives
+// still doesn't load this version's scripts (a stale copy somewhere on the way), give up: the old version keeps
+// working and the browser retries the update on the next visit, instead of mixing versions.
+const VERSION = CACHE.slice(CACHE.lastIndexOf('-v') + 2);
+self.addEventListener('install', (event) => event.waitUntil(
+  caches.open(CACHE)
+    .then((cache) => cache.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' })))
+      .then(() => cache.match('./index.html'))
+      .then((page) => (page ? page.text() : ''))
+      .then((html) => { if (!html.includes('app.js?v=' + VERSION)) throw new Error('stale index.html, retry later'); }))
+    .then(() => self.skipWaiting())
+    .catch((err) => caches.delete(CACHE).then(() => { throw err; }))
+));
 self.addEventListener('activate', (event) => event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith('nextstep-phone-') && key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', (event) => {
   const request = event.request;
