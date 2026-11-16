@@ -492,21 +492,23 @@ function ivMicPaint() {
   const label = btn.lastElementChild;
   const play = root.querySelector('#iv-mic-play');
   const del = root.querySelector('#iv-mic-del');
+  let text;
   if (me && me.live) {
     const sec = Math.floor((performance.now() - me.t0) / 1000);
-    label.textContent = 'Stop recording · ' + Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
-    btn.classList.add('rec');
-  } else {
-    label.textContent = me && me.url ? 'Record again' : 'Practise out loud';
-    btn.classList.remove('rec');
-  }
+    text = 'Stop recording · ' + Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+  } else text = me && me.url ? 'Record again' : 'Practise out loud';
+  if (label.textContent !== text) label.textContent = text;
+  btn.classList.toggle('rec', !!(me && me.live));
   if (play) {
     const url = me && !me.live ? me.url : null;
     play.hidden = !url;
     if (url && play.src !== url) play.src = url;
     if (!url && play.getAttribute('src')) { play.removeAttribute('src'); try { play.load(); } catch { /* nothing loaded */ } }
   }
-  if (del) del.hidden = !(me && me.url && !me.live);
+  if (del) {
+    const hide = !(me && me.url && !me.live);
+    if (del.hidden !== hide) del.hidden = hide;
+  }
 }
 async function ivMicStart() {
   const app = document.getElementById('app');
@@ -544,6 +546,7 @@ async function ivMicStart() {
       me.an.fftSize = 512;
       me.ctx.createMediaStreamSource(stream).connect(me.an);
       me.data = new Uint8Array(me.an.fftSize);
+      if (me.ctx.state === 'suspended' && typeof me.ctx.resume === 'function') me.ctx.resume().catch(() => {});
     }
   } catch { me.ctx = null; me.an = null; }
   try { rec.start(250); } catch { ivMicStop(false); notify('Recording could not start. Typing your answer works just as well.'); ivMicPaint(); return; }
@@ -581,7 +584,8 @@ function ivBindMic() {
 function ivPaintMeter(text) {
   const live = ivLive(text);
   const wc = document.querySelector('#app #word-count');
-  if (wc) wc.textContent = ivWords(live.words) + (live.words ? ' · ' + ivSpoken(live.seconds) + ' to say' : '');
+  const count = ivWords(live.words) + (live.words ? ' · ' + ivSpoken(live.seconds) + ' to say' : '');
+  if (wc && wc.textContent !== count) wc.textContent = count;
   if (!live.star) return;
   document.querySelectorAll('#app .iv-part').forEach((b) => {
     const on = !!live.star[b.dataset.star];
@@ -622,7 +626,8 @@ binders.mock = () => {
       active.mock.draft = box.value;
       const ok = save();
       const line = root.querySelector('#save-line');
-      if (line) line.lastElementChild.textContent = ok ? 'Draft saved. Resume anytime.' : 'Not saved yet. Export a backup before leaving.';
+      const said = ok ? 'Draft saved. Resume anytime.' : 'Not saved yet. Export a backup before leaving.';
+      if (line && line.lastElementChild.textContent !== said) line.lastElementChild.textContent = said;
       if (!pending) pending = requestAnimationFrame(() => { pending = 0; ivPaintMeter(box.value); });
     });
     root.querySelector('#submit-answer').addEventListener('click', () => {
