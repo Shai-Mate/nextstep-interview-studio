@@ -280,3 +280,39 @@ test('summary is one plain line for the session log', () => {
   assert.match(r.summary, /^\d of 4 parts \(no [a-z, ]+ yet\) · \d+ words, about \d+ seconds · (uses \d+ words? from the ad|no words from the ad yet)$/);
   assert.ok(!r.summary.includes('\n'));
 });
+
+test('keeps the words people use: phrasal verbs, clock times, time spans, reactions', () => {
+  const r = Coach.review('On a basement reno I locked out the panel, tagged it and tested for voltage. I opened at 6 am and the job passed inspection after a week.', trades);
+  assert.equal(r.star.situation, true);
+  assert.match(check(r, 'ownership').detail, /“locked out”/);
+  assert.match(check(r, 'evidence').detail, /“6 am”/);
+  const span = Coach.review('On my unit a resident refused her bath. I asked her daughter what she liked and played her favourite songs. After a week she was calmer.', care);
+  assert.match(check(span, 'evidence').detail, /“after a week”/);
+  const praise = Coach.review('At my placement a resident kept refusing meals. I sat with her, asked what she liked and told the nurse. Later the nurse asked me to share the idea at handover.', care);
+  assert.equal(check(praise, 'evidence').ok, true);
+});
+
+test('scene-setting and object pronouns are not mistaken for who did what', () => {
+  const work = Coach.review('I work at a grocery store on weekends. I restocked the bread aisle and helped a customer.', retail);
+  assert.match(check(work, 'ownership').detail, /^You name 2 things/);
+  const it = Coach.review('I reproduced it in Safari, found a click handler and rewrote it as a button.', tech);
+  assert.match(check(it, 'ownership').detail, /^You name 3 things/);
+  const flow = Coach.review('I am a calm person, I just go with the flow and I get along with everyone.', cafe);
+  assert.equal(check(flow, 'ownership').ok, false);
+  assert.equal(flow.star.action, false);
+});
+
+test('tenure is not counted as proof it worked', () => {
+  const r = Coach.review('I worked there for 2 years and I always helped customers find what they needed.', retail);
+  assert.doesNotMatch(check(r, 'evidence').detail, /2 years/);
+});
+
+test('hypothetical and learning questions get their own plain titles', () => {
+  const sit = Coach.review('I would stay calm, apologise and check the order. Then I would remake the drink quickly so the customer leaves happy.', { question: 'What would you do if a customer said their drink was wrong?', info: { kind: 'situational' } });
+  assert.equal(check(sit, 'structure').title, 'Your steps');
+  assert.equal(check(sit, 'evidence').title, 'Real details');
+  const gap = Coach.review('I would sign up for the course in my first week and study on my days off. At school I finished the WHMIS course in two days.', { question: 'How would you get your Food Safe certificate?', info: { kind: 'gap' } });
+  assert.equal(check(gap, 'structure').title, 'How you would learn it');
+  assert.equal(check(gap, 'structure').ok, true);
+  assert.match(check(gap, 'ownership').detail, /“sign up”/);
+});

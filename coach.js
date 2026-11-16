@@ -37,7 +37,7 @@
     compare summarise summarize compile gather survey interview learn study practise practice rehearse memorise memorize
     revise shadow start begin finish complete close open cover step volunteer stay keep wait stop pause switch adjust adapt
     improve reduce increase save solve resolve handle process refund exchange void balance reconcile audit tally cash ring
-    decide choose pick apply try use go get put do find spot notice identify figure work spend raise flag request approve
+    decide choose pick apply try use put do find spot notice identify figure work spend raise flag request approve
     stick deal seek lend light ride overcome undertake oversee rebuild redo leave let say draw hold meet pay stand win throw
     fight buy catch sell speak`);
   const IRREG = new Map(`made:make took:take gave:give ran:run led:lead built:build wrote:write rewrote:rewrite spoke:speak
@@ -64,10 +64,15 @@
   const HYP_FORMS = bag("i'd i'll we'd we'll");
   const OTHER = bag(`he she they it you he's she's they're it's you're he'd she'd they'd you'd he'll she'll they'll it'll
     you'll they've you've someone somebody everyone everybody nobody people there this`);
+  // These can also be objects ("I fixed it", "I helped people"): only a subject at the start of a clause.
+  const AMBIG = bag('it you this there someone somebody everyone everybody nobody people');
+  // "I work at a cafe" sets the scene; it is not something you did.
+  const SCENE_NEXT = bag('at as in for there here part-time full-time weekends evenings nights');
   const SUBORD = bag(`what that who whom which where how if whether because since when whenever while after before until
     till as though although once unless why cause`);
   const CONJ = bag('and but so then or plus');
   const LEAD_IN = bag('then first next also and so after finally afterwards later');
+  const PARTICLE = bag('up out down off over in back through around');
 
   // Situation, Task and Result markers: token phrases, '|' separates alternatives in a slot, '#num'/'#year' match numbers.
   const SITUATION = compile([
@@ -96,7 +101,11 @@
     'asked|told|wanted|needed|trusted|got me to', 'make|making sure', 'my|the|our job|role|duty|plan|aim|goal|task was|is',
     'in charge', 'up to me', 'in order to', 'so i|we could|would', 'wanted|tried|trying|aimed|aiming|hoping|planned|planning to',
     'responsible|responsibility|goal|goals|aim|task|challenge|challenges|challenging|problem|problems|issue|issues|target|targets|deadline|deadlines|objective|priority|quota|complaint|complaints|complained|complaining|emergency|urgent|backlog|shortage|short-staffed|understaffed|mistake|mistakes|error|errors|bug|bugs|outage|leak|fault|faulty|hazard|unsafe|conflict|disagreement',
-    'upset|angry|frustrated|unhappy|confused|struggling|stuck|overwhelmed|broken|missing|wrong|delayed|difficult|tricky|stressful|injured|hurt|fell|sick'
+    'upset|angry|frustrated|unhappy|confused|struggling|stuck|overwhelmed|broken|missing|wrong|delayed|difficult|tricky|stressful|injured|hurt|fell|sick',
+    'failing|failed|cancel|cancelling|canceling|crashed|crashing|risk|losing|overdue|refused|refusing',
+    'did|does nothing', "didn't|wasn't|isn't|doesn't|won't|wouldn't work|working|load|start|open|turn", 'did|does|was|is|would not work|working|load|start|open',
+    'not working', 'stopped working', 'kept crashing|failing|breaking|freezing|tripping|leaking',
+    'users|customers|clients|people|someone|homeowner|homeowners|residents|guests|patients|parents reported|complained|noticed|asked'
   ]);
   const RESULT = compile([
     'result|results|resulted|outcome|outcomes|consequently|ultimately|afterwards|afterward', 'as a result', 'in the end',
@@ -109,6 +118,8 @@
     'ahead of schedule|time', 'under budget', 'finished|done|ready|arrived early', 'safely', 'safe',
     'without any|a|an injury|injuries|incident|incidents|issue|issues|problem|problems|complaint|complaints|accident|accidents|errors|mistakes|delays',
     'no injuries|incidents|complaints|accidents|errors|mistakes|problems|issues|delays', 'nobody|no one got|was hurt',
+    'without mistakes|errors|issues|problems|complaints|incidents|injuries|accidents|delays|complaint|problem|issue|incident|injury|distress',
+    'best|busiest|biggest|record day|week|month|shift|year|night|sales', 'got|made it through', 'got through',
     'thanked|thank|thanks|grateful|appreciated|smiled|smiling|happy|happier|satisfied|pleased|relieved|calmer',
     'came|come|comes|coming back', 'renewed|renewal|retained|retention|loyal', 'passed|pass inspection|audit|the|an|our|my|their',
     'praised|recognised|recognized|promoted|award|awarded|feedback|compliment|compliments|complimented|shout-out|shoutout',
@@ -124,6 +135,9 @@
   const FILLER_TWO = new Map([['kind of', 1], ['sort of', 1], ['you know', 1], ['i mean', 1], ['i guess', 1], ['i suppose', 1],
     ['or something', 1], ['and stuff', 1], ['pretty much', 0.5], ['i think', 0.5]]);
   const NOUN_KIND = bag('what this that the a any every some which same');
+  const FILLER_RANK = ['um', 'umm', 'uh', 'uhh', 'erm', 'like', 'basically', 'literally', 'honestly', 'kind of', 'sort of', 'you know',
+    'i mean', 'i guess', 'i suppose', 'or something', 'and stuff', 'totally', 'pretty much', 'just', 'really', 'actually', 'maybe',
+    'probably', 'stuff', 'i think'];
 
   // Common English function words: if almost none appear, the answer is probably not in English.
   const EN = bag(`the a an and to of in i it was is that for on with my we they he she you at as but so had have be this me
@@ -274,6 +288,7 @@
     const next = toks[k + 1];
     if (NOT_ACTION.has(t) || isNum(t)) return null;
     if (t === 'used' && next === 'to') return null;
+    if (/^(?:work|worked|volunteer|volunteered)$/.test(t) && SCENE_NEXT.has(next)) return null;
     if ((t === 'did' || t === 'do') && (next === 'not' || next === 'never')) return null;
     const b = baseOf(t);
     let form = b ? (t === b ? 'base' : 'past') : null;
@@ -294,8 +309,9 @@
     let hyp = false;
     let form = null;
     let inherited = false;
-    const record = (who, t, f) => {
+    const record = (who, word, f, k) => {
       form = f;
+      const t = PARTICLE.has(toks[k + 1]) ? `${word} ${toks[k + 1]}` : word;
       if (who === 'i') {
         r.i++;
         if (hyp) r.hyp++;
@@ -316,7 +332,9 @@
         continue;
       }
       if (CONJ.has(t)) { cur = lead; win = cur ? 3 : 0; inherited = true; sub = false; pos++; continue; }
-      const who = I_FORMS.has(t) ? 'i' : WE_FORMS.has(t) ? 'we' : OTHER.has(t) ? 'x' : null;
+      const prev = toks[k - 1];
+      const clauseStart = pos === 0 || prev === ',' || CONJ.has(prev) || SUBORD.has(prev);
+      const who = I_FORMS.has(t) ? 'i' : WE_FORMS.has(t) ? 'we' : OTHER.has(t) && (clauseStart || !AMBIG.has(t)) ? 'x' : null;
       if (who) {
         if (who === 'i') r.iCount++;
         else if (who === 'we') r.weCount++;
@@ -337,7 +355,7 @@
         if (b && b !== t && !NOT_ACTION.has(t)) {
           lead = cur = 'i';
           hyp = false;
-          record('i', t, 'past');
+          record('i', t, 'past', k);
           win = 0;
           pos++;
           continue;
@@ -347,7 +365,7 @@
         win = 0;
         if (cur === 'i' || cur === 'we') {
           const f = actionForm(toks, k, inherited, form);
-          if (f) record(cur, t, f);
+          if (f) record(cur, t, f, k);
         }
       }
       pos++;
@@ -377,7 +395,7 @@
       result = late || percent;
     }
     const star = {
-      situation: hasPhrase(toks, SITUATION),
+      situation: hasPhrase(toks, SITUATION) || opensWithPlace(toks),
       task: hasPhrase(toks, TASK),
       action: acts.i + acts.we > 0,
       result
@@ -389,6 +407,17 @@
     a.acts = acts;
     a.fillers = fillers(toks);
     return a;
+  }
+
+  // "On a basement reno, ..." / "At a summer camp ...": a place or occasion in the first sentence sets the scene.
+  const PLACE_PREP = bag('at on in during');
+  const PLACE_DET = bag('a an my our one');
+  function opensWithPlace(toks) {
+    for (let i = 0; i < toks.length - 1 && i < 40; i++) {
+      if (toks[i] === '.') return false;
+      if (PLACE_PREP.has(toks[i]) && PLACE_DET.has(toks[i + 1])) return true;
+    }
+    return false;
   }
 
   function fillers(toks) {
@@ -408,12 +437,14 @@
       }
       if (t === 'like') {
         // Only the spoken filler: ", like," / "was like" / "and like", never "I'd like" or "things like".
-        if (prev === ',' || next === ',' || prev === 'was' || prev === 'were' || prev === 'and' || prev === 'so' || prev === 'um' || prev === 'uh') bump('like', 1);
+        if (prev === ',' || next === ',' || prev === 'was' || prev === 'were' || prev === 'am' || prev === 'and' || prev === 'so' || prev === 'um' || prev === 'uh') bump('like', 1);
         continue;
       }
       if (FILLER_ONE.has(t)) bump(t, FILLER_ONE.get(t));
     }
-    const top = [...counts.entries()].sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1));
+    const rank = (k) => { const i = FILLER_RANK.indexOf(k); return i < 0 ? 99 : i; };
+    const top = [...counts.entries()].sort((x, y) => y[1] - x[1] || rank(x[0]) - rank(y[0]) || (x[0] < y[0] ? -1 : 1))
+      .map(([k, n]) => [k.replace(/\bi\b/g, 'I'), n]);
     return { weight, total: [...counts.values()].reduce((x, y) => x + y, 0), top };
   }
 
@@ -554,22 +585,45 @@
 
   /* ---------- evidence ---------- */
 
-  const NUM_RE = /(?:[$£€]\s?)?\d+(?:[.,:]\d+)*(?:\s?(?:%|percent|per cent|k\b))?(?:\s+(?!(?:of|and|or|to|in|on|at|for|the|a|an|i|we|it|by|with|from|as|so|but|is|was|were|are|and)\b)[\p{L}][\p{L}-]*)?/gu;
-  const NUM_WORD_RE = /\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|hundred|hundreds|thousand|thousands|dozen|dozens|twice|half|double)\s+(?!(?:of|and|or|to|in|on|at|for|the|a|an|i|we|it|by|with|from|as|so|but)\b)[a-z][a-z-]+/gi;
-  const CAPS_SKIP = bag("I I'm I've I'd I'll OK Okay Hi Yes No So And But Then The A An My We It This That When While After Before Because If Also First Next Finally Monday Tuesday Wednesday Thursday Friday Saturday Sunday");
+  // A number and the words that say what it counts: "30 small business accounts", "$200", "20%", "6 carts".
+  const NUM_RE = /(?:[$£€]\s?)?\d+(?:[.,:]\d+)*(?:\s?(?:%|percent|per cent|k\b))?/gu;
+  const NUM_WORD_RE = /\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|hundred|hundreds|thousand|thousands|dozen|dozens|twice|half|double|triple)\b/gi;
+  const SPAN_RE = /\b(?:within|after|in|under|over)\s+(?:a|one|two|three|four|five|six|a few|a couple of)\s+(?:minutes?|hours?|days?|weeks?|months?|shifts?)\b/i;
+  const NEXT_WORD_RE = /\s+([\p{L}][\p{L}'-]*)/uy;
+  const TENURE = /^(?:years?|months?|weeks?|days?)$/;
+  function numberPhrase(s, m) {
+    let end = m.index + m[0].length;
+    const ws = [];
+    const clock = /^\s?(?:am|pm|a\.m\.|p\.m\.)(?![\p{L}])/iu.exec(s.slice(end, end + 6));
+    if (clock) return (m[0] + clock[0]).replace(/\s+/g, ' ').trim();
+    while (ws.length < 3) {
+      NEXT_WORD_RE.lastIndex = end;
+      const w = NEXT_WORD_RE.exec(s);
+      if (!w || STOP.has(w[1].toLowerCase()) || /^(?:and|or|but|so|then|from|into|with|without)$/i.test(w[1])) break;
+      ws.push(w[1]);
+      end = NEXT_WORD_RE.lastIndex;
+    }
+    const before = s.slice(Math.max(0, m.index - 12), m.index).toLowerCase();
+    const after = s.slice(end, end + 6).toLowerCase();
+    // "for 2 years" or "2 years ago" says how long you were there, not that it worked.
+    if (ws.length === 1 && TENURE.test(ws[0].toLowerCase()) && (/\b(?:for|over|almost|nearly)\s+$/.test(before) || /^\s+ago\b/.test(after))) return '';
+    return [m[0], ...ws].join(' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+  }
+  const CAPS_SKIP = bag(`I I'm I've I'd I'll OK Okay Hi Yes No So And But Then The A An My We It This That When While After Before Because If Also First Next Finally Monday Tuesday Wednesday Thursday Friday Saturday Sunday
+    January February March April May June July August September October November December Christmas Last Next One Our Her His Their`);
   function evidence(s) {
     const nums = [];
-    for (const m of s.match(NUM_RE) || []) {
-      const v = m.trim().replace(/\s+/g, ' ');
-      if (isYear(v) || nums.includes(v)) continue;
-      nums.push(v.slice(0, 28));
-      if (nums.length >= 4) break;
+    const push = (v) => {
+      const lv = v.toLowerCase();
+      if (v && !isYear(v) && nums.length < 4 && !nums.some((n) => n.toLowerCase().includes(lv) || lv.includes(n.toLowerCase()))) nums.push(v);
+    };
+    for (const m of s.matchAll(NUM_RE)) push(numberPhrase(s, m));
+    for (const m of s.matchAll(NUM_WORD_RE)) {
+      const v = numberPhrase(s, m);
+      if (v.includes(' ')) push(v.toLowerCase());
     }
-    for (const m of s.match(NUM_WORD_RE) || []) {
-      if (nums.length >= 4) break;
-      const v = m.trim().replace(/\s+/g, ' ').toLowerCase();
-      if (!nums.includes(v)) nums.push(v.slice(0, 28));
-    }
+    const span = s.match(SPAN_RE);
+    if (span) push(span[0].toLowerCase());
     const names = [];
     for (const sentence of s.split(/[.!?\n]+/)) {
       const ws = sentence.match(/[\p{L}\p{N}][\p{L}\p{N}'&+-]*/gu) || [];
@@ -581,18 +635,19 @@
     }
     // How people reacted afterwards ("she thanked me", a quoted comment) is proof too; look in the later part of the answer.
     const tail = s.slice(Math.floor(s.length * 0.4));
-    const said = /"[^"\n]{3,120}"/.test(tail) || /\b(?:said|told (?:me|us)|thanked|wrote (?:to )?(?:me|us)|left (?:a|us a|me a) (?:review|note|comment|card))\b/i.test(tail);
+    const said = /"[^"\n]{3,120}"/.test(tail)
+      || /\b(?:said|told (?:me|us)|thanked|praised|complimented|recogni[sz]ed|promoted|wrote (?:to )?(?:me|us)|left (?:a|us a|me a) (?:review|note|comment|card)|asked me to (?:share|show|train|teach|lead|mentor|help|cover|run))\b/i.test(tail);
     return { nums, names, said };
   }
 
   /* ---------- the six checks ---------- */
 
-  const PART_HAS = { situation: 'set the scene', task: 'say what needed to happen', action: 'say what you did', result: 'say how it turned out' };
+  const PART_HAS = { situation: 'set the scene', task: 'explain what needed to happen', action: 'say what you did', result: 'share how it turned out' };
   const PART_ADD = {
-    situation: 'a line on where and when it happened (the situation)',
+    situation: 'where and when it happened (the situation)',
     task: 'what needed to happen (the task)',
-    action: 'what you did yourself, step by step (the action)',
-    result: 'how it turned out, or what you learned (the result)'
+    action: 'what you did, step by step (the action)',
+    result: 'how it turned out or what you learned (the result)'
   };
   const REASON_RE = /\b(?:because|since|so that|i enjoy|i love|i like|i want|i'd love|drawn to|interested|interests me|excit|passion|care about|i fit|fits me|match|suits|proud|appeal|attract|matters to me|meaningful|reason|looking forward)/;
   const ASK_RE = /\?|\b(?:i'd ask|i would ask|i'd like to know|i would like to know|i'm curious|i was wondering|could you tell me|can you tell me)\b/;
@@ -618,21 +673,32 @@
           ? { ok: false, title: 'A clear reason', detail: 'You give a reason; now link it to something you have done, like a past job, class or volunteering.' }
           : { ok: false, title: 'A clear reason', detail: 'Say one real reason you want this job, then link it to something you have done.' };
     }
-    if (kind === 'situational' || kind === 'gap') {
-      if (!st.action) return { ok: false, title, detail: kind === 'gap' ? 'Say the steps you would take to learn it, like who you would ask and how you would practise.' : 'Say what you would do first, then next, starting with “I would …”.' };
-      if (st.result) return { ok: true, title, detail: st.situation ? 'You say what you would do, how you would know it worked, and back it up with a real example.' : 'You say what you would do and how you would know it worked.' };
-      if (st.task) return { ok: true, title, detail: 'You say what you would do and why; you could finish with how you would know it worked.' };
-      return { ok: false, title, detail: 'You say what you would do; add why it matters and how you would know it worked.' };
+    if (kind === 'gap') {
+      const t = 'How you would learn it';
+      if (!st.action) return { ok: false, title: t, detail: 'Say the steps you would take to learn it, like who you would ask and how you would practise.' };
+      return st.situation
+        ? { ok: true, title: t, detail: 'You say how you would learn it and back it up with a time you picked up something new.' }
+        : { ok: true, title: t, detail: 'You say how you would learn it; a time you picked up something new quickly would make it even stronger.' };
+    }
+    if (kind === 'situational') {
+      const t = 'Your steps';
+      if (!st.action) return { ok: false, title: t, detail: 'Say what you would do first, then next, starting with “I would …”.' };
+      if (st.result) return { ok: true, title: t, detail: 'You say what you would do and how you would know it worked.' };
+      if (st.task) return { ok: true, title: t, detail: 'You say what you would do and why; you could finish with how you would know it worked.' };
+      return { ok: false, title: t, detail: 'You say what you would do; add why it matters and how you would know it worked.' };
     }
     const have = PARTS.filter((p) => st[p]);
     const lack = PARTS.filter((p) => !st[p]);
-    if (!lack.length) return { ok: true, title, detail: 'All four parts are there: the situation, the task, what you did and how it turned out.' };
+    if (!lack.length) {
+      return { ok: true, title, detail: a.words < 50 ? 'All four parts are there in short form; a sentence or two more on what you did would bring it to life.' : 'All four parts are there: the situation, the task, what you did and how it turned out.' };
+    }
     const ok = st.action && st.result && (st.situation || st.task);
     if (!have.length) return { ok: false, title, detail: 'Try telling it as a short story: where you were, what needed to happen, what you did and how it turned out.' };
     const lead = `You ${list(have.map((p) => PART_HAS[p]))}`;
     if (ok) return { ok, title, detail: `${lead}; adding ${list(lack.map((p) => PART_ADD[p]))} would make it even clearer.` };
-    const add = lack.filter((p) => p === 'action' || p === 'result');
-    return { ok, title, detail: `${lead}; now add ${list((add.length ? add : lack).map((p) => PART_ADD[p]))}.` };
+    // Name the most useful missing parts first: what you did, then how it turned out.
+    const next = ['action', 'result', 'situation', 'task'].filter((p) => !st[p]).slice(0, 2);
+    return { ok, title, detail: `${lead}; now add ${next.map((p) => PART_ADD[p]).join(', then ')}.` };
   }
 
   function ownershipCheck(a, kind) {
@@ -659,17 +725,17 @@
   }
 
   function evidenceCheck(a, kind, s, rel) {
-    const soft = kind === 'motivation' || kind === 'closing';
+    const soft = kind === 'motivation' || kind === 'closing' || kind === 'situational' || kind === 'gap';
     const title = soft ? 'Real details' : 'Proof it worked';
     if (!a.words) return { ok: false, title, detail: 'Add one detail that shows it worked, like how many, how long, or what someone said.' };
     if (kind === 'closing') return { ok: true, title, detail: 'Not needed for this question: it is your turn to ask.' };
     const e = evidence(s);
     const names = [...rel.skills, ...e.names.filter((n) => !rel.skills.some((k) => k.toLowerCase() === n.toLowerCase()))];
-    if (kind === 'motivation') {
-      const first = e.nums[0] || names[0] || rel.echoed[0];
-      return first
-        ? { ok: true, title, detail: `You mention real details, like ${quote(first)}.` }
-        : { ok: false, title, detail: 'Add one real detail, like something from the ad or a past job, that shows why it fits you.' };
+    if (soft) {
+      const first = e.nums[0] || names[0] || (kind === 'motivation' ? rel.echoed[0] : '');
+      if (first) return { ok: true, title, detail: `You mention real details, like ${quote(first)}.` };
+      if (e.said) return { ok: true, title, detail: 'You mention how people reacted, which makes it feel real.' };
+      return { ok: false, title, detail: kind === 'motivation' ? 'Add one real detail, like something from the ad or a past job, that shows why it fits you.' : 'Add one real detail, like a time you did something similar, to show you can do it.' };
     }
     if (e.nums.length) return { ok: true, title, detail: `You back it up with numbers like ${list(e.nums.slice(0, 2).map(quote))}.` };
     if (!a.english) return { ok: false, title, detail: 'Not checked: this coach reads English answers for now.' };
