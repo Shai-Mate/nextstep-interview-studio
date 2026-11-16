@@ -244,7 +244,15 @@ function flowLikelyQuestions(p) {
   return picked.sort((x, y) => x.i - y.i).map((x) => x.q);
 }
 /* The job ad with the analysis highlights. Ranges index the original text; every segment is escaped. */
+/* The highlighted ad. Core's renderer (app.js) keeps each must or nice line as one band with the
+   skills inside it; the flat marks below are only a fallback if it is missing or fails. */
 function flowMarked(text, a) {
+  if (typeof coreHighlightAd === 'function') {
+    try {
+      const r = coreHighlightAd(text, a);
+      if (r && typeof r.html === 'string' && r.kinds && typeof r.kinds.has === 'function') return r;
+    } catch { /* use the flat marks */ }
+  }
   const src = String(text || '');
   const kinds = new Set();
   let out = '';

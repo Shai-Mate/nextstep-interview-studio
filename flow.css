@@ -184,10 +184,12 @@
 .flow-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
 .flow-ad mark { color: inherit; background: none; border-radius: 4px; }
 .flow-legend .key { padding: 0 4px; border-radius: 4px; }
-.flow-ad mark.hl-must, .flow-legend .hl-must { color: var(--ink); background: rgba(255, 180, 134, .16); box-shadow: 0 0 0 2px rgba(255, 180, 134, .16); }
+.flow-ad mark.hl-must, .flow-legend .hl-must { color: var(--ink); background: rgba(255, 180, 134, .16); box-shadow: 0 0 0 2px rgba(255, 180, 134, .16); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .flow-ad mark.hl-skill, .flow-legend .hl-skill { color: var(--amber); font-weight: 500; }
 .flow-ad mark.hl-nice, .flow-legend .hl-nice { color: var(--green); text-decoration: underline dashed rgba(169, 224, 196, .7); text-underline-offset: 3px; }
 .flow-ad mark.hl-keyword, .flow-legend .hl-keyword { color: var(--ink); text-decoration: underline dotted rgba(255, 196, 138, .7); text-underline-offset: 3px; }
+/* Inside a nice-to-have line the line's own dashed underline is enough. */
+.flow-ad mark.hl-nice mark.hl-keyword { text-decoration: none; }
 
 @media (prefers-reduced-motion: no-preference) {
   .decode:not(.still) .decode-step { animation: flow-step .5s cubic-bezier(.22, 1.22, .36, 1) var(--flow-d, 0s) backwards; }
