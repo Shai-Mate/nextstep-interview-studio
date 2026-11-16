@@ -1356,7 +1356,7 @@ function create(input) {
   const lessonEv = lessonThemes.map((t) => { const ev = t.evidence.find((e) => !lessonQuoted.has(e)); if (ev) lessonQuoted.add(ev); return ev; });
   const course = [];
   course.push({ title: 'The heart of this job', minutes: 5,
-    body: `${topLabels.length > 1 ? `This ad keeps coming back to ${topLabels.length === 2 ? 'two' : 'three'} areas: ${topLabels.join('; ')}.` : topLabels.length ? `This ad keeps coming back to one area: ${topLabels[0]}.` : 'Start with what the ad asks for most.'}${leadLine ? ` The ad says “${quoteText(leadLine, 150)}”.` : ''}\n${topLabels.length ? 'Your answers should keep pointing back to these. You do not need to be perfect at all of them: real examples of a few go a long way.' : 'Pick two or three things the ad asks for and have one real example ready for each.'}`,
+    body: `${topLabels.length > 1 ? `This ad keeps coming back to ${topLabels.length === 2 ? 'two' : 'three'} areas: ${topLabels.join('; ')}. Your answers should keep pointing back to these.` : topLabels.length ? `This ad keeps coming back to one area: ${topLabels[0]}. Your answers should keep pointing back to it.` : 'Start with what the ad asks for most.'}${leadLine ? ` The ad says “${quoteText(leadLine, 150)}”.` : ''}\n${topLabels.length > 1 ? 'You do not need to be perfect in every area: real examples of a few go a long way.' : topLabels.length ? 'One or two real examples go a long way.' : 'Pick two or three things the ad asks for and have one real example ready for each.'}`,
     exercise: 'Say in one sentence what this job is for and who it helps. Then write down one true example from your life for each area above.', done: false });
   lessonThemes.forEach((t, ti) => {
     const cat = THEME[t.id];
