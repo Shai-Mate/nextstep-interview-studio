@@ -543,6 +543,40 @@ test('one-line ads without a full stop still get areas and a role', () => {
   assert.equal(PrepEngine.create({ job: rad('no-bullets-multiline.txt') }).role, 'Cleaner', 'a short "X needed for…" first line is still the title');
 });
 
+test('every listed area gets a question in a default plan, and no two lessons quote the same line', () => {
+  const all = [...files.map((f) => ad(f)), ...reviewFiles.map((f) => rad(f)), ...advFiles.map((f) => aad(f))];
+  for (const job of all) {
+    const p = PrepEngine.create({ job });
+    const a = PrepEngine.analyze(job, { role: p.role, company: p.company });
+    assert.ok(a.themes.length <= 4);
+    const asked = new Set(p.questionInfo.map((i) => i.theme));
+    for (const t of a.themes) assert.ok(asked.has(t.id), job.slice(0, 40) + ': no question for ' + t.id);
+    const quoted = p.course.flatMap((c) => quotesIn(c.body));
+    assert.equal(new Set(quoted).size, quoted.length, job.slice(0, 40) + ': two lessons quote the same line: ' + quoted.join(' | '));
+    assert.equal(p.course[0].title, 'The heart of this job');
+  }
+});
+
+test('quiz wrong answers are clearly wrong', () => {
+  const KIN = new Set(['Helping customers', 'Sales and persuasion', 'Care and compassion']);
+  for (const f of ['retail-store-associate.txt', 'hospitality-barista-noheadings.txt', 'healthcare-care-aide.txt', 'admin-dental-receptionist.txt']) {
+    const p = PrepEngine.create({ job: ad(f) });
+    const about = p.quizItems.find((q) => q.q === 'What is this job mostly about?');
+    if (about && KIN.has(about.options[about.correct])) for (const [i, o] of about.options.entries()) if (i !== about.correct) assert.ok(!KIN.has(o), f + ': ' + o);
+    const skill = p.quizItems.find((q) => q.q === 'Which skill or certificate does the ad mention?');
+    if (skill && /food ?safe|serving it right|smart serve/i.test(skill.options[skill.correct])) for (const [i, o] of skill.options.entries()) if (i !== skill.correct) assert.ok(!/smart serve|food ?safe/i.test(o), f + ': ' + o);
+  }
+});
+
+test('checks are about the candidate: screening or reference checks as duties are ordinary tasks', () => {
+  const job = 'Airport Screening Officer – Northwind Aviation Security Ltd.\nWhat you will do:\n- Perform security screening of passengers and their bags\n- Use X-ray and walk-through scanners and explain each step to travellers\nWhat you need:\n- High school diploma\n- Must pass a background check\n- Able to stand for long shifts';
+  const p = PrepEngine.create({ job });
+  assert.ok(p.questions.some((q) => /“perform security screening of passengers/.test(q)), 'a screening duty can be asked about');
+  assert.ok(!p.questions.some((q) => /background check/i.test(q)), 'the candidate’s own check is never asked about');
+  assert.ok(!p.questions.some((q) => /“high school diploma”/i.test(q)), 'a bare credential is not a story hook');
+  assert.ok(!p.questions.some((q) => /stand for long shifts”\. How would that schedule work/.test(q)), 'standing for long shifts is stamina, not a schedule');
+});
+
 test('validation keeps the same message and fields keep their types', () => {
   assert.throws(() => PrepEngine.create({ job: 'too short' }), { message: 'Paste at least 40 characters from the actual job ad.' });
   assert.throws(() => PrepEngine.create({}), { message: 'Paste at least 40 characters from the actual job ad.' });

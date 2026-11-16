@@ -412,6 +412,7 @@ const noEmoji = (t) => String(t).replace(EMOJI_G, ' ').replace(/[️‍]/g, '').
 // "Reply to this email", "drop by and ask for Marisol": how to apply, not something they ask of you.
 const APPLY_CUE = /\b(?:if you(?:'re|’re| are) interested|reply to this (?:email|post|ad)|e-?mail (?:us|me)|send (?:us |me )?(?:your |a )?(?:resume|résumé|cv)|drop (?:by|in)|drop off (?:your |a )?(?:resume|résumé|cv)|call (?:us|me)|text (?:us|me)|pour postuler|envoyez votre cv)\b/i;
 const ASK_FOR = /\bask for [A-Z]/;
+const CHECKED = /\b(?:must (?:pass|have|provide|undergo|hold|obtain|complete|submit)|subject to|eligible to work|entitled to work|willing to (?:undergo|provide|complete))\b/i;
 const STRONG_MUST = /\b(?:must|required|requires|mandatory|essential|\d+\+? years?|certificat\w*|licen[cs]e\w*|degree|diploma)\b/i;
 const ABBR = /^(?:e\.g|i\.e|etc|st|dr|mr|mrs|ms|no|approx|incl|vs|a\.m|p\.m|jr|sr|inc|ltd|co)$/i;
 const BULLET = /^(\s*)(?:[-*•·▪◦‣●■➢➤►✓✔–—]|\d{1,2}[.)](?!\d)|[a-z][.)]|(?:\p{Extended_Pictographic}|[☀-➿])[️‍\p{Extended_Pictographic}]*)\s*/u;
@@ -828,11 +829,16 @@ function analyze(jobText, opts) {
       memo.set(low, base);
     }
     const hits = { ...base };
+    // "Able to stand for long shifts" is about stamina, not the schedule.
+    if (hits.reliability && /\b(?:long|full|whole|entire|\d+[- ]hours?)\s+shifts?\b/.test(low) && /\b(?:stand\w*|on your feet|lift\w*|walk\w*)\b/.test(low) && !RELIABLE_CORE.test(low)) {
+      delete hits.reliability;
+      hits.physical = (hits.physical || 0) + 1;
+    }
     for (const sk of it.skills || []) hits[sk.theme] = (hits[sk.theme] || 0) + 1;
     it.themeHits = hits;
     it.firstTheme = THEMES.map((t) => t.id).filter((id) => hits[id]).sort((a, b) => hits[b] - hits[a] || THEME_INDEX[a] - THEME_INDEX[b])[0] || null;
     it.cred = isCredential(it.text, (it.skills || []).length);
-    it.check = CHECK.test(it.text);
+    it.check = CHECK.test(it.text) && (it.kind === 'must' || it.kind === 'nice' || it.kind === 'meta' || it.kind === 'other' || CHECKED.test(it.text));
     const sched = hits.reliability && !RELIABLE_CORE.test(low) && SCHEDULE_WORDS.test(low);
     const later = LATER_CREDENTIAL.test(low) ? 0.5 : 1;
     const condition = hits.physical && it.kind === 'must' && PHYSICAL_CONDITION.test(low);
@@ -892,7 +898,7 @@ function analyze(jobText, opts) {
   const coreRanked = ranked.filter((r) => r.kind !== 'nice');
   const topReq = coreRanked.slice(0, 12 - Math.min(2, niceRanked.length)).concat(niceRanked).slice(0, 12);
 
-  const keywordList = findKeywords(items.filter((it) => !CHECK.test(it.text)), skills.list.map((s) => s.text), company);
+  const keywordList = findKeywords(items.filter((it) => !it.check), skills.list.map((s) => s.text), company);
 
   // Highlights: must and nice lines, then keywords, then skills on top; flattened into sorted, non-overlapping ranges.
   const paint = new Uint8Array(src.length);
@@ -1150,6 +1156,12 @@ function create(input) {
   const storyOf = (id, r) => fill(id === 'numbers' && cashJob ? THEME.numbers.storyCash : THEME[id].story, r);
 
   // The ad line that best hooks a story for an area: duties and plain must-haves, not certificates.
+  // A line that is only a certificate or licence gives a story nothing to hang on.
+  const credOnly = (r) => {
+    let rest = flat(r.text);
+    for (const k of r._skills) rest = rest.split(flat(k)).join(' ');
+    return countWords(rest.replace(/\b(?:and|or|with|valid|current|a|an|the|certificat\w*|licen[cs]e\w*|diploma|degree|ticket|training|level|required|preferred|equivalent|level [a-z0-9]+)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim()) <= 2 || countWords(r.text) <= 4;
+  };
   const byTheme = (id, kinds) => {
     let best = null, bestScore = 0;
     for (const r of ranked) {
@@ -1159,6 +1171,7 @@ function create(input) {
       if (!h || (!firstIs && h < 2)) continue;
       let sc = Math.min(3, h) + (firstIs ? 3 : 0) + (r.kind === 'duty' ? 2 : 0) + (r.kind === 'must' && !r._cred ? 1 : 0);
       if (r._cred && !['safety', 'learning', 'technical'].includes(id)) continue;
+      if (r._cred && credOnly(r)) continue;
       if (id === 'reliability' && r._sched) sc -= 2;
       if (sc > bestScore) { best = r; bestScore = sc; }
     }
@@ -1333,26 +1346,33 @@ function create(input) {
   const tip = expTip(exp);
   const topLabels = a.themes.slice(0, 3).map((t) => t.label.toLowerCase());
   const plainLine = (ranked.find((r) => !r._check) || {}).text || '';
-  const leadLine = (a.themes[0] && a.themes[0].evidence[0]) || plainLine;
+  // Each area lesson quotes its best line not already quoted by another lesson; lesson 1 takes a line none of them use.
+  const lessonThemes = a.themes.slice(0, 3);
+  const lessonQuoted = new Set();
+  const lessonEv = lessonThemes.map((t) => { const ev = t.evidence.find((e) => !lessonQuoted.has(e)); if (ev) lessonQuoted.add(ev); return ev; });
+  const free = ranked.filter((r) => !r._check && !r._cred && !r._fallback && !lessonQuoted.has(r.text));
+  const leadLine = ((free.find((r) => r.kind === 'duty') || free.find((r) => r.kind === 'must') || {}).text) || (lessonThemes.length ? '' : plainLine);
+  if (leadLine) lessonQuoted.add(leadLine);
   const course = [];
-  course.push({ title: 'What this job is really about', minutes: 5,
+  course.push({ title: 'The heart of this job', minutes: 5,
     body: `${topLabels.length > 1 ? `This ad keeps coming back to ${topLabels.length === 2 ? 'two' : 'three'} areas: ${topLabels.join('; ')}.` : topLabels.length ? `This ad keeps coming back to one area: ${topLabels[0]}.` : 'Start with what the ad asks for most.'}${leadLine ? ` The ad says “${quoteText(leadLine, 150)}”.` : ''}\n${topLabels.length ? 'Your answers should keep pointing back to these. You do not need to be perfect at all of them: real examples of a few go a long way.' : 'Pick two or three things the ad asks for and have one real example ready for each.'}`,
     exercise: 'Say in one sentence what this job is for and who it helps. Then write down one true example from your life for each area above.', done: false });
-  const lessonThemes = a.themes.slice(0, 3);
-  for (const t of lessonThemes) {
+  lessonThemes.forEach((t, ti) => {
     const cat = THEME[t.id];
-    const ev = t.evidence[0];
+    const ev = lessonEv[ti];
     const evItem = ev && ev.length > 140 ? ranked.find((r) => r.kind === 'duty' && clean(r.text) === ev) : null;
     const evText = evItem ? dutyLead(lcFirst(quoteText(clauseFor(evItem.text, t.id), 140), keep)) : ev ? `The ad says “${quoteText(ev, 140)}”.` : '';
     course.push({ title: t.label, minutes: 5, theme: t.id,
       body: `${cat.probe}${evText ? ' ' + evText : ''}\n${tip}`,
       exercise: `Write a short story using Situation, Task, Action, Result (STAR): where you were, what needed doing, what you did and how it turned out. Include: ${cat.include.map((s) => s.toLowerCase()).join('; ')}.${focusTip(focus)}`, done: false });
-  }
+  });
   const musts = ranked.filter((r) => r.kind === 'must');
   const plainMusts = musts.filter((r) => !r._check);
+  const mustQuote = plainMusts.find((r) => !lessonQuoted.has(r.text));
+  if (mustQuote) lessonQuoted.add(mustQuote.text);
   if (musts.length) {
     course.push({ title: 'Check the must-haves', minutes: 5,
-      body: `The ad lists ${musts.length === 1 ? 'one thing it needs' : musts.length + ' things it needs'}${plainMusts.length ? `, such as “${quoteText(plainMusts[0].text, 140)}”` : ''}.\nFor each one, know where you got it or how you show it. If one is missing, say so honestly and explain how you are working on it. That is a strong answer, not a weak one.`,
+      body: `The ad lists ${musts.length === 1 ? 'one thing it needs' : musts.length + ' things it needs'}${mustQuote ? `, such as “${quoteText(mustQuote.text, 140)}”` : ''}.\nFor each one, know where you got it or how you show it. If one is missing, say so honestly and explain how you are working on it. That is a strong answer, not a weak one.`,
       exercise: 'Write one line for each must-have: where you got it, or how you are getting it.', done: false });
   }
   course.push({ title: stageTitle(stage), minutes: 5, body: stageLesson(stage),
@@ -1367,9 +1387,10 @@ function create(input) {
   course.push({ title: 'Ask good questions and finish well', minutes: 5,
     body: 'No job ad tells you everything. Ask about what matters to you instead of guessing, and finish by saying clearly that you want the job.',
     exercise: 'Prepare two questions, for example: What does a great first month look like? How does training work for new people? Then say one sentence on why you want this job.', done: false });
+  const padLine = ranked.filter((r) => !r._check).map((r) => r.text).find((t) => !lessonQuoted.has(t)) || '';
   const PAD_LESSONS = [
     { title: 'Turn the duties into stories', minutes: 5,
-      body: `${plainLine ? `Take one thing the ad asks for, like “${quoteText(plainLine, 120)}”, and think` : 'Take one thing the ad asks for and think'} of a time you did something similar.\n${tip}`,
+      body: `${padLine ? `Take one thing the ad asks for, like “${quoteText(padLine, 120)}”, and think` : 'Take one thing the ad asks for and think'} of a time you did something similar.\n${tip}`,
       exercise: 'Write a short story using Situation, Task, Action, Result (STAR). Keep it true and specific.', done: false },
     { title: 'Practise out loud', minutes: 5,
       body: 'Answers come out better when you have said them before. Say your two best stories out loud, to a friend or into your phone, and keep each one to about two minutes.',
@@ -1406,7 +1427,12 @@ function create(input) {
   const quizSkill = a.skills.find((x) => !CHECK.test(x));
   if (quizSkill) {
     const right = quizSkill;
-    const pool = SKILL_DISTRACT.filter(([s]) => !lowJob.includes(s.toLowerCase().split(' ')[0]) && !a.skills.some((x) => x.toLowerCase() === s.toLowerCase()));
+    // A certificate from the same field ("Smart Serve" next to "Food Safe") is not clearly wrong.
+    const FIELD = { 'Smart Serve': /serv|food|alcohol|bar\b|liquor|drink|cafe|café|restaurant|kitchen/i, 'Food Safe': /food|serv|kitchen|cook|cafe|café|restaurant/i, CPR: /first aid|cpr|bls|aed|care|child/i,
+      WHMIS: /whmis|hazard|warehouse|clean|janitor|chemical/i, 'Forklift certificate': /forklift|reach truck|pallet|warehouse/i, Welding: /weld|fabricat/i, Excel: /excel|spreadsheet|sheets/i,
+      QuickBooks: /quickbooks|bookkeep|sage|xero|accounting/i, Phlebotomy: /phleb|blood|lab\b/i, Python: /python|code|program|developer/i, React: /react|javascript|front-?end|vue|angular/i,
+      Photoshop: /photoshop|illustrator|design|canva/i, AutoCAD: /autocad|\bcad\b|drafting/i, HVAC: /hvac|refrigerat|heating/i, Salesforce: /salesforce|crm|hubspot/i };
+    const pool = SKILL_DISTRACT.filter(([s]) => !lowJob.includes(s.toLowerCase().split(' ')[0]) && !a.skills.some((x) => x.toLowerCase() === s.toLowerCase()) && !(FIELD[s] && (FIELD[s].test(right) || FIELD[s].test(lowJob))));
     const far = pool.filter(([, th]) => !topIds.includes(th));
     const wrong = pick((far.length >= 2 ? far : pool).map(([s]) => s), 2, 'skill');
     const { options, correct } = place(right, wrong, qi++);
@@ -1416,11 +1442,15 @@ function create(input) {
     const right = a.themes[0].label;
     const DISTINCT = ['sales', 'technical', 'numbers', 'physical', 'care', 'customers', 'safety', 'leadership'];
     // A wrong answer must be clearly wrong: never an area the ad touches anywhere, even in the company blurb.
-    const NEAR = { care: /\b(?:health\w*|clinic\w*|care|patients?|residents?|hospital\w*|nurs\w*)\b/i, technical: /\b(?:software|platforms?|technical|digital|apps?|computers?|systems?|tech)\b/i,
+    const NEAR = { care: /\b(?:health\w*|clinic\w*|care|patients?|residents?|hospital\w*|nurs\w*)\b/i, technical: /\b(?:software|platforms?|technical|digital|apps?|computers?|tech)\b|\b(?!pos\b)[a-z]+ systems?\b/i,
       numbers: /\b(?:cash|money|data|numbers?|reports?|budgets?|sales)\b/i, physical: /\b(?:lift\w*|standing|physical\w*|warehouse|outdoors?|hands-on)\b/i,
       safety: /\b(?:safe\w*|hazard\w*|first aid|cpr)\b/i, customers: /\b(?:customers?|clients?|guests?|public)\b/i, sales: /\b(?:sales|sell\w*|revenue)\b/i, leadership: /\b(?:lead\w*|manag\w*|supervis\w*)\b/i };
-    const absent = DISTINCT.filter((id) => !(a._scores[id] > 0) && !NEAR[id].test(job));
-    const low = DISTINCT.filter((id) => !absent.includes(id) && !topIds.includes(id)).sort((x, y) => a._scores[x] - a._scores[y]);
+    // Helping customers, sales and care sit too close together to be each other's wrong answers.
+    const KIN = { customers: ['sales', 'care'], sales: ['customers', 'care'], care: ['customers', 'sales'] };
+    const kin = new Set([].concat(...topIds.slice(0, 1).map((id) => KIN[id] || [])));
+    const absent = DISTINCT.filter((id) => !(a._scores[id] > 0) && !NEAR[id].test(job) && !kin.has(id));
+    const topScore = a._scores[topIds[0]] || 1;
+    const low = DISTINCT.filter((id) => !absent.includes(id) && !topIds.includes(id) && !kin.has(id) && (a._scores[id] || 0) < topScore * 0.2).sort((x, y) => a._scores[x] - a._scores[y]);
     const wrong = pick(absent.length >= 2 ? absent : absent.concat(low).slice(0, Math.max(2, absent.length)), 2, 'theme').map((id) => THEME[id].label);
     const { options, correct } = place(right, wrong, qi++);
     quizItems.push({ q: 'What is this job mostly about?', options, correct, why: a.themes[0].evidence[0] || plainLine ? `The ad keeps coming back to it, for example: “${quoteText(a.themes[0].evidence[0] || plainLine, 110)}”.` : 'It is the area the ad comes back to most.' });
@@ -1468,6 +1498,8 @@ function publicAnalyze(jobText, opts) {
   delete a._scores;
   delete a._src;
   delete a._french;
+  // List only the areas a default plan asks about (the top four always get a question in a 30- or 60-minute plan).
+  a.themes = a.themes.slice(0, 4);
   return a;
 }
 
