@@ -994,7 +994,7 @@ function create(input) {
       const firstIs = r.themes[0] === id;
       if (!h || (!firstIs && h < 2)) continue;
       let sc = Math.min(3, h) + (firstIs ? 3 : 0) + (r.kind === 'duty' ? 2 : 0) + (r.kind === 'must' && !r._cred ? 1 : 0);
-      if (r._cred && !['safety', 'learning', 'technical'].includes(id)) sc -= 4;
+      if (r._cred && !['safety', 'learning', 'technical'].includes(id)) continue;
       if (id === 'reliability' && r._sched) sc -= 2;
       if (sc > bestScore) { best = r; bestScore = sc; }
     }
