@@ -486,7 +486,8 @@
     }
     const star = {
       situation: hasPhrase(toks, SITUATION, (x, i) => habits[i] === 1) || opensWithPlace(toks, habits),
-      task: hasPhrase(toks, TASK),
+      // "So I would ..." opening a sentence is a filler, not "so I could" (a reason).
+      task: hasPhrase(toks, TASK, (x, i) => x[i] === 'so' && (i === 0 || x[i - 1] === '.')),
       action: acts.i + acts.we > 0,
       result
     };
@@ -672,7 +673,8 @@
     // Suggest only words tied to this question when there are some, never ones the answer half-uses already or
     // that overlap a phrase it echoes ("product" next to "product usage data"). For a "what would you do" or
     // "why this job" question with nothing tied to it, the ad's top skills are beside the point: suggest nothing.
-    const open = !related && (kind === 'situational' || kind === 'motivation');
+    // Only a line of the ad (the question's source) ties a question to the ad; coaching words like "learn" do not.
+    const open = (kind === 'situational' || kind === 'motivation') && !items.some((it) => it.score >= 2.5);
     for (const it of rest) {
       if (open || missing.length >= 3 || (related && it.score < 2)) continue;
       if (missing.some((m) => overlaps(m.key, it.key)) || hit.some((m) => overlaps(m.key, it.key))) continue;
@@ -684,7 +686,8 @@
       size: items.length,
       echoed: shown.slice(0, 8).map((it) => it.label),
       skills: shown.filter((it) => it.skill).map((it) => it.label),
-      missing: missing.map((it) => it.label)
+      missing: missing.map((it) => it.label),
+      open
     };
   }
   // "responsive" and "responsive interfaces" are the same suggestion: keep the first, more relevant one.
@@ -699,7 +702,7 @@
   const NEXT_WORD_RE = /\s+([\p{L}][\p{L}'-]*)/uy;
   const TENURE = /^(?:years?|months?|weeks?|days?)$/;
   const NUM_END = bag('and or but so then from into with without instead ago ahead early late earlier later faster sooner longer shorter quicker');
-  function numberPhrase(s, m) {
+  function numberPhrase(s, m, proof) {
     let end = m.index + m[0].length;
     const ws = [];
     const clock = /^\s?(?:am|pm|a\.m\.|p\.m\.)(?![\p{L}])/iu.exec(s.slice(end, end + 6));
@@ -718,7 +721,8 @@
     }
     const before = s.slice(Math.max(0, m.index - 12), m.index).toLowerCase();
     const after = s.slice(end, end + 12).toLowerCase();
-    const w0 = !unit && ws.length === 1 ? ws[0].toLowerCase() : '';
+    // Time in a job is a real detail for "why this job", but not proof that something worked.
+    const w0 = proof && !unit && ws.length === 1 ? ws[0].toLowerCase() : '';
     // "for 2 years" or "2 years ago" says how long you were there, not that it worked.
     if (TENURE.test(w0) && (/\b(?:for|over|almost|nearly)\s+$/.test(before) || /^\s+ago\b/.test(after))) return '';
     // So does a bare "2 years" ("I work in cafe 2 years"), unless it says how fast: "within 2 months", "2 months early".
@@ -727,19 +731,19 @@
   }
   const CAPS_SKIP = bag(`I I'm I've I'd I'll OK Okay Hi Yes No So And But Then The A An My We It This That When While After Before Because If Also First Next Finally Monday Tuesday Wednesday Thursday Friday Saturday Sunday
     January February March April May June July August September October November December Christmas Last Next One Our Her His Their`);
-  function evidence(s) {
+  function evidence(s, proof) {
     const found = [];
     const push = (v, at) => {
       const lv = v.toLowerCase();
       if (v && !isYear(v) && found.length < 6 && !found.some((n) => n.v.toLowerCase().includes(lv) || lv.includes(n.v.toLowerCase()))) found.push({ v, at });
     };
     for (const m of s.matchAll(NUM_RE)) {
-      push(numberPhrase(s, m), m.index);
+      push(numberPhrase(s, m, proof), m.index);
       if (found.length >= 6) break;
     }
     for (const m of s.matchAll(NUM_WORD_RE)) {
       if (found.length >= 6) break;
-      const v = numberPhrase(s, m);
+      const v = numberPhrase(s, m, proof);
       if (v.includes(' ')) push(v.toLowerCase(), m.index);
     }
     const span = SPAN_RE.exec(s);
@@ -781,14 +785,23 @@
     action: 'what you did, step by step (the action)',
     result: 'how it turned out or what you learned (the result)'
   };
-  const REASON_RE = /\b(?:because|since|so that|i enjoy|i love|i like|i want|i'd love|drawn to|interested|interests me|excit|passion|care about|i fit|fits me|match|suits|proud|appeal|attract|matters to me|meaningful|reason|looking forward)/;
+  const REASON_RE = /\b(?:because|since|so that|i enjoy|i love|i like|i want|i'd love|i'd like|i would like|i would love|drawn to|interested|interests me|excit|passion|care (?:a lot |so much |deeply )?about|i fit|fits me|match|suits|proud|appeal|attract|matters to me|meaningful|reason|looking forward)/;
+  // A reason for a step: "..., so they have time to find someone", "because someone could get hurt", "to make sure".
+  function purpose(toks) {
+    for (let i = 1; i < toks.length; i++) {
+      const t = toks[i];
+      if (t === 'because' || (t === 'so' && toks[i - 1] !== '.') || (t === 'sure' && toks[i - 1] === 'make' && toks[i - 2] === 'to')
+        || (t === 'order' && toks[i - 1] === 'in' && toks[i + 1] === 'to')) return true;
+    }
+    return toks[0] === 'because';
+  }
   const ASK_RE = /\?|\b(?:i'd ask|i would ask|i'd like to know|i would like to know|i'm curious|i was wondering|could you tell me|can you tell me)\b/;
 
   function structureCheck(a, kind, s) {
     const st = a.star;
     const title = 'Situation, Task, Action, Result';
     if (!a.words) return { ok: false, detail: 'Start with a real example: where you were and what was going on.', title };
-    if (!a.english) return { ok: false, detail: 'This coach reads English answers for now, so it could not check the parts of your story.', title };
+    if (!a.english) return { ok: true, detail: 'This coach reads English answers for now, so it could not check the parts of your story.', title };
     const low = s.toLowerCase();
     if (kind === 'closing') {
       const asks = (s.match(/\?/g) || []).length;
@@ -816,7 +829,8 @@
       const t = 'Your steps';
       if (!st.action) return { ok: false, title: t, detail: 'Say what you would do first, then next, starting with “I would …”.' };
       if (st.result || a.hopeResult) return { ok: true, title: t, detail: 'You say what you would do and how you would know it worked.' };
-      if (st.task) return { ok: true, title: t, detail: 'You say what you would do and why; you could finish with how you would know it worked.' };
+      if (st.task || purpose(a.toks)) return { ok: true, title: t, detail: 'You say what you would do and why; you could finish with how you would know it worked.' };
+      if (a.acts.i + a.acts.we >= 2) return { ok: true, title: t, detail: 'You give clear steps; you could finish with how you would know it worked.' };
       return { ok: false, title: t, detail: 'You say what you would do; add why it matters and how you would know it worked.' };
     }
     // "Tell me about a time" asks for something that really happened.
@@ -825,8 +839,8 @@
     const n = r.i + r.we;
     if (n > 0 && r.vague * 2 > n) {
       return { ok: false, title, detail: r.habit > r.hypAll
-        ? 'This says what you usually do; tell it as one real time it happened: where you were, what you did and how it turned out.'
-        : 'This says what you would do; tell it as a real time it happened: where you were, what you did and how it turned out.' };
+        ? 'This says what you usually do; tell one real time it happened instead: where you were, what you did and how it turned out.'
+        : 'This says what you would do; tell one real time it happened instead: where you were, what you did and how it turned out.' };
     }
     const have = PARTS.filter((p) => st[p]);
     const lack = PARTS.filter((p) => !st[p]);
@@ -870,7 +884,7 @@
     const title = soft ? 'Real details' : 'Proof it worked';
     if (!a.words) return { ok: false, title, detail: 'Add one detail that shows it worked, like how many, how long, or what someone said.' };
     if (kind === 'closing') return { ok: true, title, detail: 'Not needed for this question: it is your turn to ask.' };
-    const e = evidence(s);
+    const e = evidence(s, !soft);
     const names = [...rel.skills, ...e.names.filter((n) => !rel.skills.some((k) => k.toLowerCase() === n.toLowerCase()))];
     if (soft) {
       const first = e.nums[0] || names[0] || (kind === 'motivation' ? rel.echoed[0] : '');
@@ -898,6 +912,8 @@
     if (!a.english && !rel.echoed.length) return { ok: true, title, detail: 'Not checked: this coach reads English answers for now.' };
     const miss = rel.missing.slice(0, 2).map(quote);
     const used = `You use the ad’s own words, like ${list(rel.echoed.slice(0, 2).map(quote))}`;
+    // A "why this job" or "what would you do" question that no line of the ad is tied to: any ad word is a bonus.
+    if (rel.open) return { ok: true, title, detail: rel.echoed.length ? `${used}.` : 'Nothing in the ad is tied to this question, so your own words are fine here.' };
     if (kind === 'closing') {
       if (rel.echoed.length) return { ok: true, title, detail: `${used}.` };
       return { ok: true, title, detail: miss.length ? `You could also ask about something from the ad, like ${list(miss, 'or')}.` : 'You could also ask about something from the ad.' };
