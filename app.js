@@ -371,14 +371,46 @@ try {
   notify('Saved data could not be read. It has not been overwritten. Export or recover your browser storage before continuing.');
 }
 
+/* Toast: a small pill that fades in, stays about 2 s and fades out (no slide). Failures that
+   need action stay until replaced. It sits just above the tab bar, or near the bottom on other
+   screens, and moves to the top when that spot would cover a main button or a text box such as
+   the mock answer. pointer-events: none in CSS, so it never blocks a tap. */
+function coreToastPlace(el) {
+  el.classList.remove('top');
+  try {
+    const keep = '#app .primary, #app textarea, #app input, #app select, #app button[type="submit"]';
+    const covers = () => {
+      const r = el.getBoundingClientRect();
+      return [...document.querySelectorAll(keep)].some((b) => {
+        /* Only the part you can see: clip to the scroll area it sits in (Today scrolls inside one). */
+        const e = b.getBoundingClientRect();
+        const c = b.closest('.scroll')?.getBoundingClientRect() || { top: -1e6, bottom: 1e6, left: -1e6, right: 1e6 };
+        const q = { top: Math.max(e.top, c.top), bottom: Math.min(e.bottom, c.bottom), left: Math.max(e.left, c.left), right: Math.min(e.right, c.right) };
+        return q.bottom > q.top && q.right > q.left && q.bottom > r.top - 8 && q.top < r.bottom + 8 && q.right > r.left && q.left < r.right;
+      });
+    };
+    if (covers()) {
+      el.classList.add('top');
+      if (covers()) el.classList.remove('top');
+    }
+  } catch { /* placement is only a nicety */ }
+}
 function notify(s) {
   const el = $('#status');
   if (!el) return;
-  el.textContent = s;
   clearTimeout(toastTimer);
+  el.classList.remove('fresh', 'out');
+  el.textContent = s;
   if (!s) return;
+  coreToastPlace(el);
+  void el.offsetWidth;
+  el.classList.add('fresh');
   const sticky = /could not|unavailable|will not|not been overwritten/i.test(s);
-  if (!sticky) toastTimer = setTimeout(() => { if (el.textContent === s) el.textContent = ''; }, 4200);
+  if (!sticky) toastTimer = setTimeout(() => {
+    if (el.textContent !== s) return;
+    el.classList.add('out');
+    toastTimer = setTimeout(() => { if (el.textContent === s) { el.textContent = ''; el.classList.remove('fresh', 'out', 'top'); } }, 240);
+  }, 2200);
 }
 function persist() {
   if (!storageOK) { notify('Storage unavailable. Export a backup before leaving.'); return false; }
@@ -535,6 +567,9 @@ function render(opts = {}) {
     window.scrollTo(0, 0);
   }
   coreFadeGhost(ghost);
+  /* A toast still showing (or one that stays, like a storage warning) is placed again for this screen. */
+  const toast = $('#status');
+  if (toast && toast.textContent) coreToastPlace(toast);
 }
 function animateBits(keep) {
   if (keep || reduceMotion()) return;
