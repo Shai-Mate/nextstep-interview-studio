@@ -31,6 +31,7 @@ let ivReadAloud = ivPrefs().readAloud === true;
 let ivMic = null;
 let ivVoiceSetup = null;
 let ivVoiceHooked = null;
+let ivPrimed = false;
 
 /* ---------- small helpers ---------- */
 
@@ -281,7 +282,7 @@ function ivReport(p) {
 
 /* ---------- screens ---------- */
 
-function openMock() { if (!needPrep()) return; show('mock'); }
+function openMock() { if (!needPrep()) return; ivPrime(); show('mock'); }
 Object.assign(screens, {
   mock() {
     const p = active;
@@ -391,6 +392,21 @@ function ivStopSpeech() {
   ivSpeech = null;
   try { ivSynth()?.cancel(); } catch { /* nothing to stop */ }
 }
+/* iOS Safari only lets a page's first speak() come from a tap; later ones may come from timers or events.
+   On taps that can lead to read-aloud, speak one empty utterance with the local voice, once per page.
+   No handlers, no orb or ivSpeech changes, never a network voice, nothing when there is no local voice. */
+function ivPrime() {
+  if (ivPrimed || !ivReadAloud) return;
+  const s = ivSynth();
+  const { voice } = ivVoices();
+  if (!s || !voice || voice.localService !== true) return;
+  try {
+    const u = new SpeechSynthesisUtterance('');
+    u.voice = voice;
+    s.speak(u);
+    ivPrimed = true;
+  } catch { /* try again on the next tap */ }
+}
 function ivSpeak(text) {
   const s = ivSynth();
   const { voice } = ivVoices();
@@ -402,12 +418,13 @@ function ivSpeak(text) {
   u.lang = voice.lang;
   u.rate = 0.95;
   const app = document.getElementById('app');
-  const me = { u, el: app && app.firstElementChild, seq: ++ivSpeechSeq, last: 0 };
+  const me = { u, el: app && app.firstElementChild, seq: ++ivSpeechSeq, last: 0, started: false, waits: 0 };
   ivSpeech = me;
   const orb = window.NextStepOrb;
   const level = (v) => { try { if (orb && typeof orb.level === 'function') orb.level(v); } catch { /* optional */ } };
   u.onboundary = () => { if (ivSpeech === me) { me.last = performance.now(); level(0.95); } };
   u.onstart = () => {
+    me.started = true;
     if (ivSpeech !== me || reduceMotion()) return;
     const t0 = performance.now();
     const tick = (now) => {
@@ -419,7 +436,21 @@ function ivSpeak(text) {
     requestAnimationFrame(tick);
   };
   u.onend = u.onerror = () => { if (ivSpeech === me) ivSpeech = null; };
-  const go = () => { if (ivSpeech !== me) return; try { s.speak(u); } catch { ivSpeech = null; } };
+  /* A speak that never starts (WebKit drops a first speak outside a tap, with no events) must not leave
+     ivSpeech set, or later auto-reads would wait for it. An engine that still holds it queued gets a few
+     more seconds; after that it is cancelled, so nothing stale plays later. */
+  const watch = () => {
+    if (ivSpeech !== me || me.started) return;
+    const queued = s.speaking || s.pending;
+    if (queued && ++me.waits < 4) { setTimeout(watch, 1500); return; }
+    ivSpeech = null;
+    if (queued) { try { s.cancel(); } catch { /* nothing to stop */ } }
+  };
+  const go = () => {
+    if (ivSpeech !== me) return;
+    try { s.speak(u); } catch { ivSpeech = null; return; }
+    setTimeout(watch, 1500);
+  };
   /* Chrome can drop an utterance queued in the same tick as cancel(). */
   if (busy) setTimeout(go, 90);
   else go();
@@ -458,6 +489,7 @@ function ivBindSpeech(question) {
     btn.setAttribute('aria-pressed', String(ivReadAloud));
     if (ivReadAloud) {
       if (ivMic && ivMic.live) { ivMicStop(true); ivMicPaint(); }
+      ivPrime();
       ivSpeak(question);
     } else ivStopSpeech();
   });
@@ -695,6 +727,7 @@ binders.mock = () => {
       active.mock = { index: 0, answers: [], draft: '', finished: false };
       lastFeedback = null;
       save();
+      ivPrime();
       show('mock');
     }
   });
