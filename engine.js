@@ -29,7 +29,7 @@ const THEMES = [
     include: ['Who the person was and what they needed', 'What you did to help, in your own words', 'How it turned out for them'],
     story: 'Tell me about a time you went out of your way to help a {person}. What did you do?',
     scene: 'Imagine a {person} is unhappy because something went wrong, and others are waiting. What would you do?',
-    rx: /\b(?:customers?|clients?|guests?|shoppers?|patrons?|visitors?|the public|homeowners?|tenants?|passengers?|diners?|callers?|partners?|customer service|client-facing|customer-facing|front of house|front desk|greet\w*|friendly|hospitality|relationships?|retention|renewals?|churn|onboarding|take orders|taking orders|account (?:management|manager|health)|help them find|users?)\b/g },
+    rx: /\b(?:customers?(?! orders?\b)|clients?|guests?|shoppers?|patrons?|visitors?|the public|homeowners?|tenants?|passengers?|diners?|callers?|partners?|customer service|client-facing|customer-facing|front of house|front desk|greet\w*|friendly|hospitality|relationships?|retention|renewals?|churn|onboarding|take orders|taking orders|account (?:management|manager|health)|help them find|users?)\b/g },
   { id: 'teamwork', label: 'Teamwork',
     probe: 'They want to hear how you work with others: pitching in, sharing the load and sorting out problems kindly.',
     include: ['What the team was trying to get done', 'Your part, and how you helped someone else', 'What you achieved together'],
@@ -53,7 +53,7 @@ const THEMES = [
     include: ['The risk or rule involved', 'The steps you followed, and why they matter', 'How everyone stayed safe'],
     story: 'Tell me about a time you spotted something unsafe and did something about it.',
     scene: 'Imagine you see a coworker skip a safety step to save time. What would you do?',
-    rx: /\b(?:food ?safe|food safety|food handl\w*|safe|safely|safety|unsafe|hazards?|hazardous|ppe|protective equipment|procedures?|protocols?|regulations?|complian\w*|electrical code|building code|fire code|lockout|tagout|whmis|fall protection|first aid|cpr|infection|hygien\w*|saniti\w*|sanitary|smart serve|inspections?|injur\w*|accidents?|incidents?)\b/g },
+    rx: /\b(?:food ?safe|food safety|food handl\w*|safe|safely|safety|unsafe|hazards?|hazardous|ppe|protective equipment|procedures?|protocols?|regulations?|complian\w*|electrical code|building code|fire code|lockout|tagout|whmis|fall protection|first aid|cpr|infection|hygien\w*|saniti\w*|sanitary|smart serve|inspections?|injur\w*|accidents?|incidents?|steel[- ]toe\w*|safety (?:boots|shoes|gear))\b/g },
   { id: 'physical', label: 'Hands-on and physical work',
     probe: 'They want to hear that you are comfortable with hands-on work and do it carefully, without cutting corners.',
     include: ['The hands-on task and the conditions', 'How you did it properly and safely', 'The finished result'],
@@ -103,7 +103,7 @@ const THEMES = [
     include: ['How busy or tense it was', 'What you did to stay calm and keep going', 'How it turned out'],
     story: 'Tell me about a time things got really busy or tense. How did you stay calm?',
     scene: 'Imagine it is the busiest time of the day and two things go wrong at once. What would you do first?',
-    rx: /\b(?:calm\w*|pressure|busy|rush\w*|fast-paced|fast paced|high-volume|high volume|peak|stress\w*|tight deadlines|upset|difficult|demanding|escalations?|urgent\w*|emergenc\w*|patient(?! care)|patience|holiday season|competing priorities|think on your feet|multitask\w*)\b/g },
+    rx: /\b(?:calm\w*|pressure|busy|rush\w*|fast-paced|fast paced|high-volume|high volume|peak|stress\w*|tight deadlines|upset|difficult|demanding|escalations?|urgent\w*|emergenc\w*|(?:friendly|calm|kind|warm|caring|polite|be|stay|remain)(?:,| and)? patient|patient(?= and\b| manner\b| with\b|,)|patience|holiday season|competing priorities|think on your feet|multitask\w*)\b/g },
   { id: 'leadership', label: 'Leading and owning outcomes',
     probe: 'They want to hear about a time you took charge of something and saw it through, even without being asked.',
     include: ['What you took responsibility for', 'The choices you made and why', 'The result you can point to'],
@@ -169,6 +169,8 @@ const SKILLS = [
   SK('ERP', /\bERP\b/g, 'technical'),
   SK('SAP', /\bSAP\b/g, 'technical'),
   SK('QuickBooks', /\bQuickBooks\b/gi, 'numbers'),
+  SK('Dentrix', /\bDentrix\b/gi, 'technical'),
+  SK('Eaglesoft', /\bEaglesoft\b/gi, 'technical'),
   SK('Xero', /\bXero\b/g, 'numbers'),
   SK('Sage', /\bSage (?:50|300|Accounting|Intacct)\b/g, 'numbers'),
   SK('bookkeeping', /\bbookkeeping\b/gi, 'numbers'),
@@ -383,7 +385,7 @@ function guessHeadingKind(s) {
   if (/offer|benefit|perk|salary|pay\b|wage|compensation|reward/.test(h)) return 'offer';
   if (/apply|application/.test(h)) return 'apply';
   if (/require|qualif|skill|experience|need|bring|looking for|you are|about you|must|education|certif/.test(h)) return 'requirements';
-  if (/do\b|duties|responsib|day|tasks|work on|involve/.test(h)) return 'duties';
+  if (/do\b|duties|responsib|day|tasks|work on|involve|^you will\b|^you'll\b/.test(h)) return 'duties';
   if (/role|position|summary|overview|opportunity/.test(h)) return 'role';
   if (/about|who we are|company|mission|values|story/.test(h)) return 'about';
   return 'other';
@@ -397,6 +399,7 @@ const CUE = {
   must: /\b(?:must|required|requires|requirement|mandatory|essential|you have|you(?:'ll| will)? need|need to|needs to|you should|you are|you're|experience (?:with|in|as|of|using)|\d+\+? years?|ability to|able to|certificat\w*|licen[cs]e\w*|degree|diploma|registered|knowledge of|proficien\w*|familiar\w*|understanding of|comfortable|available|availability|valid|current)\b/i,
   duty: /\b(?:you will|you'll|you would|responsible for|duties include|assist\w*|help\w*|install\w*|greet\w*|process\w*|build\w*|make|making|prepare\w*|serve|serving|clean\w*|maintain\w*|manage\w*|support\w*|handle\w*|take orders|operate\w*|deliver\w*|provide\w*|run|running|monitor\w*|repair\w*|record\w*|answer\w*|work with|working with|keep|keeping|stock\w*|restock\w*|sell\w*|teach\w*|care for|look after|cook\w*|pour\w*)\b/i
 };
+const STRONG_MUST = /\b(?:must|required|requires|mandatory|essential|\d+\+? years?|certificat\w*|licen[cs]e\w*|degree|diploma)\b/i;
 const ABBR = /^(?:e\.g|i\.e|etc|st|dr|mr|mrs|ms|no|approx|incl|vs|a\.m|p\.m|jr|sr|inc|ltd|co)$/i;
 const BULLET = /^(\s*)(?:[-*•·▪◦‣●■➢➤►✓✔–—]|\d{1,2}[.)]|[a-z][.)])\s*/;
 
@@ -457,6 +460,9 @@ function readAd(src, company) {
     if (CUE.exclude.test(low) || (companyLow && (low.startsWith(companyLow + ' ') || low.includes(companyLow + ' is ')))) return 'about';
     if (CUE.nice.test(low)) return 'nice';
     if (CUE.role.test(low)) return 'role';
+    // The company talking about itself ("We have served our town for 20 years") is not something they ask of you.
+    if (/^(?:we|our)\b/.test(low) && !/\b(?:you|your|need|needs|require\w*|want|expect|looking|seeking|hiring|ask)\b/.test(low)) return 'about';
+    if (sec === 'role' && !STRONG_MUST.test(low)) return CUE.duty.test(low) ? 'duty' : 'role';
     if (CUE.must.test(low)) return 'must';
     if (CUE.duty.test(low)) return 'duty';
     return sec === 'role' || sec === null ? 'role' : 'other';
@@ -589,8 +595,8 @@ const STOP = new Set(('a an the and or of to in on for with at by from as into a
 const KW_LEAD = new Set(('comfortable available able willing eager happy keen ready proficient familiar fluent confident capable responsible ' +
   'long short good strong excellent basic some own new previous current valid clear great various other similar simple small big high low ' +
   'main every each all any many more most right quick friendly patient reliable cheerful positive solid proven relevant related minimum certain ' +
-  'pull stay terminate join bring show agree control love enjoy want know get become do go come see let put').split(' '));
-const KW_TAIL = new Set(('tidy clean safe calm accurate ready busy great welcome preferred required needed reported count move moves well daily early every').split(' '));
+  'pull stay terminate join bring show agree control love enjoy want know get become do go come see let put another sq ft km kg lbs').split(' '));
+const KW_TAIL = new Set(('tidy clean safe calm accurate ready busy great welcome preferred required needed reported count move moves well daily early every private public smooth').split(' '));
 const KW_BREAK = new Set(('under over across within through during after before between without per via using including like such up down out off upon toward towards among around near').split(' '));
 const KW_NOUN_LY = /^(?:family|supply|assembly|anomaly|ally|rally|reply|july|italy)$/;
 const KW_SCHEDULE = /\b(?:evenings?|weekends?|nights?|overnight|holidays?|mornings|schedules?|shifts?|season)\b/;
@@ -768,8 +774,9 @@ function analyze(jobText, opts) {
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score || a.i - b.i);
   const top = themeList.length ? themeList[0].score : 0;
-  const strong = themeList.filter((x) => x.score >= Math.max(3, top * 0.15));
-  const themes = (strong.length ? strong : themeList.slice(0, 1)).slice(0, 6).map((x) => {
+  const backed = themeList.filter((x) => evid[x.t.id].length);
+  const strong = backed.filter((x) => x.score >= Math.max(3, top * 0.15));
+  const themes = (strong.length ? strong : backed.slice(0, 1)).slice(0, 6).map((x) => {
     const seen = new Set();
     const evidence = evid[x.t.id].slice().sort((a, b) => b.key - a.key || b.add - a.add || a.start - b.start)
       .map((e) => e.text).filter((e) => { const k = flat(e); if (seen.has(k)) return false; seen.add(k); return true; })
@@ -796,7 +803,7 @@ function analyze(jobText, opts) {
     const pos = counters[secKey] = (counters[secKey] || 0) + 1;
     const hits = it.themeHits || {};
     const themeIds = Object.keys(hits).sort((a, b) => hits[b] - hits[a] || THEMES.findIndex((t) => t.id === a) - THEMES.findIndex((t) => t.id === b)).slice(0, 3);
-    const score = KIND_BASE[it.kind] + specificity(it) + Math.max(0, 0.6 - (pos - 1) * 0.1);
+    const score = KIND_BASE[it.kind] + specificity(it) + Math.max(0, 0.6 - (pos - 1) * 0.1) - (it.section === 'role' ? 2 : 0);
     ranked.push({ text, kind: it.kind, themes: themeIds, score: Math.round(score * 100) / 100, start: it.start, _skills: (it.skills || []).map((s) => s.text),
       _tech: (it.skills || []).filter((s) => s.theme === 'technical' && !/seal|ticket|certif|licen/i.test(s.name)).map((s) => s.text), _hits: hits, _cred: !!it.cred, _sched: !!it.scheduleOnly, _fallback: !!it.fallback });
   }
@@ -852,7 +859,12 @@ const VERBS = new Set(('assist help greet process keep receive share install rep
   'test design develop create plan organise organize coordinate lead train mentor work ensure identify review update schedule book collect respond communicate explain document ' +
   'set open close count measure cut lift move transport wash sweep mop file enter track analyse analyze report present negotiate research assess evaluate administer give ' +
   'collaborate partner participate contribute attend act use apply inspect diagnose fix replace assemble paint guide welcome seat host recommend price label unpack rotate ' +
-  'be greet visit drive support prepare protect respond complete perform conduct oversee').split(' '));
+  'be greet visit drive support prepare protect respond complete perform conduct oversee calm book confirm pick ship fill').split(' '));
+// Everyday tools read better with an article ("a multimeter"); names, plurals and mass nouns do not need one.
+function withArticle(s) {
+  if (!/^[a-z]/.test(s) || /s$/.test(s) || /\b(?:code|conduit|wiring|wire|data|software|equipment|safety|care|control|charting|accessibility|protection)$/.test(s)) return s;
+  return (/^[aeiou]/.test(s) ? 'an ' : 'a ') + s;
+}
 function trimTail(t) { return t.replace(/[\s.;:,!?–—-]+$/, ''); }
 function niceCore(t) {
   return trimTail(t.replace(/\s+(?:is|are|would be|will be)\s+(?:preferred|an asset|a plus|great|nice|desirable|helpful|an advantage|a bonus|welcome|nice to have)\b.*$/i, '')
@@ -888,6 +900,7 @@ function isVerbStart(t) { const w = (t.match(/^[A-Za-z]+/) || [''])[0].toLowerCa
 function isSentence(t) { return /^(?:you|we|our|they|this|the successful)\b/i.test(t) || /\b(?:is|are|will|should|must|need|needs|can)\b/i.test(t); }
 
 /* Role and company, only used when the person left those fields empty. */
+const NOT_COMPANY = /^(?:(?:night|day|evening|weekend|morning|overnight|afternoon|graveyard)s?(?: shifts?)?|.*\bshifts?\b.*|part[- ]time|full[- ]time|remote|hybrid|on[- ]site|contract|temporary|temp|seasonal|casual|permanent|internship|co-?op|summer)$/i;
 const ROLE_ADJ = /^(?:cheerful|friendly|motivated|reliable|experienced|enthusiastic|passionate|hard-?working|part-time|full-time|new|great|talented|positive|energetic|skilled|dedicated|caring|organized|organised|detail-oriented|outgoing|keen|qualified)$/i;
 function guessNames(a) {
   let role = '', company = '';
@@ -895,7 +908,7 @@ function guessNames(a) {
   if (title) {
     const parts = title.text.split(/\s+[–—|·@]\s+|\s+-\s+|\s+at\s+/);
     role = clean(parts[0]);
-    if (parts[1]) company = clean(parts[1].replace(/\s*\([^)]*\)/g, ''));
+    if (parts[1] && !NOT_COMPANY.test(clean(parts[1]))) company = clean(parts[1].replace(/\s*\([^)]*\)/g, ''));
   }
   const cue = a._items.find((it) => /\b(?:hiring|looking for|seeking)\b/i.test(it.text));
   if (!role && cue) {
@@ -912,8 +925,14 @@ function guessNames(a) {
     const about = a.sections.find((s) => s.kind === 'about' && /^about\s+/i.test(s.title) && !/^about\s+(?:us|the|you|this|our)\b/i.test(s.title));
     if (about) company = clean(about.title.replace(/^about\s+/i, ''));
     else if (cue) { const m = cue.text.match(/\bat ((?:[A-Z][\w&'’.-]*\s?){1,5})/); if (m) company = clean(m[1]); }
+    if (!company) {
+      for (const it of a._items.slice(0, 8)) {
+        const m = it.text.match(/^((?:(?:[A-Z][\w'’.-]*|&)\s+){0,4}[A-Z][\w'’.-]*)\s+(?:\([^)]*\)\s+)?(?:is|are)\s+(?:a|an)\b/);
+        if (m && !/^(?:This|The|It|We|Our|You|Your|There|Here)\b/.test(m[1])) { company = clean(m[1]); break; }
+      }
+    }
   }
-  const ok = (s) => s && s.length <= 80 && countWords(s) <= 8 && !/[.!?]$/.test(s);
+  const ok = (s) => s && s.length <= 80 && countWords(s) <= 8 && !/[!?]$/.test(s) && (!/\.$/.test(s) || /\b(?:Co|Inc|Ltd|Corp|Bros|LLC|Ltée)\.$/.test(s));
   return { role: ok(role) ? role.slice(0, 120) : '', company: ok(company) ? company.slice(0, 120) : '' };
 }
 
@@ -932,7 +951,7 @@ function stageTitle(s) {
 function expTip(exp) {
   return ({
     'Early career': 'Examples from school, volunteering, sports, family or part-time work all count.',
-    'Career change': 'Use a real moment from a past job, even in a different field, and say what carries over.',
+    'Career change': 'Use a real moment from a past job, even in a different field, and say what carries over. Volunteering, sports and family life count too.',
     Experienced: 'Pick a recent, specific example and say what you personally did.'
   })[exp] || 'Any real example counts: work, school, volunteering or everyday life.';
 }
@@ -982,7 +1001,7 @@ function create(input) {
   const techAll = ranked.reduce((acc, r) => acc.concat(r._tech.filter((x) => !acc.includes(x))), []);
   const cashJob = /\b(?:cash|till|register|pos|money|payments?|tips)\b/i.test(job);
   const fill = (s, r) => s.replace(/\{person\}/g, people)
-    .replace(/\{skills\}/g, joinAnd((r && r._tech.length ? r._tech : techAll).slice(0, 2)) || 'a tool or skill from this job');
+    .replace(/\{skills\}/g, joinAnd((r && r._tech.length ? r._tech : techAll).slice(0, 2).map(withArticle)) || 'a tool or skill from this job');
   const storyOf = (id, r) => fill(id === 'numbers' && cashJob ? THEME.numbers.storyCash : THEME[id].story, r);
 
   // The ad line that best hooks a story for an area: duties and plain must-haves, not certificates.
@@ -1183,7 +1202,7 @@ function create(input) {
         : 'Many interviews start by asking you to tell them about yourself. Keep it to about a minute: what you do now, one example that fits this job, and why you want it.',
     exercise: `Say it out loud and time it: who you are, one true example that fits ${jobName}, and why you want it. ${exp === 'Career change' ? 'Explain your switch in one sentence.' : tip}`, done: false });
   course.push({ title: 'Ask good questions and finish well', minutes: 5,
-    body: `The ad cannot tell you everything about ${at ? company : 'the employer'}. Ask about what matters to you instead of guessing, and finish by saying clearly that you want the job.`,
+    body: 'No job ad tells you everything. Ask about what matters to you instead of guessing, and finish by saying clearly that you want the job.',
     exercise: 'Prepare two questions, for example: What does a great first month look like? How does training work for new people? Then say one sentence on why you want this job.', done: false });
   while (course.length < 6) {
     course.splice(course.length - 2, 0, { title: 'Turn the duties into stories', minutes: 5,
@@ -1222,7 +1241,11 @@ function create(input) {
   if (a.themes.length) {
     const right = a.themes[0].label;
     const DISTINCT = ['sales', 'technical', 'numbers', 'physical', 'care', 'customers', 'safety', 'leadership'];
-    const absent = DISTINCT.filter((id) => !(a._scores[id] > 0));
+    // A wrong answer must be clearly wrong: never an area the ad touches anywhere, even in the company blurb.
+    const NEAR = { care: /\b(?:health\w*|clinic\w*|care|patients?|residents?|hospital\w*|nurs\w*)\b/i, technical: /\b(?:software|platforms?|technical|digital|apps?|computers?|systems?|tech)\b/i,
+      numbers: /\b(?:cash|money|data|numbers?|reports?|budgets?|sales)\b/i, physical: /\b(?:lift\w*|standing|physical\w*|warehouse|outdoors?|hands-on)\b/i,
+      safety: /\b(?:safe\w*|hazard\w*|first aid|cpr)\b/i, customers: /\b(?:customers?|clients?|guests?|public)\b/i, sales: /\b(?:sales|sell\w*|revenue)\b/i, leadership: /\b(?:lead\w*|manag\w*|supervis\w*)\b/i };
+    const absent = DISTINCT.filter((id) => !(a._scores[id] > 0) && !NEAR[id].test(job));
     const low = DISTINCT.filter((id) => !absent.includes(id) && !topIds.includes(id)).sort((x, y) => a._scores[x] - a._scores[y]);
     const wrong = pick(absent.length >= 2 ? absent : absent.concat(low).slice(0, Math.max(2, absent.length)), 2, 'theme').map((id) => THEME[id].label);
     const { options, correct } = place(right, wrong, qi++);
