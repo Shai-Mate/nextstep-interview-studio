@@ -31,12 +31,17 @@
 
   const matches = (query) => !!(window.matchMedia && window.matchMedia(query).matches);
   const standalone = () => navigator.standalone === true || matches('(display-mode: standalone)');
+  // <html class="is-installed"> lets CSS hide install nudges in the installed app. navigator.standalone covers iOS, where
+  // the Home Screen app can report display-mode: fullscreen instead of standalone (iOS 17, WebKit bug 264218).
+  const markInstalled = () => { document.documentElement.classList.toggle('is-installed', standalone()); };
+  markInstalled();
   let added = false; // the browser reported a finished install in this tab
   let deferred = null; // the saved beforeinstallprompt event, usable once
 
   const state = () => (standalone() ? 'installed' : added ? 'added' : platform);
   const canPrompt = () => !!deferred && !standalone() && !added;
   const changed = () => {
+    markInstalled();
     render();
     window.dispatchEvent(new Event('nextstep-install-change'));
   };
