@@ -1,6 +1,8 @@
 'use strict';
 const $ = (s) => document.querySelector(s);
 const KEY = 'nextstep.preparations.v1';
+/* interview.js keeps the mock interview's read-aloud choice under this key; Delete all data removes it too. */
+const CORE_PREFS_KEY = 'nextstep.prefs.v1';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const I = {
   lock: '<svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 9V7a3.5 3.5 0 017 0v2M5 9h10v7H5z"></path></svg>',
@@ -106,20 +108,37 @@ function coreThemeReadiness(p, a) {
     return { id: t.id, label: t.label || coreThemeLabel(t.id, a), total: qs.length, done };
   }).filter((t) => t.total > 0);
 }
-/* Job ad with the analysis highlights (char ranges into p.job), escaped. */
+/* Job ad with the analysis highlights (char ranges into p.job), escaped.
+   The engine cuts a must-have or nice-to-have line into pieces around the skills and keywords in it. Touching
+   pieces are drawn as one mark for the whole line with the skill and keyword marks nested inside, so a must line
+   keeps one unbroken band. A piece with no letter or digit (", ", " (", ".") is never marked on its own. */
 function coreHighlightAd(text, a) {
   const src = String(text || '');
   const hs = a && Array.isArray(a.highlights) ? a.highlights : [];
   const kinds = new Set();
-  let out = '';
+  const runs = [];
   let at = 0;
   for (const h of hs) {
     const s = Number(h && h.start), e = Number(h && h.end);
     if (!Number.isInteger(s) || !Number.isInteger(e) || s < at || e <= s || e > src.length) continue;
-    const kind = ['skill', 'keyword', 'must', 'nice'].includes(h.kind) ? h.kind : 'keyword';
-    kinds.add(kind);
-    out += esc(src.slice(at, s)) + `<mark class="hl hl-${kind}">${esc(src.slice(s, e))}</mark>`;
+    const piece = { s, e, kind: ['skill', 'keyword', 'must', 'nice'].includes(h.kind) ? h.kind : 'keyword' };
+    const last = runs[runs.length - 1];
+    if (last && last[last.length - 1].e === s) last.push(piece); else runs.push([piece]);
     at = e;
+  }
+  const wordy = (t) => /[\p{L}\p{N}]/u.test(t);
+  const mark = (kind, inner) => { kinds.add(kind); return `<mark class="hl hl-${kind}">${inner}</mark>`; };
+  let out = '';
+  at = 0;
+  for (const run of runs) {
+    const line = run.some((x) => x.kind === 'must') ? 'must' : run.some((x) => x.kind === 'nice') ? 'nice' : '';
+    const inner = run.map((x) => {
+      const t = src.slice(x.s, x.e);
+      return x.kind === line || !wordy(t) ? esc(t) : mark(x.kind, esc(t));
+    }).join('');
+    const start = run[0].s, end = run[run.length - 1].e;
+    out += esc(src.slice(at, start)) + (line && wordy(src.slice(start, end)) ? mark(line, inner) : inner);
+    at = end;
   }
   return { html: out + esc(src.slice(at)), kinds };
 }
@@ -1200,13 +1219,15 @@ function bindScreen() {
     if (!storageOK && !storageBlocked) { notify('Your saved data could not be read, so it is left exactly as it was. Download it as-is above if you want a copy.', true); return; }
     if (!confirm('Delete every preparation on this device? This cannot be undone. Export a backup first if you want to keep them.')) return;
     try {
-      if (!storageBlocked) localStorage.removeItem(KEY);
+      if (!storageBlocked) { localStorage.removeItem(KEY); localStorage.removeItem(CORE_PREFS_KEY); }
+      /* interview.js keeps the read-aloud choice in memory too; switch it off for the rest of this visit. */
+      try { if (typeof ivReadAloud === 'boolean') ivReadAloud = false; } catch { /* interview.js not loaded */ }
       records = [];
       keptRecords = [];
       active = null;
       draft = null;
       show('welcome');
-      notify(storageBlocked ? 'Cleared. Nothing from this visit was saved on this device.' : 'All preparations on this device were deleted.');
+      notify(storageBlocked ? 'Cleared. Nothing from this visit was saved on this device.' : 'Everything NextStep saved on this device was deleted.');
     } catch { notify('Could not delete saved preparations.'); }
   });
   bindImport();
