@@ -9,6 +9,7 @@
 
    window.NextStepOrbGL = {
      init() -> bool                 create #orb-gl right before #orb; false when WebGL is unavailable
+                                    or the renderer failed its first-frame check
      resize(vw, vh, dpr)            viewport size in CSS px and the device pixel ratio (capped at 2)
      draw({ x, y, r, form, beat, voice, energy, t }) -> bool
                                     true: drawn (skip the 2D glass); false: draw the 2D glass instead
@@ -16,7 +17,9 @@
      destroy()
    }
    Wiring in orb.js: GL = NextStepOrbGL.init() ? NextStepOrbGL : null at start; GL.resize(vw, vh, dprCap)
-   in resize(); GL.clear() when there is no anchor; drawGlass() only when GL.draw(...) returns false. */
+   in resize(); GL.clear() when there is no anchor; drawGlass() only when GL.draw(...) returns false.
+   The first frame of a context is checked once: if the orb's centre reads back black or empty (a broken
+   driver), the GL canvas is removed and every later init()/draw() returns false. */
 (function () {
   const T0 = 37;            // phase offset: t = 0 (reduced motion still frame) is a calm, full composition
   const EXT = 1.72;         // canvas half-size in orb radii (the glow and the beat swell fit inside)
@@ -99,11 +102,11 @@ void main() {
   // inner light: a soft bloom around the hot core
   col += vec3(1.0, 0.84, 0.70) * exp(-dot(k, k) * 4.5) * (0.04 + 0.05 * en + 0.12 * beat + 0.18 * voice);
 
-  // caustic swirl: soft veils of light along a slowly turning contour; shimmer while speaking
+  // caustic swirl while speaking: veils of light along a slowly turning contour, with a shimmer
   float veil = 1.0 - smoothstep(0.0, 0.095, abs(w1.z - 0.5));
   float sh = 0.5 + 0.5 * (sin(f.z * 27.0) * uSh.x + cos(f.z * 27.0) * uSh.y);
   veil *= smoothstep(0.12, 0.45, g) * (1.0 - smoothstep(0.70, 0.97, d));
-  col += vec3(1.0, 0.78, 0.62) * veil * (0.025 + 0.05 * en + voice * (0.03 + 0.08 * sh));
+  col += vec3(1.0, 0.78, 0.62) * veil * voice * (0.03 + 0.08 * sh);
 
   // the plum field seen through the glass, inverted by the lens
   float shell = smoothstep(0.6, 0.99, d);
@@ -147,6 +150,9 @@ void main() {
   let posT = NaN;
   let lastNow = 0;
   let slow = 0;
+  let checked = false;   // first-frame readback done for this context
+  let broken = false;    // the readback came out black or empty: the 2D glass from now on
+  let probe = null;      // that readback's centre pixel (diagnostics)
 
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
@@ -286,7 +292,7 @@ void main() {
     } catch (err) { /* already gone */ }
     if (cv && cv.parentNode) cv.parentNode.removeChild(cv);
     cv = gl = prog = vbo = texN = texP = U = null;
-    ok = lost = shown = drawn = false;
+    ok = lost = shown = drawn = checked = false;
     side = 0;
     level = 0;
     slow = 0;
@@ -295,6 +301,7 @@ void main() {
   function init() {
     try {
       if (ok) return true;
+      if (broken) return false;
       teardown();
       const stage = document.getElementById('orb');
       if (!stage || !stage.parentNode) return false;
@@ -371,6 +378,24 @@ void main() {
     }
   }
 
+  // One readback per context, before its first frame is shown: some budget drivers compile the shader
+  // and then render nothing. Draw the orb at full strength and read the pixel at its centre, where the
+  // glass glows. (A context lost meanwhile reads zeros; that is not judged, and the next frame checks.)
+  function glows(ox, oy) {
+    checked = true;
+    gl.uniform4f(U.A, 1, 1, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    const px = new Uint8Array(4);
+    gl.readPixels(clamp(Math.floor(ox), 0, side - 1), clamp(Math.floor(oy), 0, side - 1), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    if (gl.isContextLost()) {
+      checked = false;
+      return true;
+    }
+    probe = [px[0], px[1], px[2], px[3]];
+    return px[3] >= 32 && px[0] + px[1] + px[2] >= 48;
+  }
+
   function draw(o) {
     try {
       if (!ok || lost || !gl || !o || gl.isContextLost()) return false;
@@ -424,8 +449,9 @@ void main() {
       const P = t + T0;
       const a1 = P * 0.07;
       const a2 = -P * 0.05;
-      gl.uniform3f(U.C, x * sideDpr - L, side - (y * sideDpr - T), r * sideDpr);
-      gl.uniform4f(U.A, form, en, beat, voice);
+      const ox = x * sideDpr - L;
+      const oy = side - (y * sideDpr - T);
+      gl.uniform3f(U.C, ox, oy, r * sideDpr);
       gl.uniform4f(U.Rot, Math.cos(a1), Math.sin(a1), Math.cos(a2), Math.sin(a2));
       gl.uniform4f(U.O1,
         0.9 * Math.sin(P * 0.061), 0.9 * Math.cos(P * 0.047),
@@ -434,6 +460,12 @@ void main() {
         0.6 * Math.sin(P * 0.091 + 2.1), 0.6 * Math.cos(P * 0.077 + 0.9),
         -0.015 * Math.sin(t * 1.7), 0.012 * Math.cos(t * 1.3));
       gl.uniform2f(U.Sh, Math.cos(P * 6.5), Math.sin(P * 6.5));
+      if (!checked && !glows(ox, oy)) {
+        broken = true;
+        teardown();
+        return false;
+      }
+      gl.uniform4f(U.A, form, en, beat, voice);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       drawn = true;
@@ -464,7 +496,7 @@ void main() {
 
   // Diagnostics for QA (read-only).
   function info() {
-    return { ok, lost, dpr: sideDpr, side, level };
+    return { ok, lost, dpr: sideDpr, side, level, broken, probe };
   }
 
   window.NextStepOrbGL = { init, resize, draw, clear, destroy, info };
