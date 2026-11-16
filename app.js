@@ -1009,9 +1009,21 @@ The hosting provider receives normal requests for the app files, not your typed 
 
 function needPrep() { if (!active) { show('welcome'); return false; } return true; }
 function openLesson(i) { if (!needPrep()) return; lessonIndex = i; show('lesson'); }
-/* Used by Export backup and Download saved data as-is. iPhone Safari asks before it downloads, and the link must still
-   work when the person taps Download, so the file stays available for 40 s (as FileSaver.js does), not 1 s. */
-function coreDownload(text, name) {
+/* Used by Export backup and Download saved data as-is; `done` is the message shown once the file is out.
+   In the iPhone Home Screen app (navigator.standalone, iOS 15.4-18) a blob download does nothing or opens a preview the
+   person can't leave (WebKit bugs 275288, 290847), so there the file goes to the share sheet, still inside the tap, and
+   the message shows only after sharing finishes, never on cancel. Everywhere else: iPhone Safari asks before it
+   downloads and the link must still work when the person taps Download, so it stays for 40 s (as FileSaver.js does). */
+function coreDownload(text, name, done) {
+  if (navigator.standalone === true && navigator.canShare && navigator.share) {
+    try {
+      const file = new File([text], name, { type: 'application/json' });
+      if (navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file] }).then(() => { if (done) notify(done); }, () => {});
+        return;
+      }
+    } catch { /* fall back to the download link */ }
+  }
   const blob = new Blob([text], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1019,11 +1031,11 @@ function coreDownload(text, name) {
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 40000);
+  if (done) notify(done);
 }
 function exportBackup(all) {
   const payload = { schema: 1, preparations: !all && active ? [active] : records };
-  coreDownload(JSON.stringify(payload, null, 2), 'nextstep-backup.json');
-  notify('Backup exported. It includes your job ads, notes and answers. Keep it private.');
+  coreDownload(JSON.stringify(payload, null, 2), 'nextstep-backup.json', 'Backup exported. It includes your job ads, notes and answers. Keep it private.');
 }
 /* Backup restore. A preparation is rebuilt with PrepEngine.create(p) for safe defaults, but when the
    backup carries its own plan (questions, questionInfo, requirements, course, quizItems) that plan is
@@ -1196,8 +1208,7 @@ function bindScreen() {
   if ($('#export-one')) $('#export-one').addEventListener('click', () => exportBackup(false));
   if ($('#all-export')) $('#all-export').addEventListener('click', () => exportBackup(true));
   if ($('#raw-export')) $('#raw-export').addEventListener('click', () => {
-    coreDownload(String(rawSaved), 'nextstep-saved-data.json');
-    notify('Saved data downloaded as-is. It includes your job ads, notes and answers. Keep it private.');
+    coreDownload(String(rawSaved), 'nextstep-saved-data.json', 'Saved data downloaded as-is. It includes your job ads, notes and answers. Keep it private.');
   });
   if ($('#prev')) $('#prev').addEventListener('click', () => { if (lessonIndex > 0) openLesson(lessonIndex - 1); });
   if ($('#next')) $('#next').addEventListener('click', () => { if (active && lessonIndex < active.course.length - 1) openLesson(lessonIndex + 1); });
