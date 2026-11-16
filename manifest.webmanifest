@@ -2,7 +2,7 @@
   "id": "./",
   "name": "NextStep Interview Studio",
   "short_name": "NextStep",
-  "description": "Private interview practice, one job at a time.",
+  "description": "Free interview practice for any job. Paste a job ad, get a short plan and practise your answers. Private: everything stays on your phone, and it works offline.",
   "start_url": "./?v=8",
   "scope": "./",
   "display": "standalone",

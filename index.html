@@ -10,6 +10,23 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; worker-src 'self'; media-src 'self' blob:">
 <title>NextStep · Interview Studio</title>
+<meta name="description" content="Free interview practice for any job. Paste a job ad, get a short practice plan and likely questions, and practise your answers. Private: everything stays on your phone, and it works offline.">
+<!-- Link previews. Scrapers need absolute URLs; the app itself never fetches these. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="NextStep Interview Studio">
+<meta property="og:title" content="NextStep: free interview practice for any job">
+<meta property="og:description" content="Paste a job ad and get a practice plan, likely questions and a mock interview. Free, private and works offline. No account needed.">
+<meta property="og:url" content="https://shai-mate.github.io/nextstep-interview-studio/">
+<meta property="og:image" content="https://shai-mate.github.io/nextstep-interview-studio/share-card.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="NextStep. Show up ready. Sound like yourself. Free, private, works offline, any job.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="NextStep: free interview practice for any job">
+<meta name="twitter:description" content="Paste a job ad and get a practice plan, likely questions and a mock interview. Free, private and works offline.">
+<meta name="twitter:image" content="https://shai-mate.github.io/nextstep-interview-studio/share-card.png">
+<meta name="twitter:image:alt" content="NextStep. Show up ready. Sound like yourself. Free, private, works offline, any job.">
 <link rel="manifest" href="manifest.webmanifest?v=8">
 <link rel="apple-touch-icon" href="apple-touch-icon.png?v=8">
 <link rel="icon" type="image/svg+xml" href="nextstep_icon.svg?v=8">
@@ -18,6 +35,7 @@
 <link rel="stylesheet" href="styles.css?v=8">
 <link rel="stylesheet" href="flow.css?v=8">
 <link rel="stylesheet" href="interview.css?v=8">
+<link rel="stylesheet" href="launch.css?v=8">
 <script src="engine.js?v=8" defer></script>
 <script src="coach.js?v=8" defer></script>
 <script src="orb.js?v=8" defer></script>
@@ -32,13 +50,66 @@
 <div id="status" role="status" aria-live="polite"></div>
 <div id="install" class="sheet-wrap" hidden>
   <button type="button" class="sheet-backdrop" data-close-install aria-label="Close install help"></button>
-  <div class="sheet" role="dialog" aria-labelledby="install-title">
-    <h2 id="install-title">Save this app to your phone</h2>
-    <p><strong>iPhone:</strong> Open this link in Safari, tap Share, then Add to Home Screen. If the link opened inside a messaging app, open it in Safari first.</p>
-    <p><strong>Android:</strong> Open in Chrome, then use the browser menu's Install app or Add to Home screen.</p>
-    <p>Install before starting your preparations, then open the Home Screen icon. Save a backup before clearing browser data.</p>
+  <div class="sheet install-sheet" role="dialog" aria-modal="true" aria-labelledby="install-title">
+    <h2 id="install-title" tabindex="-1">Put NextStep on your Home Screen</h2>
+    <p id="install-lede">Then it opens like an app, works without internet and keeps your practice in one place. Free, with no app store and no account.</p>
+    <button type="button" class="primary" id="install-now" hidden>Install app</button>
+
+    <div class="install-way" data-install-for="ios-safari" hidden>
+      <ol class="install-steps">
+        <li><span>Tap <b>Share</b> <svg class="glyph" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14.5V3.5"/><path d="M8.5 7 12 3.5 15.5 7"/><path d="M8.5 10H7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1.5"/></svg> in Safari. Can't see it? Tap <b>•••</b> first.</span></li>
+        <li><span>Tap <b>Add to Home Screen</b> <svg class="glyph" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/></svg>. You may need to scroll down or tap <b>More</b>.</span></li>
+        <li><span>Tap <b>Add</b>, then open NextStep from your Home Screen.</span></li>
+      </ol>
+      <p class="install-note">Add it before you start. On iPhone, work saved in Safari doesn't move to the Home Screen app. Already started? Export a backup from Privacy, then restore it in the app.</p>
+      <p class="install-note">No Add to Home Screen? You may be inside another app. Tap the compass or <b>•••</b> and choose <b>Open in Safari</b>.</p>
+    </div>
+
+    <div class="install-way" data-install-for="ios-browser" hidden>
+      <ol class="install-steps">
+        <li><span>Tap your browser's <b>Share</b> button <svg class="glyph" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14.5V3.5"/><path d="M8.5 7 12 3.5 15.5 7"/><path d="M8.5 10H7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1.5"/></svg>.</span></li>
+        <li><span>Tap <b>Add to Home Screen</b> <svg class="glyph" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/></svg>.</span></li>
+        <li><span>Open NextStep from your Home Screen.</span></li>
+      </ol>
+      <p class="install-note">Can't find it? Open this page in Safari and add it from there. Add it before you start: work saved in this browser doesn't move to the Home Screen app.</p>
+    </div>
+
+    <div class="install-way" data-install-for="in-app" hidden>
+      <p class="install-alert">You're viewing this inside another app, like Instagram, Facebook or LinkedIn. NextStep can't be added to your Home Screen from here, and your work might not be kept.</p>
+      <ol class="install-steps">
+        <li><span>Tap <b>•••</b> or <b>⋮</b>, usually in a top or bottom corner.</span></li>
+        <li><span>Choose <b>Open in <span data-browser>your browser</span></b>. It may say <b>Open in external browser</b>.</span></li>
+        <li><span>Then open these steps again to add NextStep to your Home Screen.</span></li>
+      </ol>
+      <button type="button" class="glass button install-copy" id="install-copy"><strong id="install-copy-label">Or copy the link for <span data-browser>your browser</span></strong></button>
+      <p class="install-url" id="install-url" hidden>https://shai-mate.github.io/nextstep-interview-studio/</p>
+    </div>
+
+    <div class="install-way" data-install-for="android" hidden>
+      <ol class="install-steps">
+        <li><span>Tap the menu <b>⋮</b> at the top right of Chrome.</span></li>
+        <li><span>Tap <b>Install app</b> or <b>Add to Home screen</b>.</span></li>
+        <li><span>Open NextStep from your Home Screen or app list.</span></li>
+      </ol>
+      <p class="install-note">Opened from another app? Choose <b>Open in Chrome</b> first. Using a different browser? Look for Install or Add to Home screen in its menu.</p>
+    </div>
+
+    <div class="install-way" data-install-for="desktop" hidden>
+      <p>NextStep is made for your phone. Open this page on your phone to add it to your Home Screen.</p>
+      <p>On a computer, Chrome and Edge show an install icon in the address bar. In Safari on a Mac, choose <b>File</b>, then <b>Add to Dock</b>.</p>
+    </div>
+
+    <div class="install-way" data-install-for="installed" hidden>
+      <p class="install-done"><svg class="glyph" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7.5"/></svg> NextStep is on this device. It opens from your Home Screen and works without internet.</p>
+    </div>
+
+    <div class="install-way" data-install-for="added" hidden>
+      <p class="install-done"><svg class="glyph" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7.5"/></svg> Open it from your Home Screen or app list. It works without internet.</p>
+    </div>
+
     <p id="offline-status" role="status">Phone edition · no account needed</p>
-    <button type="button" class="primary" data-close-install>Done</button>
+    <p class="install-more"><a href="privacy.html">How your data stays private</a></p>
+    <button type="button" class="primary" id="install-done" data-close-install>Done</button>
   </div>
 </div>
 <main id="app"></main>
