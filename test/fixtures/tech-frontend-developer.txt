@@ -1,0 +1,25 @@
+Junior Front-End Developer
+Kitebird (a fictional travel-planning startup) · Remote within Canada
+
+About Kitebird
+We help families plan trips together. Our team of 18 ships small improvements every week.
+
+What you will work on
+- Build accessible, responsive interfaces in React and TypeScript
+- Turn Figma designs into clean, reusable components
+- Write unit tests with Jest and fix bugs reported by users
+- Take part in code reviews, planning and short daily stand-ups
+- Improve page speed and Core Web Vitals on our booking pages
+
+You have
+- 1+ years building web apps with JavaScript, HTML and CSS (internships, bootcamp and personal projects count)
+- Some experience with React and Git
+- A basic understanding of web accessibility (WCAG) and REST APIs
+- Clear written communication for a remote team
+- Curiosity and willingness to ask for help
+
+Bonus points
+- Next.js or GraphQL
+- Experience with analytics dashboards or A/B tests
+
+Perks: remote-first, home office budget, learning stipend, 4 weeks vacation.
