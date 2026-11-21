@@ -1001,7 +1001,7 @@ The hosting provider receives normal requests for the app files, not your typed 
         <p class="hint">GitHub issues are public, so don't paste private answers.</p>
         <p class="credit">Made by Prism</p>
       </div>
-      <p class="version">Phone app v8 · storage schema v1 · rules-based preparation</p>
+      <p class="version">Phone app v9 · storage schema v1 · rules-based preparation</p>
     </div>`;
   }
 };
