@@ -1,0 +1,8 @@
+# NextStep extract Worker. No secrets. See README "Deploy the extract Worker".
+name = "nextstep-extract"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGIN = "https://shai-mate.github.io"

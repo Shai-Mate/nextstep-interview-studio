@@ -535,3 +535,61 @@ test('time in a job is a real detail for "why this job", but not proof it worked
   const dev = Coach.review('I built two React apps in my bootcamp and I care a lot about accessibility. Kitebird makes travel planning easier, and I would like to work on booking pages that real people use every day.', { question: 'What made you want to apply for the Junior Front-End Developer job at Kitebird?', info: { kind: 'motivation', source: null }, analysis: tech.analysis });
   assert.equal(check(dev, 'structure').ok, true);
 });
+
+test('practice grade follows the 100-point rubric and is not a hiring verdict', () => {
+  const strong = Coach.grade(Coach.review(STRONG.retail, retail));
+  assert.equal(strong.score, 100);
+  assert.equal(strong.band, 'Polished');
+  assert.deepEqual(strong.parts, { structure: 40, ownership: 15, evidence: 15, relevance: 15, delivery: 15 });
+
+  const weak = Coach.grade(Coach.review('I am a hard worker and I like helping people.', retail));
+  assert.ok(weak.score < 40, String(weak.score));
+  assert.equal(weak.band, 'Starting');
+  assert.equal(weak.parts.structure, 0);
+
+  const partial = Coach.grade({
+    starScore: 2,
+    checks: [
+      { id: 'structure', ok: false, title: 'Situation, Task, Action, Result', detail: 'missing pieces' },
+      { id: 'ownership', ok: true, title: 'Your part in it', detail: 'ok' },
+      { id: 'evidence', ok: false, title: 'Proof it worked', detail: 'add a result' },
+      { id: 'relevance', ok: false, title: 'Matches the job ad', detail: 'add a word' },
+      { id: 'length', ok: true, title: 'Time to say it', detail: 'ok' },
+      { id: 'clarity', ok: false, title: 'Easy to follow', detail: 'long sentence' }
+    ]
+  });
+  assert.equal(partial.parts.structure, 20);
+  assert.equal(partial.parts.ownership, 15);
+  assert.equal(partial.parts.delivery, 8);
+  assert.equal(partial.score, 43);
+  assert.equal(partial.band, 'Building');
+
+  const closing = Coach.grade({
+    starScore: 0,
+    checks: ['structure', 'ownership', 'evidence', 'relevance', 'length', 'clarity'].map((id) => ({
+      id, ok: true, title: id === 'structure' ? 'Your questions for them' : id, detail: 'ok'
+    }))
+  });
+  assert.equal(closing.parts.structure, 40);
+  assert.equal(closing.score, 100);
+});
+
+test('readiness bands stay short of a hiring verdict', () => {
+  const ready = Coach.readiness({ lessons: 1, answers: 1, quiz: 1, mock: 1, map: 1 });
+  assert.equal(ready.score, 100);
+  assert.equal(ready.band, 'Interview ready');
+  assert.equal(ready.parts.lessons, 25);
+  assert.equal(ready.parts.answers, 20);
+  assert.equal(ready.parts.quiz, 15);
+  assert.equal(ready.parts.mock, 30);
+  assert.equal(ready.parts.map, 10);
+
+  const none = Coach.readiness({});
+  assert.equal(none.score, 0);
+  assert.equal(none.band, 'Building');
+
+  const mid = Coach.readiness({ lessons: 1, answers: 0.5, quiz: 0, mock: 0.8, map: 1 });
+  assert.equal(mid.score, 69);
+  assert.equal(mid.band, 'Getting there');
+  assert.equal(JSON.stringify(mid).includes('get the job'), false);
+});

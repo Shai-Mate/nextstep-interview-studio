@@ -15,7 +15,7 @@
   if ('serviceWorker' in navigator && window.isSecureContext) {
     navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' })
       .then(() => navigator.serviceWorker.ready)
-      .then(() => say('Ready to work offline · everything stays on this device'))
+      .then(() => say('Ready to work offline. Your answers stay on this phone'))
       .catch(() => say('Offline setup is not available here, but your work still saves on this device.'));
   } else say('Online only here · open the https link in Safari or Chrome to install');
   window.addEventListener('offline', () => say("You're offline · you can keep practising on this device"));

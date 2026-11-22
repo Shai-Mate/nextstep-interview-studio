@@ -8,14 +8,17 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="NextStep">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- After the extract Worker is deployed, add its origin to connect-src, for example:
+     connect-src 'self' https://nextstep-extract.YOUR-SUBDOMAIN.workers.dev
+     The exact steps are in the README, under Deploy the extract Worker. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; worker-src 'self'; media-src 'self' blob:">
 <title>NextStep · Interview Studio</title>
-<meta name="description" content="Free interview practice for any job. Paste a job ad, get a short practice plan and likely questions, and practise your answers. Private: everything stays on your phone, and it works offline.">
+<meta name="description" content="Free interview practice for any job. Paste a job link, get a short practice plan and likely questions, and practise your answers. Your answers stay on your phone.">
 <!-- Link previews. Scrapers need absolute URLs; the app itself never fetches these. -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="NextStep Interview Studio">
 <meta property="og:title" content="NextStep: free interview practice for any job">
-<meta property="og:description" content="Paste a job ad and get a practice plan, likely questions and a mock interview. Free, private and works offline. No account needed.">
+<meta property="og:description" content="Paste a job link and get a practice plan, likely questions and a mock interview. Free, and your answers stay on your phone.">
 <meta property="og:url" content="https://shai-mate.github.io/nextstep-interview-studio/">
 <meta property="og:image" content="https://shai-mate.github.io/nextstep-interview-studio/share-card.png">
 <meta property="og:image:type" content="image/png">
@@ -24,25 +27,26 @@
 <meta property="og:image:alt" content="NextStep. Show up ready. Sound like yourself. Free, private, works offline, any job.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="NextStep: free interview practice for any job">
-<meta name="twitter:description" content="Paste a job ad and get a practice plan, likely questions and a mock interview. Free, private and works offline.">
+<meta name="twitter:description" content="Paste a job link and get a practice plan, likely questions and a mock interview. Free, and your answers stay on your phone.">
 <meta name="twitter:image" content="https://shai-mate.github.io/nextstep-interview-studio/share-card.png">
 <meta name="twitter:image:alt" content="NextStep. Show up ready. Sound like yourself. Free, private, works offline, any job.">
-<link rel="manifest" href="manifest.webmanifest?v=9">
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=9">
-<link rel="icon" type="image/svg+xml" href="nextstep_icon.svg?v=9">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=9">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=9">
-<link rel="stylesheet" href="styles.css?v=9">
-<link rel="stylesheet" href="flow.css?v=9">
-<link rel="stylesheet" href="interview.css?v=9">
-<link rel="stylesheet" href="launch.css?v=9">
-<script src="engine.js?v=9" defer></script>
-<script src="coach.js?v=9" defer></script>
-<script src="orb.js?v=9" defer></script>
-<script src="app.js?v=9" defer></script>
-<script src="flow.js?v=9" defer></script>
-<script src="interview.js?v=9" defer></script>
-<script src="pwa.js?v=9" defer></script>
+<link rel="manifest" href="manifest.webmanifest?v=10">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=10">
+<link rel="icon" type="image/svg+xml" href="nextstep_icon.svg?v=10">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=10">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=10">
+<link rel="stylesheet" href="styles.css?v=10">
+<link rel="stylesheet" href="flow.css?v=10">
+<link rel="stylesheet" href="interview.css?v=10">
+<link rel="stylesheet" href="launch.css?v=10">
+<script src="config.js?v=10" defer></script>
+<script src="engine.js?v=10" defer></script>
+<script src="coach.js?v=10" defer></script>
+<script src="orb.js?v=10" defer></script>
+<script src="app.js?v=10" defer></script>
+<script src="flow.js?v=10" defer></script>
+<script src="interview.js?v=10" defer></script>
+<script src="pwa.js?v=10" defer></script>
 </head>
 <body>
 <canvas id="aurora" aria-hidden="true"></canvas>
@@ -113,6 +117,6 @@
   </div>
 </div>
 <main id="app"></main>
-<noscript>This app needs JavaScript enabled. No candidate content is sent to a server.</noscript>
+<noscript>This app needs JavaScript. Practice answers stay on your phone.</noscript>
 </body>
 </html>

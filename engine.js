@@ -1505,6 +1505,115 @@ function publicAnalyze(jobText, opts) {
 }
 
 const catalog = Object.freeze(Object.fromEntries(THEMES.map((t) => [t.id, Object.freeze({ label: t.label, probe: t.probe })])));
-root.PrepEngine = { create, analyze: publicAnalyze, themes: catalog };
+
+/* Pace, once an interview date exists. Optional, and never required to build the plan.
+   Remaining lesson minutes are split across the calendar days from today through the
+   interview day (that day counts). dayLog is { 'YYYY-MM-DD': { minutes, lessons } }.
+   A past day whose logged minutes are under that day's share is missed. Those minutes
+   were never done, so they stay in the pot and today's required minutes go up.
+   Lessons marked done with no log (older preparations) count on the day the plan was
+   created, so they are not all treated as missed. Returns null when there is no date. */
+function scheduleDay(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
+  if (!m) return null;
+  const y = +m[1], mo = +m[2], d = +m[3];
+  if (y < 2000 || y > 2100) return null;
+  const date = new Date(y, mo - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+function scheduleIso(date) {
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+}
+function scheduleMinutes(c) {
+  const n = c && Number(c.minutes);
+  return Number.isInteger(n) && n > 0 && n <= 120 ? n : 5;
+}
+function schedule(prep, now) {
+  const p = prep && typeof prep === 'object' ? prep : {};
+  const interview = scheduleDay(p.interviewAt);
+  if (!interview) return null;
+  const today = scheduleDay(scheduleIso(now instanceof Date && !Number.isNaN(now.getTime()) ? now : new Date()));
+  const todayKey = scheduleIso(today);
+  const interviewKey = scheduleIso(interview);
+  if (interviewKey < todayKey) return { past: true, days: [], block: [], required: 0, remaining: 0, total: 0, daysLeft: 0, missed: false, missedDays: 0, chosen: 0, over: false, interview: interviewKey };
+  const course = Array.isArray(p.course) ? p.course : [];
+  const total = course.reduce((sum, c) => sum + scheduleMinutes(c), 0);
+  const undone = course.filter((c) => !c || !c.done);
+  const remaining = undone.reduce((sum, c) => sum + scheduleMinutes(c), 0);
+  let start = today;
+  const createdAt = p.created ? new Date(p.created) : null;
+  if (createdAt && !Number.isNaN(createdAt.getTime())) {
+    const created = scheduleDay(scheduleIso(createdAt));
+    if (created && created < start) start = created;
+  }
+  if (scheduleIso(start) > interviewKey) start = interview;
+  const raw = p.dayLog && typeof p.dayLog === 'object' ? p.dayLog : {};
+  const logged = {};
+  let loggedSum = 0;
+  for (const [key, value] of Object.entries(raw)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || !value || typeof value !== 'object') continue;
+    const n = Number(value.minutes);
+    const minutes = Number.isFinite(n) && n > 0 ? Math.min(24 * 60, Math.floor(n)) : 0;
+    logged[key] = minutes;
+    loggedSum += minutes;
+  }
+  const doneMinutes = Math.max(0, total - remaining);
+  const unlogged = Math.max(0, doneMinutes - Math.min(loggedSum, total));
+  if (unlogged) {
+    const credit = scheduleIso(start);
+    logged[credit] = Math.min(24 * 60, (logged[credit] || 0) + unlogged);
+  }
+  const days = [];
+  for (let cursor = new Date(start); scheduleIso(cursor) <= interviewKey; cursor.setDate(cursor.getDate() + 1)) {
+    const key = scheduleIso(cursor);
+    let doneBefore = 0;
+    for (const [k, minutes] of Object.entries(logged)) if (k < key) doneBefore += minutes;
+    doneBefore = Math.min(total, doneBefore);
+    const leftThen = Math.round((interview - cursor) / 86400000) + 1;
+    const still = Math.max(0, total - doneBefore);
+    const required = still === 0 || leftThen < 1 ? 0 : Math.ceil(still / leftThen);
+    const done = Math.min(total, logged[key] || 0);
+    days.push({
+      date: key,
+      required,
+      done,
+      missed: key < todayKey && required > 0 && done < required,
+      today: key === todayKey,
+      future: key > todayKey
+    });
+  }
+  const todayRow = days.find((d) => d.today);
+  const required = todayRow ? todayRow.required : 0;
+  const block = [];
+  if (required > 0) {
+    let filled = 0;
+    for (const lesson of undone) {
+      block.push(lesson);
+      filled += scheduleMinutes(lesson);
+      if (filled >= required) break;
+    }
+  }
+  const chosenRaw = Number(p.dailyMinutes);
+  const chosen = Number.isInteger(chosenRaw) && chosenRaw >= 5 && chosenRaw <= 240 ? chosenRaw : 0;
+  const missedDays = days.filter((d) => d.missed).length;
+  return {
+    past: false,
+    total,
+    remaining,
+    required,
+    chosen,
+    over: chosen > 0 && required > chosen,
+    daysLeft: Math.round((interview - today) / 86400000) + 1,
+    days,
+    block,
+    missed: missedDays > 0,
+    missedDays,
+    interview: interviewKey
+  };
+}
+
+root.PrepEngine = { create, analyze: publicAnalyze, themes: catalog, schedule };
 if (typeof module !== 'undefined') module.exports = root.PrepEngine;
 })(globalThis);

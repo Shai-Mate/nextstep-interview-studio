@@ -196,6 +196,13 @@ details.iv-more .check:last-child { margin-bottom: 16px; }
 .iv-pick-q { display: flex; align-items: flex-start; gap: 10px; margin-top: 8px; font-size: 14px; font-weight: 600; line-height: 1.4; }
 .iv-pt { flex: 1; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .iv-pick .muted { margin-top: 6px; }
+.iv-grade { display: flex; align-items: center; gap: 14px; margin: 6px 0 16px; }
+.iv-grade-num { font-size: 48px; font-weight: 600; letter-spacing: -.045em; line-height: 1; color: var(--amber); }
+.iv-grade .kicker { margin: 0 0 4px; }
+.iv-grade strong { display: block; font-size: 18px; letter-spacing: -.02em; }
+.iv-grade .muted { margin-top: 2px; }
+.iv-grade-mini { flex: none; min-width: 28px; font-size: 15px; font-weight: 600; color: var(--amber); text-align: right; }
+.iv-grade-line { margin: 8px 0 0; font-size: 14px; font-weight: 600; color: var(--amber); }
 .iv-send { margin-top: 24px; text-align: center; }
 .iv-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; color: var(--amber); font-size: 15px; font-weight: 600; text-decoration: none; }
 .iv-link:hover { text-decoration: underline; }

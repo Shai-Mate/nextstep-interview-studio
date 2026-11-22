@@ -1,6 +1,6 @@
 'use strict';
-/* Onboarding flow and the first minute: sample ads, role, job ad (with a live read-out),
-   quick setup, plan creation, the decode moment, the "Your ad, decoded" reveal and the
+/* Onboarding flow and the first minute: a job link (paste the ad only if that fails),
+   sample ads, plan creation, the decode moment, the "Your ad, decoded" reveal and the
    insights page.
    Classic script loaded after app.js: it shares app.js top-level globals
    ($, esc, I, screens, binders, actions, show, notify, persist, records, active, draft,
@@ -146,6 +146,23 @@ Perks: remote-first, home office budget, learning stipend, 4 weeks vacation.`
 const FLOW_HL = [['must', 'Must-have'], ['skill', 'Skill or tool'], ['nice', 'Nice to have'], ['keyword', 'Worth repeating']];
 const FLOW_EMPTY_HINT = 'Paste all of it. The duties and requirements matter most.';
 let flowSamplesFrom = 'welcome';
+let flowBusy = false;
+let flowFallback = null;
+let flowToken = 0;
+let flowAbort = null;
+const FLOW_FALLBACK = {
+  invalid: 'That does not look like a web link. Check it, or paste the ad text below.',
+  login: 'That page asks people to sign in, so we could not read it. This is common on LinkedIn and Indeed. Paste the ad text below. It stays on this phone.',
+  empty: 'We could not read a job ad on that page. Paste the ad text below and your plan still builds here.',
+  short: 'That page did not include enough of the ad. Paste the full text below.',
+  blocked: 'We could not open that link. Paste the ad text below.',
+  large: 'That page was too large to read. Paste the ad text below.',
+  timeout: 'That page took too long. Paste the ad text below.',
+  limited: 'Too many tries just now. Paste the ad text below.',
+  unset: 'Reading job links is not turned on for this copy yet. Paste the ad text below and your plan still builds on this phone.',
+  unreachable: 'We could not reach the page reader just now. Paste the ad text below. It stays on this phone.',
+  forbidden: 'The page reader did not accept this request. Paste the ad text below.'
+};
 let flowReadTimer = 0;
 let flowDecodeTimer = 0;
 /* When the decode or reveal screen appeared: a quick double tap on the previous screen's
@@ -347,6 +364,124 @@ function flowFocusTitle() {
   if (h) { try { h.focus({ preventScroll: true }); } catch { /* focus is a nicety */ } }
 }
 
+function flowExtractEndpoint() {
+  try {
+    const value = window.NEXTSTEP_EXTRACT_URL;
+    return typeof value === 'string' ? value.trim() : '';
+  } catch { return ''; }
+}
+function flowUrlProblem(raw) {
+  if (!raw) return 'invalid';
+  let url;
+  try { url = new URL(raw); } catch { return 'invalid'; }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return 'invalid';
+  if (url.username || url.password) return 'invalid';
+  return '';
+}
+function flowCancelExtract() {
+  flowToken += 1;
+  flowBusy = false;
+  if (flowAbort) {
+    try { flowAbort.abort(); } catch { /* already finished */ }
+    flowAbort = null;
+  }
+}
+async function flowExtract(raw) {
+  const endpoint = flowExtractEndpoint();
+  if (!endpoint) return { ok: false, reason: 'unset' };
+  const ctrl = new AbortController();
+  flowAbort = ctrl;
+  const timer = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      mode: 'cors',
+      credentials: 'omit',
+      cache: 'no-store',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: raw }),
+      signal: ctrl.signal
+    });
+    let data = null;
+    try { data = await res.json(); } catch { data = null; }
+    if (!res.ok || !data || data.ok === false) return { ok: false, reason: (data && data.reason) || 'unreachable' };
+    const text = String(data.text || '').replace(/\u0000/g, '').trim();
+    if (text.length < 40) return { ok: false, reason: 'short' };
+    return {
+      ok: true,
+      text: text.slice(0, 60000),
+      company: String(data.company || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+      role: String(data.role || '').replace(/\s+/g, ' ').trim().slice(0, 120)
+    };
+  } catch {
+    return { ok: false, reason: 'unreachable' };
+  } finally {
+    clearTimeout(timer);
+    if (flowAbort === ctrl) flowAbort = null;
+  }
+}
+function readLink() {
+  draft = draft || {};
+  if ($('#url')) draft.url = $('#url').value;
+  if ($('#job')) draft.job = $('#job').value;
+}
+async function flowFromLink(event) {
+  if (event) event.preventDefault();
+  if (flowBusy) return;
+  readLink();
+  const raw = String(draft.url || '').trim();
+  const problem = flowUrlProblem(raw);
+  if (problem) {
+    flowFallback = { reason: problem };
+    show('link');
+    return;
+  }
+  if (!flowExtractEndpoint()) {
+    flowFallback = { reason: 'unset' };
+    show('link');
+    return;
+  }
+  const token = ++flowToken;
+  flowBusy = true;
+  flowFallback = null;
+  notify('');
+  show('link');
+  const result = await flowExtract(raw);
+  if (token !== flowToken) return;
+  flowBusy = false;
+  if (!result.ok) {
+    flowFallback = { reason: result.reason || 'unreachable' };
+    show('link');
+    return;
+  }
+  try {
+    draft.job = result.text;
+    draft.role = result.role || '';
+    draft.company = result.company || '';
+    draft.url = raw;
+    draft.intake = {};
+    flowFallback = null;
+    flowBuild('');
+  } catch (err) {
+    flowFallback = { reason: 'short' };
+    show('link');
+    notify(err.message);
+  }
+}
+function flowFromPaste() {
+  readLink();
+  const job = String(draft.job || '').trim();
+  if (job.length < 40) { notify('Paste at least 40 characters from the actual ad.'); return; }
+  draft.job = job;
+  draft.role = '';
+  draft.company = '';
+  draft.intake = {};
+  const sample = FLOW_SAMPLES.find((x) => x.job.trim() === job);
+  try {
+    flowFallback = null;
+    flowBuild(sample ? sample.id : '');
+  } catch (err) { notify(err.message); }
+}
 function readRole() {
   draft = draft || {};
   if ($('#role')) draft.role = $('#role').value;
@@ -399,6 +534,27 @@ function flowUpdateReadout() {
 }
 
 Object.assign(screens, {
+  link() {
+    draft = draft || {};
+    const fb = flowFallback;
+    const message = fb ? (FLOW_FALLBACK[fb.reason] || FLOW_FALLBACK.empty) : '';
+    return `<form class="screen link-screen" id="link-form" data-screen="link">
+      <div class="topbar">${iconBtn('back-welcome', 'Back', I.back)}<span class="label">New preparation</span></div>
+      <h1 class="flow-focus" tabindex="-1">Paste the job link</h1>
+      <p class="italic lg">One link. The plan builds itself.</p>
+      <label class="field" for="url">Job link</label>
+      <input id="url" name="url" type="url" inputmode="url" autocomplete="url" maxlength="2000" placeholder="https://" value="${esc(draft.url || '')}" ${flowBusy ? 'readonly' : ''}>
+      <p class="hint" id="link-status">${flowBusy ? 'Reading the public page. This can take a few seconds.' : 'We read the public page for the company, the role and what they ask for. Your answers stay on this phone.'}</p>
+      <button class="primary" type="submit" ${flowBusy ? 'disabled' : ''}>${flowBusy ? 'Reading the page' : 'Build my plan'}</button>
+      ${message ? `<div class="glass pad-sm link-fallback" role="status">
+        <p class="fallback-msg">${esc(message)}</p>
+        <label class="field" for="job">Job ad text</label>
+        <textarea id="job" name="job" maxlength="60000" placeholder="Paste the full job ad here">${esc(draft.job || '')}</textarea>
+        <button class="primary" type="button" id="build-paste">Build from this text</button>
+      </div>` : ''}
+      <button type="button" class="text-btn" data-action="try-sample">Try a sample ad</button>
+    </form>`;
+  },
   role() {
     draft = draft || {};
     return `<form class="screen" id="role-form" data-screen="role">
@@ -469,7 +625,7 @@ Object.assign(screens, {
       ${who ? `<p class="kicker decode-kicker">${esc(who)}</p>` : '<p class="kicker decode-kicker">Your job ad</p>'}
       <div class="decode-stage"><div class="orb-anchor decode-orb" data-orb data-env="1" data-s="1" data-up="166,102" data-down="101,280" data-energy="1"></div></div>
       <h1 class="decode-title flow-focus" tabindex="-1">${still ? 'Your plan is ready' : 'Reading your ad'}</h1>
-      <p class="italic decode-line">Nothing leaves this device.</p>
+      <p class="italic decode-line">Your plan is built on this phone.</p>
       <ol class="decode-steps">${steps.map((s) => `<li class="decode-step"><span class="tick" aria-hidden="true">${I.check}</span><span>${esc(s)}</span></li>`).join('')}</ol>
       <div class="spacer"></div>
       ${still ? `<button type="button" class="primary" data-action="reveal-next"><span>Continue</span>${I.arrow}</button>` : '<button type="button" class="text-btn decode-skip" data-action="decode-skip">Tap anywhere to skip</button>'}
@@ -569,6 +725,16 @@ function flowCountUp() {
   requestAnimationFrame(tick);
 }
 
+binders.link = () => {
+  const form = $('#link-form');
+  if (form) form.addEventListener('submit', (event) => { flowFromLink(event); });
+  const paste = $('#build-paste');
+  if (paste) paste.addEventListener('click', flowFromPaste);
+  flowShownAt = performance.now();
+  if (flowFallback && $('#job')) {
+    try { $('#job').focus({ preventScroll: true }); } catch { /* focus is a nicety */ }
+  } else flowFocusTitle();
+};
 binders.role = () => {
   const form = $('#role-form');
   if (form) form.addEventListener('submit', (e) => { e.preventDefault(); readRole(); show('jobad'); });
@@ -625,13 +791,17 @@ binders.reveal = () => { flowShownAt = performance.now(); flowFocusTitle(); flow
 binders.insights = () => flowFocusTitle();
 
 Object.assign(actions, {
-  start: () => { renaming = false; show('role'); },
-  'back-welcome': () => { readRole(); show('welcome'); },
+  start: () => { renaming = false; flowCancelExtract(); flowFallback = null; draft = draft || {}; show('link'); },
+  'back-welcome': () => { flowCancelExtract(); readLink(); readRole(); show('welcome'); },
   'back-role': () => { readJob(); show('role'); },
   'back-job': () => { readIntake(); show('jobad'); },
-  'try-sample': () => { flowSamplesFrom = 'welcome'; show('samples'); },
+  'try-sample': () => {
+    if (view === 'link') { readLink(); flowSamplesFrom = 'link'; }
+    else flowSamplesFrom = 'welcome';
+    show('samples');
+  },
   'sample-from-jobad': () => { readJob(); flowSamplesFrom = 'jobad'; show('samples'); },
-  'samples-back': () => show(flowSamplesFrom === 'jobad' ? 'jobad' : 'welcome'),
+  'samples-back': () => show(flowSamplesFrom === 'jobad' ? 'jobad' : flowSamplesFrom === 'link' ? 'link' : 'welcome'),
   'use-sample': (el) => {
     const s = FLOW_SAMPLES.find((x) => x.id === el.dataset.sample);
     if (!s || !flowSettled()) return;

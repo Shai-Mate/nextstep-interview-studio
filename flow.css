@@ -49,6 +49,15 @@
 .readout-row .link { flex: none; font-size: 14px; }
 .readout-row [hidden] { display: none; }
 
+/* Link-only start. The paste box appears only after a link cannot be read. */
+.link-screen .primary { margin-top: 18px; }
+.link-screen .text-btn { margin-top: 4px; }
+.link-fallback { margin-top: 18px; }
+.link-fallback .field { margin-top: 14px; }
+.fallback-msg { font-size: 15px; line-height: 1.45; color: var(--ink); }
+.link-fallback textarea { min-height: 148px; }
+.link-fallback .primary { margin-top: 14px; }
+
 /* Decode moment */
 .screen.decode { text-align: center; }
 .decode-kicker { margin-top: 28px; }
