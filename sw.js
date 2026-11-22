@@ -1,7 +1,7 @@
 'use strict';
 // Any change to a shipped file needs a new version here and in every ?v= (installed phones keep cached files until then).
 // The suffix after -v must equal the ?v= on app.js in index.html, or the install refuses.
-const CACHE = 'nextstep-phone-v10';
+const CACHE = 'nextstep-phone-v11';
 // Not precached on purpose: share-card.png (only read by link-preview scrapers) and nextstep_icon_1024.png
 // (only read from the manifest when the app is installed, which needs a connection anyway).
 const ASSETS = [

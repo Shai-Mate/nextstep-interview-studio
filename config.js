@@ -4,4 +4,4 @@
    Set the full URL, including /extract. No secrets belong in this file.
    Example, after you deploy:
    window.NEXTSTEP_EXTRACT_URL = 'https://nextstep-extract.YOUR-SUBDOMAIN.workers.dev/extract'; */
-window.NEXTSTEP_EXTRACT_URL = '';
+window.NEXTSTEP_EXTRACT_URL = 'https://nextstep-extract.shaimate.workers.dev/extract';

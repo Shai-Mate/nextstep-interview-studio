@@ -11,7 +11,7 @@
 <!-- After the extract Worker is deployed, add its origin to connect-src, for example:
      connect-src 'self' https://nextstep-extract.YOUR-SUBDOMAIN.workers.dev
      The exact steps are in the README, under Deploy the extract Worker. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; worker-src 'self'; media-src 'self' blob:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://nextstep-extract.shaimate.workers.dev; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; worker-src 'self'; media-src 'self' blob:">
 <title>NextStep · Interview Studio</title>
 <meta name="description" content="Free interview practice for any job. Paste a job link, get a short practice plan and likely questions, and practise your answers. Your answers stay on your phone.">
 <!-- Link previews. Scrapers need absolute URLs; the app itself never fetches these. -->
