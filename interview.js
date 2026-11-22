@@ -105,12 +105,28 @@ function ivBasicChecks(text) {
     { id: 'length', ok: words >= 50 && words <= 250, title: 'Time to say it', detail: words < 50 ? 'A little short: add where you were, what you did and how it ended.' : words > 250 ? 'Quite long: try a shorter first pass, and offer detail if asked.' : 'A comfortable length for a first pass.' }
   ];
 }
+function ivGrade(review) {
+  const C = ivCoach();
+  if (!C || typeof C.grade !== 'function' || !review) return null;
+  try {
+    const g = C.grade(review);
+    return g && Number.isFinite(g.score) ? g : null;
+  } catch { return null; }
+}
+function ivGradeHtml(g) {
+  if (!g) return '';
+  return `<div class="iv-grade"><div class="iv-grade-num">${g.score}</div><div><p class="kicker">Practice grade</p><strong>${esc(g.band)}</strong><p class="muted">How this answer is built. Not a hiring verdict.</p></div></div>`;
+}
 function feedback(text, ctx) {
   const C = ivCoach();
   if (C) {
     try {
       const r = C.review(String(text || ''), ctx && typeof ctx === 'object' ? ctx : {});
-      if (r && r.summary) return 'Structure checklist: ' + r.summary + '.';
+      if (r && r.summary) {
+        const g = ivGrade(r);
+        const head = g ? 'Practice grade ' + g.score + ' (' + g.band + '). ' : '';
+        return head + 'Structure checklist: ' + r.summary + '. Not a hiring verdict.';
+      }
     } catch { /* fall back below */ }
   }
   const words = wordCount(text);
@@ -188,7 +204,10 @@ function ivWant(info) {
 }
 function logHtml(m) {
   if (!m.answers.length) return '';
-  return `<h2 class="log-title">Your answers so far</h2>${m.answers.map((a, i) => `<details class="block"><summary>${i + 1}. ${esc(a.question)}</summary><p class="prose">${esc(a.text)}</p><p class="feedback">${esc(a.feedback)}</p></details>`).join('')}`;
+  return `<h2 class="log-title">Your answers so far</h2>${m.answers.map((a, i) => {
+    const g = ivGrade(ivReview(active, i, a.text, a.question));
+    return `<details class="block"><summary>${i + 1}. ${esc(a.question)}</summary><p class="prose">${esc(a.text)}</p>${g ? `<p class="iv-grade-line">Practice grade ${g.score} · ${esc(g.band)}</p>` : ''}<p class="feedback">${esc(a.feedback)}</p></details>`;
+  }).join('')}`;
 }
 function ivFeedbackLink() {
   return `<div class="iv-send"><a class="iv-link" href="${IV_FEEDBACK_URL}" target="_blank" rel="noopener noreferrer">Send feedback</a><p class="fine">GitHub issues are public, so don't paste private answers.</p></div>`;
@@ -204,7 +223,9 @@ function ivReport(p) {
     const info = p.questions[k] === ans.question ? ivInfo(p, k) : null;
     const story = ivStory(info);
     const parts = Number.isInteger(s.starScore) ? s.starScore : null;
-    return { k, ans, s, story, parts, score: s.ok.length + (story && parts !== null ? parts : 2) };
+    const full = ivReview(p, k, ans.text, ans.question);
+    const grade = ivGrade(full);
+    return { k, ans, s, story, parts, grade, score: (grade ? grade.score : s.ok.length) + (story && parts !== null ? parts : 2) };
   });
   const n = rows.length;
   const words = rows.reduce((t, r) => t + r.s.words, 0);
@@ -259,8 +280,8 @@ function ivReport(p) {
     </div>
     <div class="glass flat">
       <div class="card-head"><strong>Answer shape</strong></div>
-      <p class="muted">How many of Situation, Task, Action, Result each answer had.</p>
-      <ol class="iv-rows">${rows.map((r) => `<li><span class="iv-qn">${r.k + 1}</span><span class="iv-qt">${esc(r.ans.question)}</span>${r.parts === null ? '<span class="iv-na">Not checked</span>' : r.story ? ivBars(r.parts) : '<span class="iv-na">No story needed</span>'}</li>`).join('')}</ol>
+      <p class="muted">How many of Situation, Task, Action, Result each answer had. The number is the practice grade.</p>
+      <ol class="iv-rows">${rows.map((r) => `<li><span class="iv-qn">${r.k + 1}</span><span class="iv-qt">${esc(r.ans.question)}</span>${r.grade ? `<b class="iv-grade-mini">${r.grade.score}</b>` : ''}${r.parts === null ? '<span class="iv-na">Not checked</span>' : r.story ? ivBars(r.parts) : '<span class="iv-na">No story needed</span>'}</li>`).join('')}</ol>
     </div>
     ${best ? `<div class="glass flat iv-picks">
       <div class="iv-pick"><p class="kicker">Your strongest answer</p>${qShort(best)}<p class="muted">${esc(bestLine)}</p></div>
@@ -307,7 +328,7 @@ Object.assign(screens, {
       <p class="iv-note" id="iv-speak-note" hidden>Read aloud needs an English voice that works offline on this device.</p>
       <h1 class="question iv-q iv-focus${reduceMotion() ? '' : ' iv-reveal'}" data-say="1" tabindex="-1">${ivQuestionHtml(q)}</h1>
       ${excerpt ? `<div class="glass pad-sm quote"><div class="kicker">From your job ad</div><p>${esc(excerpt)}</p></div>` : ''}
-      <p class="iv-calm">This is practice, and nobody is grading you. Take your time.</p>
+      <p class="iv-calm">This is practice. A grade here is only about how the answer is built, not whether you would get the job.</p>
       ${ivWant(info)}
       ${tip ? `<p class="hint iv-tip">${esc(tip)}</p>` : ''}
       <div class="iv-answer">
@@ -349,9 +370,10 @@ Object.assign(screens, {
       <h1 class="saved-title iv-focus" tabindex="-1">${f.finished ? 'Last answer saved.' : 'Answer saved.'}</h1>
       <p class="italic saved-italic">${f.finished ? 'That’s the round.' : 'One step closer.'}</p>
       <p class="muted gap-top">${f.count} of ${f.total} done.${left ? ' ' + left + ' to go.' : ' Your session report is ready.'}</p>
+      ${ivGradeHtml(ivGrade(r))}
       <div class="glass flat iv-check">
         <div class="card-head"><strong>Structure check</strong><span class="muted">${ivWords(words)} · ${ivSpoken(secs)}</span></div>
-        <p class="muted">A structure checklist, not a hiring score.</p>
+        <p class="muted">The checks behind the grade. Not a hiring verdict.</p>
         ${r && ivStory(info) ? ivShape(r.star) : ''}
         ${good.length ? `<p class="iv-group">What went well</p>${good.map(checkRow).join('')}` : '<p class="iv-group">What went well</p><p class="muted iv-gentle">You wrote a real answer, and that is the hardest part.</p>'}
         ${todo.length ? `<p class="iv-group">Try next time</p>${todo.slice(0, 2).map(checkRow).join('')}` : ''}

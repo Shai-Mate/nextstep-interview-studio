@@ -207,6 +207,116 @@ function corePace(p, w) {
   const per = Math.ceil(left / w.days);
   return (per === 1 ? 'One lesson a day' : 'About ' + per + ' lessons a day') + ' gets you through before ' + w.when + '.';
 }
+function coreMinutesHtml(p) {
+  const cur = [15, 30, 60].includes(budgetOf(p)) ? budgetOf(p) : 0;
+  return `<fieldset class="day-mins"><legend class="kicker">Minutes a day</legend><div class="choices">${[15, 30, 60].map((n) => `<label class="choice"><input type="radio" name="daily-minutes" value="${n}" ${n === cur ? 'checked' : ''}><span>${n}</span></label>`).join('')}</div><p class="hint">Optional. Sets how long Today is. With an interview date, a missed day raises the minutes you need.</p></fieldset>`;
+}
+function coreChart(plan) {
+  const all = plan.days || [];
+  if (!all.length) return '';
+  let shown = all;
+  if (all.length > 10) {
+    const at = Math.max(0, all.findIndex((d) => d.today));
+    const start = Math.max(0, Math.min(at - 3, all.length - 10));
+    shown = all.slice(start, start + 10);
+  }
+  const max = Math.max(8, ...shown.map((d) => Math.max(d.required, d.done)));
+  const width = shown.length * 36;
+  const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const bars = shown.map((d, i) => {
+    const needH = Math.max(d.required ? 8 : 2, Math.round(46 * d.required / max));
+    const doneH = d.done > 0 ? Math.max(6, Math.round(46 * Math.min(d.done, d.required || d.done) / max)) : 0;
+    const x = i * 36 + 8;
+    const yNeed = 58 - needH;
+    const track = d.missed ? 'rgba(255,158,142,.5)' : d.today ? 'rgba(255,196,138,.4)' : 'rgba(255,255,255,.12)';
+    const ghost = `<rect x="${x}" y="${yNeed}" width="20" height="${needH}" rx="4" fill="${track}"></rect>`;
+    const fill = d.missed ? '#FF9E8E' : d.today ? '#FFC48A' : '#A9E0C4';
+    const bar = doneH ? `<rect x="${x}" y="${58 - doneH}" width="20" height="${doneH}" rx="4" fill="${fill}"></rect>` : '';
+    const when = new Date(d.date + 'T12:00:00');
+    const label = names[when.getDay()];
+    const tip = (d.today ? 'Today' : label) + ', ' + d.done + ' of ' + d.required + ' min' + (d.missed ? ', missed' : '');
+    return `<g><title>${esc(tip)}</title>${ghost}${bar}<text x="${x + 10}" y="74" text-anchor="middle" fill="${d.today ? '#FFC48A' : d.missed ? '#FF9E8E' : '#BDAEBE'}" font-size="9" font-family="DM Sans, sans-serif">${d.today ? 'Now' : label}</text></g>`;
+  }).join('');
+  const caption = shown.map((d) => {
+    const when = new Date(d.date + 'T12:00:00');
+    const label = d.today ? 'Today' : names[when.getDay()];
+    return `<li>${label}: ${d.done} min done, ${d.required} min needed${d.missed ? ', missed' : ''}</li>`;
+  }).join('');
+  return `<div class="pace-chart"><svg class="pace-svg" viewBox="0 0 ${width} 80" role="img" aria-hidden="true">${bars}</svg><ul class="sr">${caption}</ul></div>`;
+}
+function corePaceSection(plan) {
+  if (!plan || plan.past) return '';
+  const need = plan.required;
+  let line;
+  if (plan.missed) {
+    const missed = plan.missedDays === 1 ? 'One missed day is' : plan.missedDays + ' missed days are';
+    const left = plan.daysLeft === 1 ? 'the day left' : 'the ' + plan.daysLeft + ' days left';
+    line = missed + ' split over ' + left + ', so today needs ' + need + ' min.';
+  } else if (need) line = 'About ' + need + ' min a day finishes the lessons before your interview.';
+  else line = 'Every lesson is done. The days ahead are yours to practise out loud.';
+  if (plan.over) line += ' You set ' + plan.chosen + ' min a day. You can raise it, or move the date.';
+  return `<section class="pace-card glass pad-sm" aria-label="Pace">
+    <div class="card-head"><p class="kicker">Pace</p><span class="muted">${need ? need + ' min today' : 'On track'}</span></div>
+    <p class="pace-line">${esc(line)}</p>
+    ${coreChart(plan)}
+  </section>`;
+}
+function coreMockAverage(p) {
+  const grades = [];
+  if (typeof Coach === 'undefined' || !Coach.review || !Coach.grade) return { fraction: 0, count: 0, average: 0 };
+  (p.mock && Array.isArray(p.mock.answers) ? p.mock.answers : []).forEach((a, k) => {
+    const text = a && String(a.text || '').trim();
+    if (!text) return;
+    try {
+      const same = p.questions[k] === a.question;
+      const review = Coach.review(text, { question: a.question || '', info: same ? (p.questionInfo && p.questionInfo[k]) || null : null, analysis: analysisOf(p) });
+      const grade = Coach.grade(review);
+      if (grade && Number.isFinite(grade.score)) grades.push(grade.score);
+    } catch { /* one odd answer should not blank the score */ }
+  });
+  if (!grades.length) return { fraction: 0, count: 0, average: 0 };
+  const average = Math.round(grades.reduce((sum, n) => sum + n, 0) / grades.length);
+  return { fraction: average / 100, count: grades.length, average };
+}
+function coreReadinessHtml(p) {
+  const st = stats(p);
+  const mock = coreMockAverage(p);
+  const ready = (typeof Coach !== 'undefined' && Coach.readiness) ? Coach.readiness({
+    lessons: st.lessons ? st.lessonsDone / st.lessons : 0,
+    answers: st.answers ? st.answersDone / st.answers : 0,
+    quiz: st.quiz ? st.quizDone / st.quiz : 0,
+    mock: mock.fraction,
+    map: st.map ? st.mapDone / st.map : 0
+  }) : { score: Math.round(st.ratio * 100), band: 'Building', parts: { lessons: 0, answers: 0, quiz: 0, mock: 0, map: 0 } };
+  const rows = [
+    ['Lessons', ready.parts.lessons, 25],
+    ['Answer bank', ready.parts.answers, 20],
+    ['Quiz', ready.parts.quiz, 15],
+    ['Practice answers', ready.parts.mock, 30],
+    ['Role map', ready.parts.map, 10]
+  ];
+  const mockLine = mock.count
+    ? 'Average practice grade ' + mock.average + ' across ' + mock.count + (mock.count === 1 ? ' answer.' : ' answers.')
+    : 'No practice answers yet. They are 30% of this score.';
+  return `<section class="ready-score glass pad" aria-label="Practice score ${ready.score}, ${esc(ready.band)}">
+    <p class="kicker">Practice score</p>
+    <div class="ready-head"><div class="pct">${ready.score}</div><div><strong>${esc(ready.band)}</strong><p class="muted">${esc(mockLine)}</p></div></div>
+    <p class="hint">Lessons, your answer bank, the quiz, practice grades and the role map. This does not say whether you would get the job.</p>
+    ${rows.map(([name, pts, max]) => `<div class="ready-row"><div class="bar-row"><span>${name}</span><span>${pts} of ${max}</span></div>${bar(max ? (pts / max) * 100 : 0)}</div>`).join('')}
+  </section>`;
+}
+function coreBindMinutes() {
+  document.querySelectorAll('input[name="daily-minutes"]').forEach((el) => {
+    el.addEventListener('change', () => {
+      if (!active) return;
+      const n = parseInt(el.value, 10);
+      if (![15, 30, 60].includes(n)) return;
+      active.dailyMinutes = n;
+      save();
+      show('today', { keep: true });
+    });
+  });
+}
 function coreWhenHtml(p, w) {
   if (coreWhenEditing) {
     const parsed = coreParseWhen(p.interviewAt);
@@ -218,7 +328,7 @@ function coreWhenHtml(p, w) {
         <div><label class="field tight" for="when-date">Date</label><input id="when-date" type="date" value="${esc(dateVal)}" required></div>
         <div><label class="field tight" for="when-time">Time, optional</label><input id="when-time" type="time" value="${esc(timeVal)}"></div>
       </div>
-      <p class="hint">Only used on this device, to pace your plan.</p>
+      <p class="hint">Saved on this phone only, to pace your plan.</p>
       <button class="primary gap-top" type="submit">Save date</button>
       <div class="pager"><button type="button" class="quiet" id="when-cancel">Cancel</button>${parsed ? '<button type="button" class="quiet" id="when-clear">Remove date</button>' : ''}</div>
     </form>`;
@@ -490,14 +600,45 @@ function stats(p) {
   return { lessonsDone, lessons, answersDone, answers, quizDone, quiz, mockDone, mock, mapDone, map, done, total, ratio: done / total };
 }
 function glow(p) { return (0.15 + 0.85 * stats(p).ratio).toFixed(2); }
-function budgetOf(p) { return parseInt(p.intake.time, 10) || 30; }
-function todayPicks(p) { return p.course.slice(0, Math.max(1, Math.floor(budgetOf(p) / 5))); }
+function budgetOf(p) {
+  const chosen = Number(p && p.dailyMinutes);
+  if (Number.isInteger(chosen) && chosen >= 5 && chosen <= 240) return chosen;
+  return parseInt(p && p.intake && p.intake.time, 10) || 30;
+}
+function corePlan(p, now) {
+  try {
+    if (!p || typeof PrepEngine.schedule !== 'function') return null;
+    return PrepEngine.schedule(p, now || new Date());
+  } catch { return null; }
+}
+function todayPicks(p, now) {
+  const plan = corePlan(p, now);
+  if (plan && !plan.past) return plan.block.length ? plan.block : p.course.slice(0, 1);
+  return p.course.slice(0, Math.max(1, Math.floor(budgetOf(p) / 5)));
+}
 function currentLessonIndex(p) {
   const picks = todayPicks(p);
-  const inPick = picks.findIndex((c) => !c.done);
-  if (inPick >= 0) return inPick;
+  const hit = picks.find((c) => !c.done);
+  if (hit) {
+    const at = p.course.indexOf(hit);
+    if (at >= 0) return at;
+  }
   const any = p.course.findIndex((c) => !c.done);
   return any >= 0 ? any : 0;
+}
+function coreTodayKey(d) {
+  const n = d || new Date();
+  return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
+}
+function coreShiftLog(p, minutes, lessons) {
+  const key = coreTodayKey();
+  const log = p.dayLog && typeof p.dayLog === 'object' ? p.dayLog : {};
+  const cur = log[key] && typeof log[key] === 'object' ? log[key] : { minutes: 0, lessons: 0 };
+  log[key] = {
+    minutes: Math.max(0, Math.min(24 * 60, (Number(cur.minutes) || 0) + minutes)),
+    lessons: Math.max(0, Math.min(40, (Number(cur.lessons) || 0) + lessons))
+  };
+  p.dayLog = log;
 }
 function quoteFrom(text, fallback) {
   const m = String(text || '').match(/“([^”]+)”/);
@@ -651,14 +792,14 @@ const screens = {
         <p class="lede">Turn a job ad into a focused study plan. Find your evidence. Practise the conversation.</p>
         ${keptRecords.length ? `<p class="hint kept-note">${esc(coreKeptLine())}</p>` : ''}
         <div class="steps">
-          <div class="step"><i>1</i><b>Paste the job ad</b><span>Any role</span></div>
-          <div class="step"><i>2</i><b>Four quick choices</b><span>Or skip</span></div>
-          <div class="step"><i>3</i><b>Practise daily</b><span>15 to 60 min</span></div>
+          <div class="step"><i>1</i><b>Paste the job link</b><span>Nothing else</span></div>
+          <div class="step"><i>2</i><b>We read the page</b><span>Or paste the ad</span></div>
+          <div class="step"><i>3</i><b>Practise daily</b><span>On your phone</span></div>
         </div>
         <div class="install-row"><span>Add to your Home Screen first, so your work stays in one place.</span><button type="button" class="link" data-action="how">How</button></div>
         <button type="button" class="primary" data-action="start">Start your first preparation</button>
         ${actions['try-sample'] ? '<button type="button" class="text-btn" data-action="try-sample">Try it with a sample job ad</button>' : ''}
-        <p class="fine">Free. No account. No trackers or AI calls.</p>
+        <p class="fine">Free. No account. Your answers stay on this phone.</p>
       </div>`;
     }
     return `<div class="screen welcome" data-screen="welcome">
@@ -675,7 +816,7 @@ const screens = {
       <div class="spacer"></div>
       <button type="button" class="primary gap-top" data-action="start">New preparation</button>
       <button type="button" class="text-btn" data-action="how">How to install</button>
-      <p class="fine">Free. No account. No trackers or AI calls.</p>
+      <p class="fine">Free. No account. Your answers stay on this phone.</p>
     </div>`;
   },
   today() {
@@ -692,8 +833,12 @@ const screens = {
     const pop = coreCelebrate;
     coreCelebrate = -1;
     const w = coreWhen(p, now);
+    const plan = corePlan(p, now);
     const dayFirst = !!w && (w.days === 0 || w.days === 1);
-    const pace = corePace(p, w);
+    const pace = plan && !plan.past ? '' : corePace(p, w);
+    const sessionKicker = plan && !plan.past && plan.required
+      ? (plan.missed ? plan.required + ' min today to catch up' : plan.required + ' min today')
+      : "Today's " + budgetOf(p) + '-minute session';
     const themes = a && Array.isArray(a.themes) ? a.themes.filter((t) => t && t.label).slice(0, 3) : [];
     const musts = a && Array.isArray(a.requirements) ? a.requirements.filter((r) => r && r.kind === 'must').length : 0;
     const skills = a && Array.isArray(a.skills) ? a.skills.length : 0;
@@ -708,9 +853,11 @@ const screens = {
       <p class="role-name">${esc(p.role)}</p>
       ${(() => { const line = [p.company, coreStageLine(p)].filter(Boolean).join(' · '); return line ? `<p class="muted">${esc(line)}</p>` : ''; })()}
       ${coreWhenHtml(p, w)}
+      ${coreMinutesHtml(p)}
+      ${corePaceSection(plan)}
       ${dayHero}
       <div class="glass pad session${pop >= 0 ? ' celebrate' : ''}">
-        <div class="session-head"><div class="min-left">${pop >= 0 ? `<span class="done-badge">${I.check}Lesson ${pop + 1} done</span>` : allDone ? 'All lessons complete' : left + ' min left'}</div><div class="session-kicker">Today's ${budgetOf(p)}-minute session</div></div>
+        <div class="session-head"><div class="min-left">${pop >= 0 ? `<span class="done-badge">${I.check}Lesson ${pop + 1} done</span>` : allDone ? 'All lessons complete' : left + ' min left'}</div><div class="session-kicker">${esc(sessionKicker)}</div></div>
         <h2 class="session-title">${esc(lesson.title)}</h2>
         <p class="upnow">${allDone ? 'Review any lesson' : 'Up now · Lesson ' + (idx + 1) + ' of ' + p.course.length}</p>
         ${coreLessonSegs(p, allDone ? -1 : idx, pop)}
@@ -775,6 +922,8 @@ const screens = {
         <div class="copy"><div class="pct">${pct}%</div><p class="muted">${st.done} of ${st.total} steps done</p></div>
         <div class="orb-slot lg"><div class="orb-anchor lg" data-orb data-env=".8" data-s=".7" data-up="130,55" data-down="55,130" data-energy="${glow(p)}"></div></div>
       </div>
+      ${coreReadinessHtml(p)}
+      ${corePaceSection(corePlan(p))}
       ${readyHtml}
       <div class="bars">${rows.map(([name, done, total]) => `<div><div class="bar-row"><span>${name}</span><span>${done} of ${total}</span></div>${bar(total ? (done / total) * 100 : 0)}</div>`).join('')}</div>
       <div class="spacer"></div>
@@ -979,15 +1128,15 @@ const screens = {
       <h1>Private by design</h1>
       <p class="italic lg">Your words stay yours.</p>
       <div class="stack">
-        <div class="privacy-block"><strong>Stored on this device</strong><span>Job ads, notes and answers stay in this browser's local storage. People who can open this browser profile can read them.</span></div>
-        <div class="privacy-block"><strong>No account. No trackers.</strong><span>Nothing to sign up for, and no analytics. Preparations do not sync between devices.</span></div>
-        <div class="privacy-block"><strong>No AI calls</strong><span>Reading the ad, building your plan and the structure feedback all run on this device with plain rules. It is a writing checklist, not an assessment.</span></div>
-        <div class="privacy-block"><strong>Free</strong><span>No trial, no upgrade, no ads. Paste the job ad yourself. This edition does not import websites.</span></div>
+        <div class="privacy-block"><strong>Answers stay on this phone</strong><span>Notes and practice answers stay in this browser. They are not uploaded. People who can open this browser profile can read them.</span></div>
+        <div class="privacy-block"><strong>A job link is read for you</strong><span>When you paste a job link, that link and the text of the public page are sent to our server so the plan can be built. We do not keep them after the request. If the page cannot be read, you paste the ad instead, and that text stays on this phone.</span></div>
+        <div class="privacy-block"><strong>No account. No trackers.</strong><span>Nothing to sign up for, and no analytics. Preparations do not sync between devices. The practice grade is worked out on this phone. It is not a hiring verdict.</span></div>
+        <div class="privacy-block"><strong>Free</strong><span>No trial, no upgrade, no ads. Building the plan and the practice grade use plain rules on this phone, not an AI service.</span></div>
       </div>
       <details class="fold"><summary>Also good to know</summary>
         <p class="prose">Clearing site data, private browsing, or changing browsers can lose your work. Export a backup and keep it private. An exported file contains personal answers. The shareable app package contains none.
 
-The hosting provider receives normal requests for the app files, not your typed preparations. Imports append as separate copies and never overwrite existing preparations. Only import a backup you trust.</p>
+The hosting provider receives normal requests for the app files. A job link also goes to the page reader, which does not receive your answers. Imports append as separate copies and never overwrite existing preparations. Only import a backup you trust.</p>
       </details>
       <div class="spacer"></div>
       ${rawSaved !== null ? `<button type="button" class="glass button" id="raw-export"><span class="copy"><strong>Download saved data as-is</strong><span>Your saved preparations, exactly as this browser kept them</span></span></button>` : ''}
@@ -1001,7 +1150,7 @@ The hosting provider receives normal requests for the app files, not your typed 
         <p class="hint">GitHub issues are public, so don't paste private answers.</p>
         <p class="credit">Made by Prism</p>
       </div>
-      <p class="version">Phone app v9 · storage schema v1 · rules-based preparation</p>
+      <p class="version">Phone app v10 · storage schema v1 · rules-based preparation</p>
     </div>`;
   }
 };
@@ -1103,6 +1252,20 @@ function coreRestore(p) {
   if (course) fresh.course = course;
   else dropNotes('lesson-');
   if (coreParseWhen(p.interviewAt)) fresh.interviewAt = p.interviewAt;
+  const daily = Number(p.dailyMinutes);
+  if (Number.isInteger(daily) && daily >= 5 && daily <= 240) fresh.dailyMinutes = daily;
+  if (p.dayLog && typeof p.dayLog === 'object') {
+    const log = {};
+    for (const [key, value] of Object.entries(p.dayLog)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || !value || typeof value !== 'object') continue;
+      const minutes = Number(value.minutes);
+      const count = Number(value.lessons);
+      if (!Number.isInteger(minutes) || minutes < 0 || minutes > 24 * 60) continue;
+      if (!Number.isInteger(count) || count < 0 || count > 40) continue;
+      log[key] = { minutes, lessons: count };
+    }
+    if (Object.keys(log).length) fresh.dayLog = log;
+  }
   /* Quiz: keep the backup's own items; a backup from before ad-specific quizzes answered the three
      default items, so it restores onto those. Answers are dropped if the items are unusable. */
   let quizOK = true;
@@ -1183,7 +1346,7 @@ function bindScreen() {
   if (view === 'lesson' || view === 'answers' || view === 'rolemap') bindNotes();
   if (view === 'answers') coreBindAnswers();
   if (view === 'interviewday') coreBindDay();
-  if (view === 'today') coreBindWhen();
+  if (view === 'today') { coreBindWhen(); coreBindMinutes(); }
   if ($('#rename')) $('#rename').addEventListener('click', () => { renaming = true; show('today', { keep: true }); $('#rename-input')?.focus(); });
   const rename = $('#rename-form');
   if (rename) rename.addEventListener('submit', (e) => {
@@ -1216,6 +1379,8 @@ function bindScreen() {
     const c = active.course[lessonIndex];
     const done = !c.done;
     c.done = done;
+    const mins = Number.isInteger(c.minutes) && c.minutes > 0 ? c.minutes : 5;
+    coreShiftLog(active, done ? mins : -mins, done ? 1 : -1);
     save();
     if (done) {
       coreCelebrate = lessonIndex;

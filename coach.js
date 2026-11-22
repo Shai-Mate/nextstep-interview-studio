@@ -6,7 +6,10 @@
    Coach.live(text) -> { words, seconds, star: { situation, task, action, result } }   cheap enough for every keystroke
    Coach.review(text, { question, info, analysis }) -> { words, seconds, star, starScore: 0..4,
      checks: [{ id: 'structure'|'ownership'|'evidence'|'relevance'|'length'|'clarity', ok, title, detail }],
-     echoed: [string], missing: [string] (<= 3), summary: string } */
+     echoed: [string], missing: [string] (<= 3), summary: string }
+   Coach.grade(review) -> { score: 0..100, band, parts }   a practice grade, never a hiring verdict
+   Coach.readiness({ lessons, answers, quiz, mock, map }) -> { score, band, parts }
+     fractions 0..1. Bands: Building / Getting there / Interview ready. */
 (function (root) {
   'use strict';
 
@@ -1021,7 +1024,70 @@
     return bits.join(' · ');
   }
 
-  const Coach = { version: 1, live, review };
+  /* Practice grade for one typed answer. Not a hiring verdict, and not a guess about
+     whether the person would get the job. It only scores the checklist above.
+
+     100 points:
+     - Structure, 40. Ten points for each STAR part present (situation, task, action,
+       result), from starScore. When the question is not a "tell me about a time" story,
+       the structure check uses a fitting shape instead (a reason, questions for them,
+       the steps, or how you would learn it). If that check passes, structure is 40.
+       If it does not, fall back to 10 per STAR part.
+     - Ownership, 15. The "your part in it" check passed (what you did, in "I").
+     - Evidence, 15. The proof check passed (a real result, or a real detail).
+     - Relevance, 15. The job-ad check passed. Only words that are actually in the ad
+       count, and the checklist already says to use them only if they are true.
+     - Delivery, 15. Length and clarity together. The length check already wants a
+       story of about 50 to 250 words (shorter for a reason or a question). Both
+       checks pass: 15. Only one: 8. Neither: 0.
+
+     Bands for one answer: 0-39 Starting, 40-69 Building, 70-84 Strong, 85-100 Polished. */
+  function grade(review) {
+    const r = review && typeof review === 'object' ? review : {};
+    const byId = (id) => (Array.isArray(r.checks) ? r.checks.find((c) => c && c.id === id) : null) || null;
+    const star = Math.max(0, Math.min(4, Number.isInteger(r.starScore) ? r.starScore : 0));
+    const structure = byId('structure');
+    const story = !structure || structure.title === 'Situation, Task, Action, Result';
+    const structurePts = !story && structure.ok ? 40 : star * 10;
+    const flag = (id, points) => {
+      const check = byId(id);
+      return check && check.ok ? points : 0;
+    };
+    const lengthOk = !!(byId('length') && byId('length').ok);
+    const clarityOk = !!(byId('clarity') && byId('clarity').ok);
+    const delivery = lengthOk && clarityOk ? 15 : lengthOk || clarityOk ? 8 : 0;
+    const parts = {
+      structure: structurePts,
+      ownership: flag('ownership', 15),
+      evidence: flag('evidence', 15),
+      relevance: flag('relevance', 15),
+      delivery
+    };
+    const score = parts.structure + parts.ownership + parts.evidence + parts.relevance + parts.delivery;
+    const band = score >= 85 ? 'Polished' : score >= 70 ? 'Strong' : score >= 40 ? 'Building' : 'Starting';
+    return { score, band, parts };
+  }
+
+  /* Overall practice readiness, 0 to 100. Not a hiring verdict.
+     lessons 25%, answer bank 20%, quiz 15%, mock average 30%, role map 10%.
+     Each input is a fraction from 0 to 1. Mock is the average practice grade / 100.
+     Bands: under 40 Building, 40 to 74 Getting there, 75 and up Interview ready.
+     Never describe this as "you would get the job". */
+  function readiness(fracs) {
+    const weights = [['lessons', 0.25], ['answers', 0.2], ['quiz', 0.15], ['mock', 0.3], ['map', 0.1]];
+    const clamp = (key) => {
+      const n = Number(fracs && fracs[key]);
+      return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
+    };
+    const raw = weights.map(([key, weight]) => weight * clamp(key) * 100);
+    const score = Math.max(0, Math.min(100, Math.round(raw.reduce((sum, n) => sum + n, 0))));
+    const parts = {};
+    weights.forEach(([key], i) => { parts[key] = Math.round(raw[i]); });
+    const band = score >= 75 ? 'Interview ready' : score >= 40 ? 'Getting there' : 'Building';
+    return { score, band, parts };
+  }
+
+  const Coach = { version: 1, live, review, grade, readiness };
   root.Coach = Coach;
   if (typeof module !== 'undefined' && module.exports) module.exports = Coach;
 })(globalThis);
