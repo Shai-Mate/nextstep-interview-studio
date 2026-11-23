@@ -7,8 +7,8 @@ Paste a job link and NextStep turns it into a short practice plan: what the job 
 **Open it: https://shai-mate.github.io/nextstep-interview-studio/**
 
 - **Free.** No account, no ads, no trial.
-- **Private.** Your answers stay on your phone. No tracking, no AI calls. A job link, and the text of that public page, are sent to our server so the plan can be built. See [Privacy](#privacy).
-- **Works offline** for practice after your first visit, even in airplane mode. Reading a new job link needs a connection.
+- **Private.** Your answers stay on your phone. No tracking. A job link, and the text of that public page, are sent to our server so the plan can be built. About you is sent only if you write a personal course, and only to a tower you set up. See [Privacy](#privacy).
+- **Works offline** for practice after your first visit, even in airplane mode. Reading a new job link needs a connection. A personal course needs a connection too. The general lessons still build offline.
 
 ## Put it on your phone
 
@@ -61,9 +61,10 @@ With an interview date, the minutes still left in the lessons are split across t
 
 ## Privacy
 
-- Notes and practice answers are saved in this browser on your device. They are not uploaded, and they don't sync between devices.
-- A job link, and the text of the public page, are sent to our extract server for that request only. We do not keep them. If you paste the ad instead, that text stays on your phone.
-- No account, no analytics, no trackers, no AI calls. Building the plan and the practice grade run on your phone with plain rules.
+- Notes and practice answers are saved in this browser on your device. They are not uploaded, and they don't sync between devices. They are not sent when a personal course is written.
+- A job link, and the text of the public page, are sent to our extract server for that request only. We do not keep them. If you paste the ad instead, that text stays on your phone until you choose a personal course.
+- About you stays on the phone. It is sent only when you tap Write my course, together with the ad, to the tower address saved in Personal course. The tower does not keep that text. If you skip, or the tower is not set up, or the course fails the checks, the general lessons are built on the phone and About you is not sent.
+- No account, no analytics, no trackers. The practice grade runs on your phone with plain rules. The tower secret is not included in an exported backup.
 - GitHub Pages hosts the app files and sees ordinary requests for them, not your answers.
 - Back up or delete any time: in the app, tap **On this device** on the first screen (or **Privacy and your data** under Progress). A backup file contains your answers, so keep it private.
 - Clearing your browser's data for this site deletes your work, so export a backup first.
@@ -78,7 +79,7 @@ Made by Prism.
 
 ## Deploy the extract Worker
 
-The phone cannot read most job pages itself. `worker/` is a Cloudflare Worker with one route, `POST /extract`. It fetches the public page, returns plain text plus a company and role when the page says them plainly, and stores nothing. Course generation still runs on the phone.
+The phone cannot read most job pages itself. `worker/` is a Cloudflare Worker with one route, `POST /extract`. It fetches the public page, returns plain text plus a company and role when the page says them plainly, and stores nothing. General lessons still run on the phone. A personal course is optional and runs through the tower in `tower/`, not through this Worker.
 
 Until `config.js` has a URL, or the phone cannot reach it, the app shows the paste box and still builds the plan. You do not need this Worker to try the app.
 
@@ -118,13 +119,14 @@ The Worker allows only `http` and `https`, blocks private and local addresses (i
 
 ## Implementation notes
 
-- Static HTML, CSS and JavaScript, version 10. Preparation storage schema 1. No build step and no package installs for the app. `config.js` holds the extract URL and is empty until you deploy the Worker. Old backups still restore: `dayLog` and `dailyMinutes` are optional fields on schema 1.
-- Classic scripts, loaded in this order: `config.js` (extract URL only), `engine.js` (reads the job ad and builds the plan; pure, also runs in Node; `schedule` paces lessons once a date is set), `coach.js` (on-device feedback, practice grade and readiness score; pure), `orb.js` (the orb: a WebGL ray-traced glass sphere in liquid light, with molecules that scatter and re-form and a voice pulse in the mock interview; it loads `orb-2d.js`, the Canvas 2D orb, only when WebGL is unavailable or fails), `app.js` (screens, local storage, backups), `flow.js` (first-run flow), `interview.js` (mock interview), `pwa.js` (service worker registration and install help).
+- Static HTML, CSS and JavaScript, version 12. Preparation storage schema 1. No build step and no package installs for the app. `config.js` holds the extract URL. `window.NEXTSTEP_TOWER_ORIGINS` is optional and empty unless a tower is not a Tailscale Serve address (`https://*.ts.net` is already in `connect-src`). No secrets belong in `config.js`. Old backups still restore. `aboutYou` and `generatedBy` are optional fields. `coreRestore` ignores anything it does not know.
+- Classic scripts, loaded in this order: `config.js` (extract URL, optional tower origins), `engine.js` (reads the job ad and builds the general plan; pure, also runs in Node; `schedule` paces lessons once a date is set), `course.js` (personal-course schema, prompt, checks, and fallback onto `PrepEngine.create`), `provider.js` (My subscription talks to the tower; your own key and OpenRouter are slots only), `pdftext.js` (résumé text, on the phone), `coach.js` (on-device feedback, practice grade and readiness score; pure), `orb.js` (the orb: a WebGL ray-traced glass sphere in liquid light, with molecules that scatter and re-form and a voice pulse in the mock interview; it loads `orb-2d.js`, the Canvas 2D orb, only when WebGL is unavailable or fails), `app.js` (screens, local storage, backups, Personal course settings), `flow.js` (first-run flow, including About you), `interview.js` (mock interview), `pwa.js` (service worker registration and install help).
 - `pwa.js` tailors the install sheet to iPhone Safari, other iPhone browsers, in-app browsers, Android and computers, and exposes `window.NextStepInstall = { canPrompt(), prompt(), platform, installed }`. `platform` is `ios-safari`, `ios-browser`, `in-app`, `android` or `desktop`; `prompt()` resolves to `accepted`, `dismissed` or `unavailable`; a `nextstep-install-change` event fires on `window` when `canPrompt()` or `installed` may have changed.
 - Styles: `styles.css`, `flow.css`, `interview.css`, `launch.css` (install sheet and privacy page). `privacy.html` is a static page with no scripts.
-- Offline: `sw.js` precaches the app files in cache `nextstep-phone-v10` (`?v=10` URLs) and removes older `nextstep-phone-*` caches. Install fetches each file from the network with a reload, so a new cache name updates phones instead of mixing versions. Pages are then served as themselves from the cache first, then the network; offline, unknown pages fall back to the app. `/extract` is not cached. `share-card.png` (link previews only) and `nextstep_icon_1024.png` (read from the manifest at install time) are not precached.
+- Offline: `sw.js` precaches the app files in cache `nextstep-phone-v12` (`?v=12` URLs) and removes older `nextstep-phone-*` caches. Install fetches each file from the network with a reload, so a new cache name updates phones instead of mixing versions. Pages are then served as themselves from the cache first, then the network; offline, unknown pages fall back to the app. `/extract` and `/generate` are not cached. `share-card.png` (link previews only) and `nextstep_icon_1024.png` (read from the manifest at install time) are not precached.
 - `orb-gl.js` from version 8 is no longer loaded or cached and can be deleted.
-- Content Security Policy: this site's own files (`default-src 'self'`), no inline scripts or inline styles. `connect-src` stays `'self'` until the Worker origin is added, as in the deploy steps above. The ribbon M icon is `nextstep_icon.svg`.
+- Content Security Policy: this site's own files (`default-src 'self'`), no inline scripts or inline styles. `connect-src` allows this site, the extract Worker, and `https://*.ts.net` so a phone on the same tailnet can call Tailscale Serve. The tower hostname is typed in Personal course. It is not committed. A non-Tailscale origin has to be added to `connect-src` in `index.html` and to `window.NEXTSTEP_TOWER_ORIGINS` in `config.js`. The ribbon M icon is `nextstep_icon.svg`.
+- Personal course: see `tower/README.md` for the install on the tower. The phone setting is On this device, then Personal course. Your own API key and OpenRouter are not wired up yet.
 - Relative paths everywhere, so it runs from the GitHub Pages project folder. The link-preview tags in `index.html` use the absolute public URL because scrapers need it; the app never fetches them.
 - Design: the v7 phone design, with a plum field, cream and amber type, DM Sans and Newsreader (SIL Open Font License, in `fonts/`) and the liquid-light orb. Everything works with reduced motion.
 - Sample ads and all data in this repository are fictional.

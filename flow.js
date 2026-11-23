@@ -164,6 +164,7 @@ const FLOW_FALLBACK = {
   forbidden: 'The page reader did not accept this request. Paste the ad text below.'
 };
 let flowReadTimer = 0;
+let flowAboutNote = '';
 let flowDecodeTimer = 0;
 /* When the decode or reveal screen appeared: a quick double tap on the previous screen's
    bottom button must not skip the moment it leads to. */
@@ -460,8 +461,11 @@ async function flowFromLink(event) {
     draft.company = result.company || '';
     draft.url = raw;
     draft.intake = {};
+    draft.sampleId = '';
+    draft.aboutYou = null;
+    draft.aboutForm = null;
     flowFallback = null;
-    flowBuild('');
+    show('about');
   } catch (err) {
     flowFallback = { reason: 'short' };
     show('link');
@@ -476,10 +480,12 @@ function flowFromPaste() {
   draft.role = '';
   draft.company = '';
   draft.intake = {};
-  const sample = FLOW_SAMPLES.find((x) => x.job.trim() === job);
+  draft.sampleId = FLOW_SAMPLES.some((x) => x.job.trim() === job) ? FLOW_SAMPLES.find((x) => x.job.trim() === job).id : '';
+  draft.aboutYou = null;
+  draft.aboutForm = null;
   try {
     flowFallback = null;
-    flowBuild(sample ? sample.id : '');
+    show('about');
   } catch (err) { notify(err.message); }
 }
 function readRole() {
@@ -545,12 +551,12 @@ Object.assign(screens, {
       <label class="field" for="url">Job link</label>
       <input id="url" name="url" type="url" inputmode="url" autocomplete="url" maxlength="2000" placeholder="https://" value="${esc(draft.url || '')}" ${flowBusy ? 'readonly' : ''}>
       <p class="hint" id="link-status">${flowBusy ? 'Reading the public page. This can take a few seconds.' : 'We read the public page for the company, the role and what they ask for. Your answers stay on this phone.'}</p>
-      <button class="primary" type="submit" ${flowBusy ? 'disabled' : ''}>${flowBusy ? 'Reading the page' : 'Build my plan'}</button>
+      <button class="primary" type="submit" ${flowBusy ? 'disabled' : ''}>${flowBusy ? 'Reading the page' : 'Continue'}</button>
       ${message ? `<div class="glass pad-sm link-fallback" role="status">
         <p class="fallback-msg">${esc(message)}</p>
         <label class="field" for="job">Job ad text</label>
         <textarea id="job" name="job" maxlength="60000" placeholder="Paste the full job ad here">${esc(draft.job || '')}</textarea>
-        <button class="primary" type="button" id="build-paste">Build from this text</button>
+        <button class="primary" type="button" id="build-paste">Continue with this text</button>
       </div>` : ''}
       <button type="button" class="text-btn" data-action="try-sample">Try a sample ad</button>
     </form>`;
@@ -625,7 +631,7 @@ Object.assign(screens, {
       ${who ? `<p class="kicker decode-kicker">${esc(who)}</p>` : '<p class="kicker decode-kicker">Your job ad</p>'}
       <div class="decode-stage"><div class="orb-anchor decode-orb" data-orb data-env="1" data-s="1" data-up="166,102" data-down="101,280" data-energy="1"></div></div>
       <h1 class="decode-title flow-focus" tabindex="-1">${still ? 'Your plan is ready' : 'Reading your ad'}</h1>
-      <p class="italic decode-line">Your plan is built on this phone.</p>
+      <p class="italic decode-line">${esc(p.generatedBy === 'subscription' ? 'These lessons were written for you, from this ad and what you shared.' : (p.generateNote || 'Your plan is built on this phone.'))}</p>
       <ol class="decode-steps">${steps.map((s) => `<li class="decode-step"><span class="tick" aria-hidden="true">${I.check}</span><span>${esc(s)}</span></li>`).join('')}</ol>
       <div class="spacer"></div>
       ${still ? `<button type="button" class="primary" data-action="reveal-next"><span>Continue</span>${I.arrow}</button>` : '<button type="button" class="text-btn decode-skip" data-action="decode-skip">Tap anywhere to skip</button>'}
@@ -644,6 +650,8 @@ Object.assign(screens, {
         </div>
         <p class="italic lg reveal-line">Here’s what they really want.</p>
         ${p.sample ? '<p class="flow-note">A practice ad from a made-up company.</p>' : ''}
+        ${p.generatedBy === 'subscription' ? '<p class="flow-note">Written for you from this ad and what you shared. Your practice answers still stay on this phone.</p>' : ''}
+        ${p.generateNote ? `<p class="flow-note">${esc(p.generateNote)}</p>` : ''}
         ${flowStatsHtml(f)}
         ${flowDecodedHtml(p, f)}
         <div class="flow-links">
@@ -677,19 +685,278 @@ Object.assign(screens, {
         <button type="button" class="text-btn flow-back" data-action="close-today">Back to Today</button>
       </div>
     </div>`;
+  },
+  about() {
+    draft = draft || {};
+    flowPrepareAbout();
+    const form = draft.aboutForm;
+    const mode = form.mode || 'resume';
+    const ready = flowProviderReady();
+    const stage = form.stage || 'Not sure yet';
+    return `<form class="screen" id="about-form" data-screen="about">
+      <div class="topbar">${iconBtn('back-link', 'Back', I.back)}<span class="label">About you</span></div>
+      <h1 class="flow-focus" tabindex="-1">About you</h1>
+      <p class="italic lg">So the lessons can use your real experience.</p>
+      <p class="sub">This stays on this phone until you write a personal course. Practice answers are never sent. If you skip, the lessons stay general.</p>
+      ${flowAboutNote ? `<p class="flow-note" role="status">${esc(flowAboutNote)}</p>` : ''}
+      <fieldset class="about-modes"><legend>How should we learn about you?</legend><div class="choices">${[
+        ['resume', 'Résumé'],
+        ['linkedin', 'LinkedIn'],
+        ['answers', 'A few questions']
+      ].map(([id, label]) => `<label class="choice"><input type="radio" name="aboutMode" value="${id}" ${mode === id ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div></fieldset>
+      <div class="about-panel" ${mode === 'resume' ? '' : 'hidden'}>
+        <label class="field" for="about-file">Résumé file, PDF or plain text</label>
+        <input class="file" id="about-file" type="file" accept="application/pdf,.pdf,text/plain,.txt">
+        <label class="field" for="about-text">Or paste the text</label>
+        <textarea id="about-text" maxlength="40000" placeholder="Paste your résumé. The file itself is not kept.">${esc(mode === 'resume' ? form.text : '')}</textarea>
+        <p class="hint">We keep the words, not the file. If a PDF does not come through, paste the text.</p>
+      </div>
+      <div class="about-panel" ${mode === 'linkedin' ? '' : 'hidden'}>
+        <label class="field" for="about-link">LinkedIn profile link</label>
+        <input id="about-link" type="url" inputmode="url" maxlength="2000" placeholder="https://" value="${esc(form.link || '')}">
+        <button type="button" class="text-btn" id="read-profile" ${flowBusy ? 'disabled' : ''}>${flowBusy ? 'Reading the page' : 'Read this page'}</button>
+        <label class="field" for="about-profile">Or paste the profile</label>
+        <textarea id="about-profile" maxlength="40000" placeholder="LinkedIn often asks people to sign in. Pasting the text works either way.">${esc(mode === 'linkedin' ? form.text : '')}</textarea>
+      </div>
+      <div class="about-panel" ${mode === 'answers' ? '' : 'hidden'}>
+        <label class="field" for="about-now">What do you do now, or what did you do most recently?</label>
+        <textarea class="compact" id="about-now" maxlength="4000">${esc(form.now || '')}</textarea>
+        <label class="field" for="about-proud">One real example you are proud of</label>
+        <textarea class="compact" id="about-proud" maxlength="4000" placeholder="What happened, and what did you do?">${esc(form.proud || '')}</textarea>
+        <label class="field" for="about-hard">A hard thing you handled</label>
+        <textarea class="compact" id="about-hard" maxlength="4000">${esc(form.hard || '')}</textarea>
+        <label class="field" for="about-why">Why this kind of work?</label>
+        <textarea class="compact" id="about-why" maxlength="4000">${esc(form.why || '')}</textarea>
+      </div>
+      <fieldset><legend>Interview stage, optional</legend><div class="choices">${groups.stage.map((v) => `<label class="choice"><input type="radio" name="aboutStage" value="${esc(v)}" ${v === stage ? 'checked' : ''}><span>${esc(v)}</span></label>`).join('')}</div></fieldset>
+      <label class="field" for="about-date">Interview date, optional</label>
+      <input id="about-date" type="date" value="${esc(form.date || '')}">
+      <p class="hint">${ready ? 'Write my course sends this background and the ad to the tower you saved in Settings. Practice answers are not sent.' : 'My subscription is not set up, so this plan uses the general lessons. You can add the tower under On this device, then Personal course.'}</p>
+      <div class="spacer"></div>
+      <button class="primary" type="submit" ${flowBusy ? 'disabled' : ''}>${ready ? 'Write my course' : 'Build general lessons'}</button>
+      <button type="button" class="text-btn" id="about-skip" ${flowBusy ? 'disabled' : ''}>Skip, use general lessons</button>
+    </form>`;
+  },
+  writing() {
+    return `<div class="screen" data-screen="writing">
+      <h1 class="flow-focus" tabindex="-1">Writing your lessons</h1>
+      <p class="italic lg">This usually takes under a minute.</p>
+      <p class="sub">Your ad and what you shared are being used to write the lessons. Practice answers are not sent.</p>
+      <div class="spacer"></div>
+      <button type="button" class="text-btn" data-action="cancel-writing">Cancel</button>
+    </div>`;
   }
 });
 
-/* Saves a new preparation from `draft` and plays the decode moment. */
-function flowBuild(sampleId) {
-  active = PrepEngine.create(draft);
-  if (sampleId) active.sample = sampleId;
+function flowProviderReady() {
+  try { return !!(globalThis.NextStepProvider && NextStepProvider.providerReady(corePrefs())); }
+  catch { return false; }
+}
+function flowPrepareAbout() {
+  draft = draft || {};
+  if (draft.aboutForm) return;
+  let saved = null;
+  try { saved = globalThis.NextStepCourse ? NextStepCourse.normalizeAbout(corePrefs().aboutYou) : null; }
+  catch { saved = null; }
+  draft.aboutForm = {
+    mode: saved && saved.source ? saved.source : 'resume',
+    text: saved ? saved.text : '',
+    link: '',
+    now: '',
+    proud: '',
+    hard: '',
+    why: '',
+    stage: (draft.intake && draft.intake.stage) || 'Not sure yet',
+    date: draft.interviewAt || ''
+  };
+}
+function flowReadAbout() {
+  draft = draft || {};
+  flowPrepareAbout();
+  const form = draft.aboutForm;
+  const text = form.mode === 'linkedin' ? $('#about-profile') : form.mode === 'resume' ? $('#about-text') : null;
+  if (text) form.text = text.value;
+  const mode = document.querySelector('input[name="aboutMode"]:checked');
+  if (mode) form.mode = mode.value;
+  if ($('#about-link')) form.link = $('#about-link').value;
+  ['now', 'proud', 'hard', 'why'].forEach((key) => {
+    const el = $('#about-' + key);
+    if (el) form[key] = el.value;
+  });
+  const stage = document.querySelector('input[name="aboutStage"]:checked');
+  if (stage) form.stage = stage.value;
+  if ($('#about-date')) form.date = $('#about-date').value;
+}
+function flowAboutText(form) {
+  if (form.mode === 'answers') {
+    return [
+      ['now', 'What I do now'],
+      ['proud', 'An example I am proud of'],
+      ['hard', 'A hard thing I handled'],
+      ['why', 'Why this kind of work']
+    ].map(([key, label]) => {
+      const value = String(form[key] || '').trim();
+      return value ? label + ': ' + value : '';
+    }).filter(Boolean).join('\n\n');
+  }
+  return String(form.text || '').trim();
+}
+function flowSaveAbout(about) {
+  try {
+    const prefs = corePrefs();
+    prefs.aboutYou = about;
+    coreWritePrefs(prefs);
+  } catch { /* this visit can still build */ }
+}
+function flowUseAbout() {
+  if (flowBusy) return;
+  flowReadAbout();
+  const form = draft.aboutForm;
+  draft.intake = { ...(draft.intake || {}), stage: form.stage || 'Not sure yet' };
+  draft.interviewAt = form.date || '';
+  const text = flowAboutText(form);
+  if (/^https?:\/\/\S+$/i.test(text)) {
+    notify('Paste the profile text. A link on its own is not enough, because the page often asks people to sign in.');
+    return;
+  }
+  const about = NextStepCourse.normalizeAbout({ source: form.mode, text });
+  if (!about) { notify('Add a bit more about you, or skip for the general lessons.'); return; }
+  draft.aboutYou = about;
+  flowSaveAbout(about);
+  flowAboutNote = '';
+  flowBuild(draft.sampleId || '');
+}
+function flowSkipAbout() {
+  if (flowBusy) return;
+  flowReadAbout();
+  const form = draft.aboutForm;
+  draft.intake = { ...(draft.intake || {}), stage: form.stage || 'Not sure yet' };
+  draft.interviewAt = form.date || '';
+  draft.aboutYou = null;
+  flowAboutNote = '';
+  flowBuild(draft.sampleId || '');
+}
+async function flowTakeFile(file) {
+  if (!file || flowBusy) return;
+  flowReadAbout();
+  if (file.size > 8000000) {
+    flowAboutNote = 'That file is over 8 MB. Paste the text instead.';
+    show('about');
+    return;
+  }
+  const name = String(file.name || '').toLowerCase();
+  const kind = String(file.type || '');
+  let text = '';
+  try {
+    const buf = await file.arrayBuffer();
+    if (name.endsWith('.txt') || kind.startsWith('text/')) text = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+    else if (name.endsWith('.pdf') || kind === 'application/pdf') text = await NextStepPdf.extractPdfText(buf);
+    else {
+      flowAboutNote = 'Use a PDF or a plain text file, or paste the text.';
+      show('about');
+      return;
+    }
+  } catch {
+    text = '';
+  }
+  if (!text || text.trim().length < 40) {
+    flowAboutNote = 'We could not read enough text from that file. Paste the résumé instead. The file itself stays on this phone.';
+    show('about');
+    return;
+  }
+  draft.aboutForm.mode = 'resume';
+  draft.aboutForm.text = text.trim().slice(0, 40000);
+  flowAboutNote = 'Read ' + draft.aboutForm.text.length + ' characters. Check them, then build. The file is not kept.';
+  show('about');
+}
+async function flowReadProfile() {
+  if (flowBusy) return;
+  flowReadAbout();
+  const raw = String(draft.aboutForm.link || '').trim();
+  if (flowUrlProblem(raw)) { notify('That does not look like a link.'); return; }
+  const token = ++flowToken;
+  flowBusy = true;
+  flowAboutNote = 'Reading that page.';
+  show('about');
+  const result = await flowExtract(raw);
+  if (token !== flowToken) return;
+  flowBusy = false;
+  if (!result.ok) {
+    flowAboutNote = 'We could not read that page. LinkedIn often asks people to sign in. Paste the profile text below. It stays on this phone.';
+    show('about');
+    return;
+  }
+  draft.aboutForm.mode = 'linkedin';
+  draft.aboutForm.text = result.text;
+  flowAboutNote = 'Check the text, then build. If this is not your profile, paste the right one.';
+  show('about');
+}
+
+/* Saves a new preparation from `draft` and plays the decode moment.
+   A personal course is attempted only when About you has text and My subscription is ready. */
+async function flowBuild(sampleId) {
+  const token = ++flowToken;
+  const source = draft || {};
+  const input = {
+    role: source.role || '',
+    company: source.company || '',
+    job: source.job || '',
+    url: source.url || '',
+    intake: { ...(source.intake || {}) },
+    interviewAt: source.interviewAt || '',
+    aboutYou: source.aboutYou || null
+  };
+  const mark = sampleId || source.sampleId || '';
+  let generated = null;
+  let note = '';
+  let attempted = false;
+  if (input.aboutYou && flowProviderReady()) {
+    attempted = true;
+    flowBusy = true;
+    const ctrl = new AbortController();
+    flowAbort = ctrl;
+    show('writing');
+    let hints = { themes: [], musts: [] };
+    try { hints = NextStepCourse.courseHints(flowAnalyzeText(input.job) || {}); } catch { /* the ad text is still sent */ }
+    const res = await NextStepProvider.requestCourse(corePrefs(), {
+      company: input.company,
+      role: input.role,
+      stage: input.intake.stage,
+      interviewAt: input.interviewAt,
+      job: input.job,
+      aboutYou: input.aboutYou,
+      hints
+    }, { signal: ctrl.signal });
+    if (token !== flowToken) return;
+    flowBusy = false;
+    if (flowAbort === ctrl) flowAbort = null;
+    if (res.ok) generated = res.course;
+    else if (res.attempted) note = res.message;
+  }
+  if (token !== flowToken) return;
+  let prep;
+  try { prep = NextStepCourse.finishCourse(input, generated); }
+  catch (err) {
+    flowBusy = false;
+    notify(err.message);
+    show('about');
+    return;
+  }
+  if (attempted && prep.generatedBy !== 'subscription') {
+    prep.generatedBy = 'template';
+    if (!prep.generateNote) prep.generateNote = note || 'The personal course could not be built, so these are the general lessons.';
+  }
+  active = prep;
+  if (mark) active.sample = mark;
   records.unshift(active);
   persist();
   draft = null;
+  flowAboutNote = '';
   lessonIndex = 0;
   renaming = false;
+  flowBusy = false;
   show('decode');
+  if (prep.generateNote) notify(prep.generateNote);
 }
 function createPrep(skip) {
   try {
@@ -767,6 +1034,23 @@ binders.jobad = () => {
     $('#job').focus();
   });
 };
+binders.about = () => {
+  const form = $('#about-form');
+  if (!form) return;
+  form.addEventListener('submit', (e) => { e.preventDefault(); flowUseAbout(); });
+  const skip = $('#about-skip');
+  if (skip) skip.addEventListener('click', flowSkipAbout);
+  const file = $('#about-file');
+  if (file) file.addEventListener('change', () => { const picked = file.files && file.files[0]; if (picked) flowTakeFile(picked); });
+  const read = $('#read-profile');
+  if (read) read.addEventListener('click', () => { flowReadProfile(); });
+  form.querySelectorAll('input[name="aboutMode"]').forEach((el) => {
+    el.addEventListener('change', () => { flowReadAbout(); show('about'); });
+  });
+  flowShownAt = performance.now();
+  flowFocusTitle();
+};
+binders.writing = () => { flowShownAt = performance.now(); flowFocusTitle(); };
 binders.setup = () => {
   const intake = $('#intake');
   if (!intake) return;
@@ -795,6 +1079,26 @@ Object.assign(actions, {
   'back-welcome': () => { flowCancelExtract(); readLink(); readRole(); show('welcome'); },
   'back-role': () => { readJob(); show('role'); },
   'back-job': () => { readIntake(); show('jobad'); },
+  'back-link': () => {
+    flowToken += 1;
+    flowBusy = false;
+    if (flowAbort) {
+      try { flowAbort.abort(); } catch { /* already finished */ }
+      flowAbort = null;
+    }
+    flowReadAbout();
+    flowAboutNote = '';
+    show('link');
+  },
+  'cancel-writing': () => {
+    flowToken += 1;
+    flowBusy = false;
+    if (flowAbort) {
+      try { flowAbort.abort(); } catch { /* already finished */ }
+      flowAbort = null;
+    }
+    show('about');
+  },
   'try-sample': () => {
     if (view === 'link') { readLink(); flowSamplesFrom = 'link'; }
     else flowSamplesFrom = 'welcome';
@@ -815,8 +1119,8 @@ Object.assign(actions, {
       return;
     }
     try {
-      draft = { role: s.role, company: s.company, job: s.job, url: '', intake: {} };
-      flowBuild(s.id);
+      draft = { role: s.role, company: s.company, job: s.job, url: '', intake: {}, sampleId: s.id, aboutYou: null, aboutForm: null };
+      show('about');
     } catch (err) { notify(err.message); }
   },
   'decode-skip': () => { if (flowSettled()) flowToReveal(); },

@@ -5,3 +5,9 @@
    Example, after you deploy:
    window.NEXTSTEP_EXTRACT_URL = 'https://nextstep-extract.YOUR-SUBDOMAIN.workers.dev/extract'; */
 window.NEXTSTEP_EXTRACT_URL = 'https://nextstep-extract.shaimate.workers.dev/extract';
+
+/* Extra tower origins for My subscription, comma-separated.
+   https://*.ts.net is already allowed in the page policy, so leave this empty when the
+   tower is a Tailscale Serve address. A different origin must also be added to connect-src
+   in index.html, or the phone will refuse the call. Do not put the secret here. */
+window.NEXTSTEP_TOWER_ORIGINS = '';

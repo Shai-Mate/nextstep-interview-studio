@@ -8,10 +8,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="NextStep">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<!-- After the extract Worker is deployed, add its origin to connect-src, for example:
-     connect-src 'self' https://nextstep-extract.YOUR-SUBDOMAIN.workers.dev
-     The exact steps are in the README, under Deploy the extract Worker. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://nextstep-extract.shaimate.workers.dev; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; worker-src 'self'; media-src 'self' blob:">
+<!-- connect-src: the extract Worker, plus Tailscale Serve (https://*.ts.net) for My subscription.
+     A tower address is typed on the phone. It is not stored in this file.
+     To allow a non-Tailscale origin, add it here AND to window.NEXTSTEP_TOWER_ORIGINS in config.js.
+     The steps are in the README, under Deploy the extract Worker and Personal course. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://nextstep-extract.shaimate.workers.dev https://*.ts.net; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; worker-src 'self'; media-src 'self' blob:">
 <title>NextStep · Interview Studio</title>
 <meta name="description" content="Free interview practice for any job. Paste a job link, get a short practice plan and likely questions, and practise your answers. Your answers stay on your phone.">
 <!-- Link previews. Scrapers need absolute URLs; the app itself never fetches these. -->
@@ -30,23 +31,26 @@
 <meta name="twitter:description" content="Paste a job link and get a practice plan, likely questions and a mock interview. Free, and your answers stay on your phone.">
 <meta name="twitter:image" content="https://shai-mate.github.io/nextstep-interview-studio/share-card.png">
 <meta name="twitter:image:alt" content="NextStep. Show up ready. Sound like yourself. Free, private, works offline, any job.">
-<link rel="manifest" href="manifest.webmanifest?v=10">
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=10">
-<link rel="icon" type="image/svg+xml" href="nextstep_icon.svg?v=10">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=10">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=10">
-<link rel="stylesheet" href="styles.css?v=10">
-<link rel="stylesheet" href="flow.css?v=10">
-<link rel="stylesheet" href="interview.css?v=10">
-<link rel="stylesheet" href="launch.css?v=10">
-<script src="config.js?v=10" defer></script>
-<script src="engine.js?v=10" defer></script>
-<script src="coach.js?v=10" defer></script>
-<script src="orb.js?v=10" defer></script>
-<script src="app.js?v=10" defer></script>
-<script src="flow.js?v=10" defer></script>
-<script src="interview.js?v=10" defer></script>
-<script src="pwa.js?v=10" defer></script>
+<link rel="manifest" href="manifest.webmanifest?v=12">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=12">
+<link rel="icon" type="image/svg+xml" href="nextstep_icon.svg?v=12">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=12">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=12">
+<link rel="stylesheet" href="styles.css?v=12">
+<link rel="stylesheet" href="flow.css?v=12">
+<link rel="stylesheet" href="interview.css?v=12">
+<link rel="stylesheet" href="launch.css?v=12">
+<script src="config.js?v=12" defer></script>
+<script src="engine.js?v=12" defer></script>
+<script src="course.js?v=12" defer></script>
+<script src="provider.js?v=12" defer></script>
+<script src="pdftext.js?v=12" defer></script>
+<script src="coach.js?v=12" defer></script>
+<script src="orb.js?v=12" defer></script>
+<script src="app.js?v=12" defer></script>
+<script src="flow.js?v=12" defer></script>
+<script src="interview.js?v=12" defer></script>
+<script src="pwa.js?v=12" defer></script>
 </head>
 <body>
 <canvas id="aurora" aria-hidden="true"></canvas>
