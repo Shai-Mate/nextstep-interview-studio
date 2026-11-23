@@ -1,0 +1,147 @@
+{
+  "company": "Brightline Electric",
+  "role": "Electrical apprentice",
+  "stage": "Technical",
+  "interviewAt": "2026-12-10",
+  "aboutSource": "answers",
+  "about": "I have been a helper on residential renovations with my uncle's crew, Lantern Homes, for 18 months. I pulled wire, kept the site tidy, and did lockout before we opened a panel on a Maple Street kitchen. I do not have a Red Seal yet.",
+  "adFile": "../trades-electrical-apprentice.txt",
+  "personal": ["lantern", "uncle", "maple"],
+  "adLine": "lockout/tagout",
+  "requirements": [
+    "Follow lockout/tagout before opening a panel",
+    "Pull wire and keep the site tidy",
+    "Working toward a Red Seal, which you do not have yet",
+    "Read drawings and ask before you guess"
+  ],
+  "lessons": [
+    {
+      "title": "The Maple Street lockout",
+      "body": "On the Maple Street kitchen you worked with your uncle's crew, Lantern Homes. Before the panel was opened, you did lockout and waited until it was checked.\nThis ad says \"follow all safety procedures, including lockout/tagout\". Tell that Lantern Homes morning in order: what you switched off, who checked it, and what you did not touch.",
+      "exercise": "Say the Maple Street lockout out loud, the one you did with your uncle at Lantern Homes. Then point to the lockout line in this ad."
+    },
+    {
+      "title": "Pulling wire with your uncle",
+      "body": "At Lantern Homes you pulled wire on residential renovations and kept the offcuts off the floor. Your uncle had you call out each run before it was terminated.\nThe ad says \"Run conduit, pull wire and terminate devices\". You have pulled wire. Say you have not terminated on your own, and describe the Lantern Homes run you did pull.",
+      "exercise": "Walk the Lantern Homes wire pull step by step, including how your uncle had you call it out. Name the part you have not done alone."
+    },
+    {
+      "title": "A tidy site",
+      "body": "Lantern Homes expected the Maple Street kitchen swept before you left. You kept the site tidy because the homeowner was still living there.\nThe ad says \"Keep job sites clean\". Use that Lantern Homes close-down, not a story from a job you did not have.",
+      "exercise": "Describe the last ten minutes at the Maple Street kitchen with Lantern Homes. Tie it to keeping a job site clean."
+    },
+    {
+      "title": "The Red Seal gap",
+      "body": "You do not have a Red Seal, and you should say that in the first sentence. Lantern Homes was helper work with your uncle, not an apprenticeship ticket.\nThe ad wants a registered apprentice working toward a Red Seal. Say where you are, then say you would ask how their crew handles school blocks. Do not claim hours you did not log.",
+      "exercise": "Write the honest gap: no Red Seal yet, helper work at Lantern Homes with your uncle, and the first question you would ask about school."
+    },
+    {
+      "title": "Talking with the homeowner",
+      "body": "At the Maple Street kitchen the homeowner asked what the dust was from. You explained the Lantern Homes work in plain words and got your uncle when you did not know the answer.\nThe ad says \"Talk with homeowners respectfully and explain what we are doing\". Use that conversation. Do not invent a complaint you did not handle.",
+      "exercise": "Retell the Maple Street explanation you gave, and the moment you fetched your uncle. Keep Lantern Homes in the story."
+    },
+    {
+      "title": "Your first month on this crew",
+      "body": "If they ask what you would do first, start from Lantern Homes: you already show up, pull wire, and stop for lockout. You do not already know their drawings.\nSay you would spend the first weeks learning their lockout steps and their labels, with your Maple Street story as proof you will stop when you are unsure.",
+      "exercise": "Say three things from Lantern Homes you would bring, and one thing you would ask to be shown on day one."
+    }
+  ],
+  "questions": [
+    {
+      "q": "What made you want to move into an electrical apprenticeship, and what from your helper work carries over?",
+      "kind": "motivation",
+      "source": null,
+      "probe": "They want the real reason you want a ticket, and what you have already done on a site.",
+      "include": ["Lantern Homes with your uncle", "You do not have a Red Seal yet"],
+      "useStory": "Helper work at Lantern Homes with your uncle, including Maple Street, and that you want to learn the trade properly."
+    },
+    {
+      "q": "Tell me about a time you followed lockout before someone opened a panel.",
+      "kind": "behavioural",
+      "source": "Keep job sites clean and follow all safety procedures, including lockout/tagout",
+      "probe": "They want the order you did it in, and who checked the lock.",
+      "include": ["What you switched off", "Who checked it"],
+      "useStory": "The Maple Street kitchen with Lantern Homes: you did lockout with your uncle before the panel was opened."
+    },
+    {
+      "q": "Tell me about a time you pulled wire and left the site safe to walk through.",
+      "kind": "behavioural",
+      "source": "Run conduit, pull wire and terminate devices",
+      "probe": "They want the steps you took and what you have not done on your own.",
+      "include": ["The run you pulled", "The part you have not terminated alone"],
+      "useStory": "Pulling wire at Lantern Homes while your uncle had you call out each run. Say you have not terminated devices on your own."
+    },
+    {
+      "q": "How do you explain the work to someone who lives in the house?",
+      "kind": "behavioural",
+      "source": "Talk with homeowners respectfully and explain what we are doing",
+      "probe": "They want plain words, and that you ask for help when you do not know.",
+      "include": ["What the homeowner asked", "When you got your uncle"],
+      "useStory": "The Maple Street homeowner who asked about the dust. You explained the Lantern Homes work and fetched your uncle when you did not know."
+    },
+    {
+      "q": "Walk me through how you would open a panel on a job you have not seen before.",
+      "kind": "role",
+      "source": "Install and repair wiring, outlets, panels and lighting under the supervision of a journeyperson",
+      "probe": "They want you to stop, lock out, and wait for the journeyperson.",
+      "include": ["Lockout first", "You would not open it alone"],
+      "useStory": "Use the Maple Street lockout at Lantern Homes as the pattern, and say you would wait for their journeyperson on a new panel."
+    },
+    {
+      "q": "The ad wants someone working toward a Red Seal. Where are you with that?",
+      "kind": "situational",
+      "source": "Registered apprentice, 2nd or 3rd year, working toward your Red Seal",
+      "probe": "They want the truth and a real next step, not a borrowed ticket.",
+      "include": ["You do not have it", "Helper months at Lantern Homes"],
+      "useStory": "Say you do not have a Red Seal. The work you do have is 18 months at Lantern Homes with your uncle. Ask how their apprentices handle school."
+    },
+    {
+      "q": "A drawing does not match what you see in the wall. What do you do?",
+      "kind": "situational",
+      "source": "Read and follow blueprints, drawings and the electrical code",
+      "probe": "They want you to stop and ask, not to guess at a live wall.",
+      "include": ["Stop work", "Ask before you change the drawing"],
+      "useStory": "You have not read their drawings yet. At Lantern Homes you stopped and got your uncle when the Maple Street wall did not match what you expected. Do that here."
+    },
+    {
+      "q": "What questions would you like to ask about the crew and the first month?",
+      "kind": "closing",
+      "source": null,
+      "probe": "They want questions about learning the work, not about time off.",
+      "include": ["How lockout is done on their crew", "How school blocks work"],
+      "useStory": "Ask how this crew does lockout, and how school blocks work. You can say you learned to stop and ask at Lantern Homes."
+    }
+  ],
+  "quiz": [
+    {
+      "q": "Which story matches the ad line about lockout?",
+      "options": ["The Maple Street panel, with your uncle at Lantern Homes", "A story about serving tables on a patio", "A claim that you already run jobs alone"],
+      "correct": 0,
+      "why": "Maple Street is the lockout you actually did. The ad asks for lockout/tagout, not a different trade."
+    },
+    {
+      "q": "What should you say about the Red Seal?",
+      "options": ["Say you have it if the hours feel close", "Say you do not have it, and describe Lantern Homes", "Change the subject to your driver's licence"],
+      "correct": 1,
+      "why": "You do not have a Red Seal. Lantern Homes is the true helper work. Do not borrow a ticket."
+    },
+    {
+      "q": "The homeowner asks what you are doing. What fits this ad?",
+      "options": ["Explain it the way you did on Maple Street, and get your uncle if you are unsure", "Tell them not to worry and keep working", "Ignore them until the journeyperson arrives"],
+      "correct": 0,
+      "why": "The ad asks you to explain the work respectfully. Maple Street is your real example."
+    },
+    {
+      "q": "You have not terminated devices on your own. What is the strongest answer?",
+      "options": ["Describe a termination you did not do", "Say so, then describe the wire you pulled at Lantern Homes", "Say termination is easy and skip the example"],
+      "correct": 1,
+      "why": "The gap stays honest, and the Lantern Homes wire pull is the work you did do."
+    },
+    {
+      "q": "What is a strong question for the end of this interview?",
+      "options": ["How does this crew do lockout on a new site?", "How soon can I take a week off?", "Can I skip the school blocks?"],
+      "correct": 0,
+      "why": "A lockout question shows you care about their safety steps. Time off can wait."
+    }
+  ]
+}

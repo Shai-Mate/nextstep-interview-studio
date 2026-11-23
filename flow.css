@@ -56,6 +56,8 @@
 .link-fallback .field { margin-top: 14px; }
 .fallback-msg { font-size: 15px; line-height: 1.45; color: var(--ink); }
 .link-fallback textarea { min-height: 148px; }
+.about-modes { margin-top: 8px; }
+.about-panel textarea { margin-top: 0; }
 .link-fallback .primary { margin-top: 14px; }
 
 /* Decode moment */

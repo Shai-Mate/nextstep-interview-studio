@@ -3,6 +3,15 @@ const $ = (s) => document.querySelector(s);
 const KEY = 'nextstep.preparations.v1';
 /* interview.js keeps the mock interview's read-aloud choice under this key; Delete all data removes it too. */
 const CORE_PREFS_KEY = 'nextstep.prefs.v1';
+function corePrefs() {
+  try {
+    const value = JSON.parse(localStorage.getItem(CORE_PREFS_KEY) || '{}');
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch { return {}; }
+}
+function coreWritePrefs(prefs) {
+  localStorage.setItem(CORE_PREFS_KEY, JSON.stringify(prefs));
+}
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const I = {
   lock: '<svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 9V7a3.5 3.5 0 017 0v2M5 9h10v7H5z"></path></svg>',
@@ -701,7 +710,7 @@ function mockLine(p) {
    canvases, needs no View Transitions support (older iOS Safari included) and is skipped
    under prefers-reduced-motion. show(view, { keep: true }) re-renders in place: scroll kept,
    no entrance motion (used for quiz answers, rename, mark incomplete). */
-const CORE_DEPTH = { welcome: 0, today: 1, learn: 1, practise: 1, progress: 1, interviewday: 2, lessons: 3, privacy: 3 };
+const CORE_DEPTH = { welcome: 0, today: 1, learn: 1, practise: 1, progress: 1, interviewday: 2, lessons: 3, privacy: 3, settings: 4, about: 2, writing: 2 };
 function show(next, opts) {
   const from = view;
   if (next !== 'answers') coreAnswersFrom = 'practise';
@@ -1003,6 +1012,7 @@ const screens = {
         const include = info && Array.isArray(info.include) ? info.include.filter((x) => typeof x === 'string' && x.trim()).slice(0, 4) : [];
         const guide = info ? `${kind || theme ? `<div class="tags">${kind ? `<b class="tag kind">${esc(kind)}</b>` : ''}${theme ? `<b class="tag">${esc(theme)}</b>` : ''}</div>` : ''}
           ${info.probe ? `<div class="guide"><p class="kicker">What they want to hear</p><p>${esc(info.probe)}</p></div>` : ''}
+          ${info.useStory ? `<div class="guide"><p class="kicker">Use this story</p><p>${esc(info.useStory)}</p></div>` : ''}
           ${include.length ? `<div class="guide"><p class="kicker">A strong answer includes</p><ul class="includes">${include.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
           ${info.source && !coreQuotes(q, info.source) ? `<p class="source">From the ad: “${esc(info.source)}”</p>` : ''}` : '<p class="muted">Situation, Task, your Action, Result, and what you learned.</p>';
         return `<details class="block qa${drafted(i) ? ' drafted' : ''}" ${i === firstOpen ? 'open' : ''}><summary><span class="qnum" aria-hidden="true">${drafted(i) ? I.check : i + 1}</span><span class="qtext">${drafted(i) ? '<span class="sr">Drafted: </span>' : ''}${esc(q)}</span>${I.chev}</summary>
@@ -1128,17 +1138,19 @@ const screens = {
       <h1>Private by design</h1>
       <p class="italic lg">Your words stay yours.</p>
       <div class="stack">
-        <div class="privacy-block"><strong>Answers stay on this phone</strong><span>Notes and practice answers stay in this browser. They are not uploaded. People who can open this browser profile can read them.</span></div>
-        <div class="privacy-block"><strong>A job link is read for you</strong><span>When you paste a job link, that link and the text of the public page are sent to our server so the plan can be built. We do not keep them after the request. If the page cannot be read, you paste the ad instead, and that text stays on this phone.</span></div>
+        <div class="privacy-block"><strong>Answers stay on this phone</strong><span>Notes and practice answers stay in this browser. They are not uploaded, even when a personal course is written. People who can open this browser profile can read them.</span></div>
+        <div class="privacy-block"><strong>A job link is read for you</strong><span>When you paste a job link, that link and the text of the public page are sent to our server so the plan can be built. We do not keep them after the request. If the page cannot be read, you paste the ad instead, and that text stays on this phone until you choose a personal course.</span></div>
+        <div class="privacy-block"><strong>A personal course sends the ad and About you</strong><span>If you choose My subscription and tap Write my course, the job ad and the About you text go to the tower address saved on this phone. That request is not kept. The shared secret stays on this phone and is not in an exported backup. If you skip, or the tower is not set up, or the course does not come back clean, the lessons are built on this phone and About you is not sent.</span></div>
         <div class="privacy-block"><strong>No account. No trackers.</strong><span>Nothing to sign up for, and no analytics. Preparations do not sync between devices. The practice grade is worked out on this phone. It is not a hiring verdict.</span></div>
-        <div class="privacy-block"><strong>Free</strong><span>No trial, no upgrade, no ads. Building the plan and the practice grade use plain rules on this phone, not an AI service.</span></div>
+        <div class="privacy-block"><strong>Free</strong><span>No trial, no upgrade, no ads. The general lessons and the practice grade run on this phone. A personal course uses Codex on a tower you run yourself.</span></div>
       </div>
       <details class="fold"><summary>Also good to know</summary>
         <p class="prose">Clearing site data, private browsing, or changing browsers can lose your work. Export a backup and keep it private. An exported file contains personal answers. The shareable app package contains none.
 
-The hosting provider receives normal requests for the app files. A job link also goes to the page reader, which does not receive your answers. Imports append as separate copies and never overwrite existing preparations. Only import a backup you trust.</p>
+The hosting provider receives normal requests for the app files. A job link also goes to the page reader, which does not receive your answers. About you is sent only when you write a personal course, and only to the tower saved on this phone. Imports append as separate copies and never overwrite existing preparations. Only import a backup you trust.</p>
       </details>
       <div class="spacer"></div>
+      <button type="button" class="glass button" data-action="open-settings"><span class="copy"><strong>Personal course</strong><span>My subscription, on your tower</span></span>${I.chev}</button>
       ${rawSaved !== null ? `<button type="button" class="glass button" id="raw-export"><span class="copy"><strong>Download saved data as-is</strong><span>Your saved preparations, exactly as this browser kept them</span></span></button>` : ''}
       <button type="button" class="glass button" id="export-one"><span class="copy"><strong>Export backup</strong><span>${active ? 'This preparation' : 'Every preparation on this device'}</span></span></button>
       <button type="button" class="text-btn" id="all-export">Export all preparations</button>
@@ -1150,8 +1162,27 @@ The hosting provider receives normal requests for the app files. A job link also
         <p class="hint">GitHub issues are public, so don't paste private answers.</p>
         <p class="credit">Made by Prism</p>
       </div>
-      <p class="version">Phone app v10 · storage schema v1 · rules-based preparation</p>
+      <p class="version">Phone app v12 · storage schema v1</p>
     </div>`;
+  },
+  settings() {
+    const prefs = corePrefs();
+    const settings = globalThis.NextStepProvider ? NextStepProvider.readSettings(prefs) : { provider: 'none', towerUrl: '', towerSecretSet: false };
+    const slots = globalThis.NextStepProvider ? NextStepProvider.SLOTS : [];
+    const chosen = settings.provider || 'none';
+    return `<form class="screen" id="settings-form" data-screen="settings">
+      <div class="topbar">${iconBtn('settings-back', 'Back', I.back)}<span class="label">Personal course</span></div>
+      <h1>How lessons get written</h1>
+      <p class="italic lg">On this phone, unless you say so.</p>
+      <div class="groups">${slots.map((slot) => `<label class="choice settings-choice${slot.available ? '' : ' coming'}"><input type="radio" name="provider" value="${esc(slot.id)}" ${slot.id === chosen ? 'checked' : ''} ${slot.available ? '' : 'disabled'}><span><b>${esc(slot.label)}</b><small>${esc(slot.detail)}</small></span></label>`).join('')}</div>
+      <label class="field" for="tower-url">Tower address</label>
+      <input id="tower-url" name="towerUrl" type="url" inputmode="url" autocomplete="off" maxlength="200" placeholder="https://machine.tailnet.ts.net" value="${esc(settings.towerUrl || '')}">
+      <label class="field" for="tower-secret">Shared secret</label>
+      <input id="tower-secret" name="towerSecret" type="password" autocomplete="new-password" maxlength="200" placeholder="${settings.towerSecretSet ? 'Saved on this phone. Leave blank to keep it.' : 'The secret from the tower'}">
+      <p class="hint">The address and the secret stay on this phone. An exported backup does not include the secret. Use the https address Tailscale shows you. It ends in .ts.net. A different address works only if this copy of the app lists it.</p>
+      <div class="spacer"></div>
+      <button class="primary" type="submit">Save on this phone</button>
+    </form>`;
   }
 };
 
@@ -1184,7 +1215,7 @@ function coreDownload(text, name, done) {
 }
 function exportBackup(all) {
   const payload = { schema: 1, preparations: !all && active ? [active] : records };
-  coreDownload(JSON.stringify(payload, null, 2), 'nextstep-backup.json', 'Backup exported. It includes your job ads, notes and answers. Keep it private.');
+  coreDownload(JSON.stringify(payload, null, 2), 'nextstep-backup.json', 'Backup exported. It includes your job ads, notes and answers. About you is included when a course used it. The tower secret is not. Keep it private.');
 }
 /* Backup restore. A preparation is rebuilt with PrepEngine.create(p) for safe defaults, but when the
    backup carries its own plan (questions, questionInfo, requirements, course, quizItems) that plan is
@@ -1204,7 +1235,8 @@ function coreCleanInfo(v, n) {
       theme: coreOkStr(x.theme, 60) && x.theme ? x.theme : null,
       source: coreOkStr(x.source, 600) && x.source ? x.source : null,
       probe: coreOkStr(x.probe, 600) ? x.probe : '',
-      include: Array.isArray(x.include) ? x.include.filter((s) => coreOkStr(s, 400) && s.trim()).slice(0, 4) : []
+      include: Array.isArray(x.include) ? x.include.filter((s) => coreOkStr(s, 400) && s.trim()).slice(0, 4) : [],
+      ...(coreOkStr(x.useStory, 600) && x.useStory.trim() ? { useStory: x.useStory.trim() } : {})
     };
   });
   return out.every(Boolean) ? out : null;
@@ -1283,6 +1315,12 @@ function coreRestore(p) {
   }
   /* Mock log: kept only when every saved answer still belongs to the same question. */
   const m = p.mock;
+  if (p.aboutYou && typeof p.aboutYou === 'object' && coreOkStr(p.aboutYou.text, 40000) && p.aboutYou.text.trim()) {
+    const source = p.aboutYou.source === 'resume' || p.aboutYou.source === 'linkedin' || p.aboutYou.source === 'answers' ? p.aboutYou.source : 'answers';
+    fresh.aboutYou = { source, label: coreOkStr(p.aboutYou.label, 40) ? p.aboutYou.label : '', text: p.aboutYou.text.trim() };
+  }
+  if (p.generatedBy === 'subscription' || p.generatedBy === 'template') fresh.generatedBy = p.generatedBy;
+  if (coreOkStr(p.generateNote, 300) && String(p.generateNote).trim()) fresh.generateNote = String(p.generateNote).trim();
   if (m && Number.isInteger(m.index) && m.index >= 0 && m.index <= fresh.questions.length && Array.isArray(m.answers) && m.answers.length === m.index
     && m.answers.every((a, k) => a && typeof a.text === 'string' && a.text.length <= 60000 && a.question === fresh.questions[k])) {
     fresh.mock = {
@@ -1423,6 +1461,8 @@ document.body.addEventListener('click', (e) => {
   if (action === 'how') { $('#install').hidden = false; return; }
   if (action === 'privacy') { privacyFrom = view; show('privacy'); return; }
   if (action === 'privacy-back') { show(privacyFrom || 'welcome'); return; }
+  if (action === 'open-settings') { show('settings'); return; }
+  if (action === 'settings-back') { show('privacy'); return; }
   if (action === 'all-preps') { active = null; renaming = false; show('welcome'); return; }
   if (action === 'resume') {
     active = records.find((p) => p.id === el.dataset.id);
@@ -1471,4 +1511,31 @@ document.body.addEventListener('click', (e) => {
 });
 
 /* First render after every deferred module (flow.js, interview.js, ...) has registered. */
+binders.settings = () => {
+  const form = $('#settings-form');
+  if (!form) return;
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const prefs = corePrefs();
+    const picked = form.querySelector('input[name="provider"]:checked');
+    const id = picked ? picked.value : 'none';
+    if (id === 'none' || id === 'subscription') prefs.provider = id;
+    const url = $('#tower-url') ? $('#tower-url').value.trim() : '';
+    if (url) {
+      const allowed = globalThis.NextStepProvider ? NextStepProvider.allowedTowerUrl(url) : '';
+      if (!allowed) { notify('That address is not allowed. Use the https address from Tailscale. It ends in .ts.net.', true); return; }
+      prefs.towerUrl = allowed.replace(/\/generate$/, '');
+    }
+    const secret = $('#tower-secret') ? $('#tower-secret').value : '';
+    if (secret) prefs.towerSecret = secret;
+    if (prefs.provider === 'subscription' && !(globalThis.NextStepProvider && NextStepProvider.providerReady(prefs))) {
+      notify('Add the tower address and the shared secret. Both stay on this phone.', true);
+      return;
+    }
+    try { coreWritePrefs(prefs); }
+    catch { notify('This phone could not save that.', true); return; }
+    notify('Saved on this phone.');
+    show('privacy');
+  });
+};
 document.addEventListener('DOMContentLoaded', () => show('welcome'));

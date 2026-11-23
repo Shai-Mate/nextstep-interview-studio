@@ -1,0 +1,147 @@
+{
+  "company": "Maple & Thread",
+  "role": "Store associate",
+  "stage": "Screening",
+  "interviewAt": "2026-12-03",
+  "aboutSource": "resume",
+  "about": "I was a barista at Harbour Cafe for three years. I trained two new hires and opened on Saturdays. One Saturday the till was short 18 dollars and I stayed to recount it with my manager Priya Shah.",
+  "adFile": "../retail-store-associate.txt",
+  "personal": ["harbour", "priya", "recount", "barista"],
+  "adLine": "handle cash accurately",
+  "requirements": [
+    "Handle cash accurately",
+    "Greet every customer",
+    "Available evenings and weekends",
+    "Reliable and on time"
+  ],
+  "lessons": [
+    {
+      "title": "The Saturday recount",
+      "body": "You already have a cash story from Harbour Cafe. One Saturday the till was short, and you stayed to recount it with Priya Shah.\nThis ad says \"handle cash accurately\". Tell that recount first, in four sentences, and say what you checked.",
+      "exercise": "Say the Harbour Cafe Saturday recount with Priya Shah out loud. Then point to the line about handling cash on the POS."
+    },
+    {
+      "title": "Greeting when it is busy",
+      "body": "At Harbour Cafe you were a barista who helped people decide while the line was long. You trained two new hires to greet and take the order without rushing them.\nThe ad says \"Greet every customer and help them find what they need\". Use a busy Saturday at Harbour Cafe, not a made-up store story.",
+      "exercise": "Tell the Harbour Cafe story of training two hires to greet a busy line. Tie it to greeting every customer in this ad."
+    },
+    {
+      "title": "Evenings and Saturdays",
+      "body": "You opened Harbour Cafe on Saturdays. Priya Shah counted on you to be there before the door opened. That is the closest proof you have for weekend shop work.\nThe ad says \"Available evenings and weekends\". Say which days you can work, and use the Saturday open at Harbour Cafe.",
+      "exercise": "Write four sentences: the Saturday open at Harbour Cafe, then the days you can actually work for this job."
+    },
+    {
+      "title": "The inventory gap",
+      "body": "You have not run a clothing inventory at Harbour Cafe. Do not invent one. You restocked the pastry case and the cups, and you recounted the till with Priya Shah.\nThe ad asks you to help with monthly inventory counts. Say you have not done a full count, then give the Harbour Cafe restock and the recount.",
+      "exercise": "Say the honest gap on inventory, then the Harbour Cafe restock and the Priya Shah recount."
+    },
+    {
+      "title": "Your 60 second introduction",
+      "body": "Start with Harbour Cafe, not your whole life. You were a barista for three years, you trained two hires, and you want shop work where you still help people.\nEnd on this job: you want to greet customers and handle cash carefully, the way you did on the Saturday recount with Priya Shah.",
+      "exercise": "Say it out loud in one minute: barista at Harbour Cafe, the two hires you trained, and why this store job fits."
+    },
+    {
+      "title": "Questions to ask them",
+      "body": "You do not need to pretend you already know this store. Ask how a new person learns the POS, and what a good first month looks like on the floor.\nKeep one story ready: the Saturday recount with Priya Shah at Harbour Cafe, if they ask how you handle cash.",
+      "exercise": "Write two questions about learning the POS. Then say the Harbour Cafe recount once more, in four sentences."
+    }
+  ],
+  "questions": [
+    {
+      "q": "What made you want to apply for the store associate job, and why do you think it suits you?",
+      "kind": "motivation",
+      "source": null,
+      "probe": "They want a real reason that connects you to this shop, not a speech.",
+      "include": ["Three years as a barista at Harbour Cafe", "You like helping people find what they need"],
+      "useStory": "Use the three years as a barista at Harbour Cafe, and that you like helping people find what they need."
+    },
+    {
+      "q": "Tell me about a time you handled cash when something did not add up.",
+      "kind": "behavioural",
+      "source": "Process sales, returns and exchanges on our POS system and handle cash accurately",
+      "probe": "They want to hear that you slow down and check the money.",
+      "include": ["What was short", "What you did with Priya Shah"],
+      "useStory": "The Saturday recount at Harbour Cafe with Priya Shah. The till was short 18 dollars and you stayed to recount it."
+    },
+    {
+      "q": "Tell me about a time you helped someone while a line was waiting.",
+      "kind": "behavioural",
+      "source": "Greet every customer and help them find what they need",
+      "probe": "They want a calm example of helping one person without ignoring the line.",
+      "include": ["The busy Saturday line", "How you trained the new hires"],
+      "useStory": "A busy Saturday at Harbour Cafe, including how you trained two new hires to greet without rushing."
+    },
+    {
+      "q": "How do you make sure people can count on you to show up?",
+      "kind": "behavioural",
+      "source": "Reliable and on time",
+      "probe": "They want a plain example of being where you said you would be.",
+      "include": ["Opening on Saturdays", "Who was counting on you"],
+      "useStory": "Opening Harbour Cafe on Saturdays, and Priya Shah counting on you to be there before the door opened."
+    },
+    {
+      "q": "Walk me through how you would handle a return and the cash that goes with it.",
+      "kind": "role",
+      "source": "Process sales, returns and exchanges on our POS system and handle cash accurately",
+      "probe": "They want the steps, and honesty about what you have not done on a till like theirs.",
+      "include": ["You have not processed clothing returns", "The cash check you do know"],
+      "useStory": "You have not processed clothing returns. Say so. Then walk the Saturday recount at Harbour Cafe, and say you would ask them to show you their POS once."
+    },
+    {
+      "q": "This job needs evenings and weekends. What does your availability look like?",
+      "kind": "role",
+      "source": "Available evenings and weekends, including holiday season",
+      "probe": "They want the days you can work, said plainly.",
+      "include": ["The days you can work", "The Saturday opens you already did"],
+      "useStory": "You opened Harbour Cafe on Saturdays. State the evenings and weekends you can actually work. Do not stretch it."
+    },
+    {
+      "q": "You have not done monthly inventory in a clothing store. How would you get up to speed?",
+      "kind": "situational",
+      "source": "Receive deliveries and help with monthly inventory counts",
+      "probe": "They want an honest gap and a first step, not a pretend past.",
+      "include": ["You have not done a full clothing count", "The restock you have done"],
+      "useStory": "Honest gap. The closest work is restocking at Harbour Cafe and the recount with Priya Shah. Ask for their count sheet and do one aisle with a coworker."
+    },
+    {
+      "q": "What questions would you like to ask about the job or the team?",
+      "kind": "closing",
+      "source": null,
+      "probe": "They want to see you are curious about doing the job well.",
+      "include": ["How new people learn the POS", "What a good first Saturday looks like"],
+      "useStory": "Ask how new people learn the POS, and what a good first Saturday looks like. Mention you opened Harbour Cafe on Saturdays only if it fits."
+    }
+  ],
+  "quiz": [
+    {
+      "q": "Which story matches the ad line about handling cash?",
+      "options": ["The Saturday recount with Priya Shah at Harbour Cafe", "A story about driving a truck across the country", "A story you invent about already working at this store"],
+      "correct": 0,
+      "why": "The recount is your real cash story. The ad asks you to handle cash accurately."
+    },
+    {
+      "q": "What should you say about monthly inventory counts?",
+      "options": ["You have done them for years at a clothing chain", "You have not done a full count, and you have restocked at Harbour Cafe", "Skip the question and hope it does not come up"],
+      "correct": 1,
+      "why": "An honest gap plus the Harbour Cafe restock is stronger than a made-up past."
+    },
+    {
+      "q": "Which question is the strongest to ask at the end?",
+      "options": ["How do new people learn the POS?", "How soon can I take time off?", "What does the company sell, in one word?"],
+      "correct": 0,
+      "why": "Asking how the POS is learned shows you care about doing the work. Save time-off questions for after an offer."
+    },
+    {
+      "q": "Your introduction should start with what?",
+      "options": ["Your whole life from school onward", "Three years as a barista at Harbour Cafe", "A claim that there is not much to tell"],
+      "correct": 1,
+      "why": "Harbour Cafe is the real work that fits this job. Keep the introduction to about a minute."
+    },
+    {
+      "q": "The till was short on a Saturday. What do you tell them?",
+      "options": ["You stayed and recounted it with Priya Shah", "You guessed until the number matched", "You left it for the next shift and said nothing"],
+      "correct": 0,
+      "why": "Priya Shah and the recount are what you actually did. Guessing or hiding it is not your story."
+    }
+  ]
+}
