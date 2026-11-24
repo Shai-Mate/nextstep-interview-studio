@@ -465,7 +465,7 @@ async function flowFromLink(event) {
     draft.aboutYou = null;
     draft.aboutForm = null;
     flowFallback = null;
-    show('about');
+    flowOfferAbout();
   } catch (err) {
     flowFallback = { reason: 'short' };
     show('link');
@@ -485,8 +485,17 @@ function flowFromPaste() {
   draft.aboutForm = null;
   try {
     flowFallback = null;
-    show('about');
+    flowOfferAbout();
   } catch (err) { notify(err.message); }
+}
+function flowOfferAbout() {
+  draft = draft || {};
+  draft.autoWrite = false;
+  let saved = null;
+  try { saved = globalThis.NextStepCourse ? NextStepCourse.normalizeAbout(corePrefs().aboutYou) : null; }
+  catch { saved = null; }
+  if (saved && flowProviderReady()) draft.autoWrite = true;
+  show('about');
 }
 function readRole() {
   draft = draft || {};
@@ -652,6 +661,7 @@ Object.assign(screens, {
         ${p.sample ? '<p class="flow-note">A practice ad from a made-up company.</p>' : ''}
         ${p.generatedBy === 'subscription' ? '<p class="flow-note">Written for you from this ad and what you shared. Your practice answers still stay on this phone.</p>' : ''}
         ${p.generateNote ? `<p class="flow-note">${esc(p.generateNote)}</p>` : ''}
+        ${typeof coreGenericBanner === 'function' ? coreGenericBanner() : ''}
         ${flowStatsHtml(f)}
         ${flowDecodedHtml(p, f)}
         <div class="flow-links">
@@ -814,7 +824,8 @@ function flowUseAbout() {
   const form = draft.aboutForm;
   draft.intake = { ...(draft.intake || {}), stage: form.stage || 'Not sure yet' };
   draft.interviewAt = form.date || '';
-  const text = flowAboutText(form);
+  let text = flowAboutText(form);
+  if (text.trim().length < 40) text = String(form.text || '').trim();
   if (/^https?:\/\/\S+$/i.test(text)) {
     notify('Paste the profile text. A link on its own is not enough, because the page often asks people to sign in.');
     return;
@@ -907,6 +918,7 @@ async function flowBuild(sampleId) {
     aboutYou: source.aboutYou || null
   };
   const mark = sampleId || source.sampleId || '';
+  const replaceId = source.replaceId || '';
   let generated = null;
   let note = '';
   let attempted = false;
@@ -945,6 +957,17 @@ async function flowBuild(sampleId) {
   if (attempted && prep.generatedBy !== 'subscription') {
     prep.generatedBy = 'template';
     if (!prep.generateNote) prep.generateNote = note || 'The personal course could not be built, so these are the general lessons.';
+  }
+  if (replaceId) {
+    const at = records.findIndex((item) => item && item.id === replaceId);
+    if (at >= 0) {
+      const old = records[at];
+      prep.id = old.id;
+      if (old.created) prep.created = old.created;
+      if (old.interviewAt && !prep.interviewAt) prep.interviewAt = old.interviewAt;
+      if (old.dailyMinutes) prep.dailyMinutes = old.dailyMinutes;
+      records.splice(at, 1);
+    }
   }
   active = prep;
   if (mark) active.sample = mark;
@@ -1037,6 +1060,16 @@ binders.jobad = () => {
 binders.about = () => {
   const form = $('#about-form');
   if (!form) return;
+  if (draft && draft.autoWrite) {
+    draft.autoWrite = false;
+    const typed = flowAboutText(draft.aboutForm);
+    const text = typed.trim().length >= 40 ? typed : String(draft.aboutForm.text || '');
+    const saved = globalThis.NextStepCourse && NextStepCourse.normalizeAbout({ source: draft.aboutForm.mode, text });
+    if (saved && flowProviderReady()) {
+      flowUseAbout();
+      return;
+    }
+  }
   form.addEventListener('submit', (e) => { e.preventDefault(); flowUseAbout(); });
   const skip = $('#about-skip');
   if (skip) skip.addEventListener('click', flowSkipAbout);
@@ -1120,7 +1153,7 @@ Object.assign(actions, {
     }
     try {
       draft = { role: s.role, company: s.company, job: s.job, url: '', intake: {}, sampleId: s.id, aboutYou: null, aboutForm: null };
-      show('about');
+      flowOfferAbout();
     } catch (err) { notify(err.message); }
   },
   'decode-skip': () => { if (flowSettled()) flowToReveal(); },

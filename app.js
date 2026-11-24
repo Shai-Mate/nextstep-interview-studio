@@ -515,6 +515,7 @@ let view = 'welcome';
 let lessonIndex = 0;
 let renaming = false;
 let privacyFrom = 'welcome';
+let connectReturn = '';
 try {
   const raw = localStorage.getItem(KEY);
   try {
@@ -694,6 +695,44 @@ function tabbar(current) {
 function shell(current, inner) {
   return `<div class="screen with-tabs" data-screen="${current}"><div class="scroll">${inner}</div>${tabbar(current)}</div>`;
 }
+function coreProviderReady() {
+  try { return !!(globalThis.NextStepProvider && NextStepProvider.providerReady(corePrefs())); }
+  catch { return false; }
+}
+function coreSetupSkipped() {
+  try { return sessionStorage.getItem('nextstep.setupSkipped') === '1'; }
+  catch { return false; }
+}
+function coreGenericBanner() {
+  if (!active || active.generatedBy === 'subscription') return '';
+  return `<section class="glass pad-sm generic-banner" role="status"><p class="kicker">Generic lessons</p><p>These lessons are the same for everyone. They do not use your real experience.</p><button type="button" class="primary" data-action="connect-ai"><span>Connect AI</span></button></section>`;
+}
+function coreAppVersion() {
+  return globalThis.NextStepUpdate && NextStepUpdate.version ? NextStepUpdate.version : '';
+}
+function coreTowerValues(blob, urlValue, secretValue) {
+  const split = (text) => (globalThis.NextStepProvider && NextStepProvider.splitTowerPaste ? NextStepProvider.splitTowerPaste(text) : { url: '', secret: '' });
+  const fromBlob = split(blob);
+  const fromUrl = split(urlValue);
+  return {
+    url: fromUrl.url || fromBlob.url || '',
+    secret: String(secretValue || '').trim() || fromUrl.secret || fromBlob.secret || ''
+  };
+}
+function coreSaveTower(url, secret) {
+  const prefs = corePrefs();
+  const allowed = globalThis.NextStepProvider ? NextStepProvider.allowedTowerUrl(url) : '';
+  if (!allowed) return 'That address is not allowed. Use the https address from Tailscale. It ends in .ts.net.';
+  if (!secret) return 'Add the shared secret from the tower. It stays on this phone.';
+  prefs.provider = 'subscription';
+  prefs.towerUrl = allowed.replace(/\/generate$/, '');
+  prefs.towerSecret = secret;
+  delete prefs.setupSkipped;
+  try { coreWritePrefs(prefs); }
+  catch { return 'This phone could not save that.'; }
+  try { sessionStorage.removeItem('nextstep.setupSkipped'); } catch { /* ignore */ }
+  return '';
+}
 function checkRow(item) {
   const cls = item.ok ? 'ok' : 'warn';
   return `<div class="check ${cls}">${item.ok ? I.check : I.warn}<div><strong>${esc(item.title)}</strong><span>${esc(item.detail)}</span></div></div>`;
@@ -860,6 +899,7 @@ const screens = {
       <p class="date">${esc(longDate(now))}</p>
       <h1 class="italic greet">${esc(greeting(now))}</h1>
       <p class="role-name">${esc(p.role)}</p>
+      ${coreGenericBanner()}
       ${(() => { const line = [p.company, coreStageLine(p)].filter(Boolean).join(' · '); return line ? `<p class="muted">${esc(line)}</p>` : ''; })()}
       ${coreWhenHtml(p, w)}
       ${coreMinutesHtml(p)}
@@ -983,6 +1023,7 @@ const screens = {
       <div class="topbar">${iconBtn('back-lesson', 'Back', I.back)}<span class="label">Learn</span><span class="count">${doneCount} of ${p.course.length}</span></div>
       <h1>All lessons</h1>
       <p class="italic lg">One small step at a time.</p>
+      ${coreGenericBanner()}
       <div class="stack">${p.course.map((c, i) => {
         const theme = c.theme ? coreThemeLabel(c.theme, a) : '';
         const next = !c.done && i === cur;
@@ -1162,7 +1203,7 @@ The hosting provider receives normal requests for the app files. A job link also
         <p class="hint">GitHub issues are public, so don't paste private answers.</p>
         <p class="credit">Made by Prism</p>
       </div>
-      <p class="version">Phone app v12 · storage schema v1</p>
+      <p class="version">Phone app v${esc(coreAppVersion() || '13')} · storage schema v1</p>
     </div>`;
   },
   settings() {
@@ -1179,9 +1220,30 @@ The hosting provider receives normal requests for the app files. A job link also
       <input id="tower-url" name="towerUrl" type="url" inputmode="url" autocomplete="off" maxlength="200" placeholder="https://machine.tailnet.ts.net" value="${esc(settings.towerUrl || '')}">
       <label class="field" for="tower-secret">Shared secret</label>
       <input id="tower-secret" name="towerSecret" type="password" autocomplete="new-password" maxlength="200" placeholder="${settings.towerSecretSet ? 'Saved on this phone. Leave blank to keep it.' : 'The secret from the tower'}">
-      <p class="hint">The address and the secret stay on this phone. An exported backup does not include the secret. Use the https address Tailscale shows you. It ends in .ts.net. A different address works only if this copy of the app lists it.</p>
+      <p class="hint">The address and the secret stay on this phone. An exported backup does not include the secret. Paste both lines into the address box if you have them together. Use the https address Tailscale shows you. It ends in .ts.net.</p>
       <div class="spacer"></div>
       <button class="primary" type="submit">Save on this phone</button>
+      <p class="version">Version ${esc(coreAppVersion())}</p>
+    </form>`;
+  },
+  connect() {
+    const back = connectReturn && connectReturn !== 'connect';
+    return `<form class="screen" id="connect-form" data-screen="connect">
+      <div class="topbar">${back ? iconBtn('connect-back', 'Back', I.back) : ''}<span class="label">Make it yours</span></div>
+      <h1 class="flow-focus" tabindex="-1">Make it yours</h1>
+      <p class="italic lg">Lessons for you, not a script.</p>
+      <p class="sub">Connect My subscription and the course is written from the job ad and what you share about yourself. The address and the secret stay on this phone.</p>
+      <label class="field" for="tower-paste">Paste both lines</label>
+      <textarea class="compact" id="tower-paste" maxlength="500" placeholder="The address on one line, the secret on the other"></textarea>
+      <p class="hint" id="tower-paste-status">From the note on your tower. Either line can come first.</p>
+      <label class="field" for="tower-url">Tower address</label>
+      <input id="tower-url" type="url" inputmode="url" autocomplete="off" maxlength="200" placeholder="https://machine.tailnet.ts.net">
+      <label class="field" for="tower-secret">Shared secret</label>
+      <input id="tower-secret" type="password" autocomplete="new-password" maxlength="200" placeholder="The secret from the tower">
+      <div class="spacer"></div>
+      <button class="primary" type="submit">Connect</button>
+      <button type="button" class="text-btn" id="connect-skip" data-action="connect-skip">Skip for now</button>
+      <p class="version">Version ${esc(coreAppVersion())}</p>
     </form>`;
   }
 };
@@ -1463,6 +1525,18 @@ document.body.addEventListener('click', (e) => {
   if (action === 'privacy-back') { show(privacyFrom || 'welcome'); return; }
   if (action === 'open-settings') { show('settings'); return; }
   if (action === 'settings-back') { show('privacy'); return; }
+  if (action === 'connect-ai') {
+    if (coreProviderReady() && active && active.job) { coreAfterConnect(); return; }
+    connectReturn = view || 'today';
+    show('connect');
+    return;
+  }
+  if (action === 'connect-back') { show(connectReturn || 'welcome'); return; }
+  if (action === 'connect-skip') {
+    try { sessionStorage.setItem('nextstep.setupSkipped', '1'); } catch { /* still continue */ }
+    show(connectReturn || 'welcome');
+    return;
+  }
   if (action === 'all-preps') { active = null; renaming = false; show('welcome'); return; }
   if (action === 'resume') {
     active = records.find((p) => p.id === el.dataset.id);
@@ -1511,31 +1585,90 @@ document.body.addEventListener('click', (e) => {
 });
 
 /* First render after every deferred module (flow.js, interview.js, ...) has registered. */
+function coreBindTowerPaste(urlId, secretId, blobId) {
+  const url = document.getElementById(urlId);
+  const secret = document.getElementById(secretId);
+  const blob = blobId ? document.getElementById(blobId) : null;
+  const apply = (text, event) => {
+    const split = globalThis.NextStepProvider && NextStepProvider.splitTowerPaste ? NextStepProvider.splitTowerPaste(text) : { url: '', secret: '' };
+    if (!split.url && !split.secret) return;
+    if (event && split.url && split.secret) event.preventDefault();
+    if (split.url && url) url.value = split.url;
+    if (split.secret && secret && !secret.value) secret.value = split.secret;
+    const status = $('#tower-paste-status');
+    if (status && split.url && split.secret) status.textContent = 'Address and secret found. They stay on this phone.';
+  };
+  if (url) url.addEventListener('paste', (event) => {
+    const text = event.clipboardData && event.clipboardData.getData('text');
+    if (text) apply(text, event);
+  });
+  if (blob) blob.addEventListener('input', () => apply(blob.value));
+}
+function coreAfterConnect() {
+  const about = globalThis.NextStepCourse ? NextStepCourse.normalizeAbout(corePrefs().aboutYou) : null;
+  if (active && active.job && String(active.job).trim().length >= 40) {
+    draft = {
+      role: active.role || '',
+      company: active.company || '',
+      job: active.job,
+      url: active.url || '',
+      intake: { ...(active.intake || {}) },
+      interviewAt: active.interviewAt || '',
+      sampleId: active.sample || '',
+      aboutYou: null,
+      aboutForm: null,
+      replaceId: active.id,
+      autoWrite: !!about
+    };
+    show('about');
+    return;
+  }
+  notify('Saved on this phone. Paste a job link next. Then we ask about you and write the course.');
+  flowCancelExtract();
+  flowFallback = null;
+  draft = draft || {};
+  show('link');
+}
+function coreOpeningView() {
+  if (coreProviderReady() || coreSetupSkipped()) return 'welcome';
+  connectReturn = '';
+  return 'connect';
+}
 binders.settings = () => {
   const form = $('#settings-form');
   if (!form) return;
+  coreBindTowerPaste('tower-url', 'tower-secret');
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const prefs = corePrefs();
     const picked = form.querySelector('input[name="provider"]:checked');
     const id = picked ? picked.value : 'none';
-    if (id === 'none' || id === 'subscription') prefs.provider = id;
-    const url = $('#tower-url') ? $('#tower-url').value.trim() : '';
-    if (url) {
-      const allowed = globalThis.NextStepProvider ? NextStepProvider.allowedTowerUrl(url) : '';
-      if (!allowed) { notify('That address is not allowed. Use the https address from Tailscale. It ends in .ts.net.', true); return; }
-      prefs.towerUrl = allowed.replace(/\/generate$/, '');
-    }
-    const secret = $('#tower-secret') ? $('#tower-secret').value : '';
-    if (secret) prefs.towerSecret = secret;
-    if (prefs.provider === 'subscription' && !(globalThis.NextStepProvider && NextStepProvider.providerReady(prefs))) {
-      notify('Add the tower address and the shared secret. Both stay on this phone.', true);
+    if (id === 'none') {
+      prefs.provider = 'none';
+      try { coreWritePrefs(prefs); }
+      catch { notify('This phone could not save that.', true); return; }
+      notify('Saved on this phone. Lessons stay generic until you connect.');
+      show('privacy');
       return;
     }
-    try { coreWritePrefs(prefs); }
-    catch { notify('This phone could not save that.', true); return; }
+    const values = coreTowerValues('', $('#tower-url') ? $('#tower-url').value : '', $('#tower-secret') ? $('#tower-secret').value : '');
+    const err = coreSaveTower(values.url, values.secret || (prefs.towerSecret || ''));
+    if (err) { notify(err, true); return; }
     notify('Saved on this phone.');
+    if (active && active.job && active.generatedBy !== 'subscription') { coreAfterConnect(); return; }
     show('privacy');
   });
 };
-document.addEventListener('DOMContentLoaded', () => show('welcome'));
+binders.connect = () => {
+  const form = $('#connect-form');
+  if (!form) return;
+  coreBindTowerPaste('tower-url', 'tower-secret', 'tower-paste');
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const values = coreTowerValues($('#tower-paste') ? $('#tower-paste').value : '', $('#tower-url') ? $('#tower-url').value : '', $('#tower-secret') ? $('#tower-secret').value : '');
+    const err = coreSaveTower(values.url, values.secret);
+    if (err) { notify(err, true); return; }
+    coreAfterConnect();
+  });
+};
+document.addEventListener('DOMContentLoaded', () => show(coreOpeningView()));
