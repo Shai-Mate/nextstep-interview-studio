@@ -6,6 +6,7 @@
 const http = require('http');
 const { isIP } = require('net');
 const course = require('../course.js');
+const live = require('../live.js');
 const { runCodex } = require('./codex.js');
 
 const ALLOWED_ORIGIN = 'https://shai-mate.github.io';
@@ -106,8 +107,9 @@ function createTowerServer(options) {
       log({ status, reason: body && body.reason ? body.reason : (body && body.ok ? 'ok' : ''), ms: Date.now() - started });
     };
     const url = new URL(req.url || '/', 'http://tower.local');
+    const interviewPath = url.pathname === '/interview/turn' || url.pathname === '/interview/debrief';
     if (req.method === 'GET' && url.pathname === '/health') return send(200, { ok: true });
-    if (url.pathname !== '/generate') return send(404, { ok: false, reason: 'missing' });
+    if (url.pathname !== '/generate' && !interviewPath) return send(404, { ok: false, reason: 'missing' });
     if (!cors) return send(403, { ok: false, reason: 'forbidden' });
     if (req.method === 'OPTIONS') {
       res.writeHead(204, cors);
@@ -129,12 +131,38 @@ function createTowerServer(options) {
       return send(429, { ok: false, reason: 'limited' });
     }
     let body;
-    try { body = await readBody(req, opts.maxBody || MAX_BODY); }
+    try { body = await readBody(req, interviewPath ? (opts.interviewMaxBody || 80000) : (opts.maxBody || MAX_BODY)); }
     catch { return send(400, { ok: false, reason: 'invalid' }); }
     if (body.overflow) return send(413, { ok: false, reason: 'large' });
     let data;
     try { data = JSON.parse(body.raw || ''); }
     catch { return send(400, { ok: false, reason: 'invalid' }); }
+    if (interviewPath) {
+      const ad = String(data.ad || '').trim();
+      if (ad.length < 40) return send(400, { ok: false, reason: 'short' });
+      hits.push(now);
+      const prompt = url.pathname === '/interview/debrief' ? live.buildDebriefPrompt(data) : live.buildTurnPrompt(data);
+      const schema = url.pathname === '/interview/debrief' ? live.debriefSchema : live.turnSchema;
+      try {
+        const generated = await run({
+          prompt,
+          schema,
+          timeoutMs: opts.interviewTimeoutMs || 40000,
+          bin: opts.codexBin,
+          spawn: opts.spawn,
+          tmpRoot: opts.tmpRoot
+        });
+        const checked = url.pathname === '/interview/debrief'
+          ? live.validateDebrief(generated, Array.isArray(data.answers) ? data.answers.length : 0)
+          : live.validateTurn(generated);
+        if (!checked.ok) return send(502, { ok: false, reason: 'invalid' });
+        if (url.pathname === '/interview/debrief') return send(200, { ok: true, debrief: checked.value });
+        return send(200, { ok: true, turn: checked.value });
+      } catch (err) {
+        const reason = err && (err.code === 'timeout' || err.code === 'codex' || err.code === 'invalid') ? err.code : 'codex';
+        return send(reason === 'timeout' ? 504 : 502, { ok: false, reason });
+      }
+    }
     const prepared = course.courseMaterials(data);
     if (prepared.ad.length < 40 || prepared.about.length < 40) return send(400, { ok: false, reason: 'short' });
     hits.push(now);

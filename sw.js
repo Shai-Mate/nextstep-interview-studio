@@ -1,35 +1,36 @@
 'use strict';
 // Any change to a shipped file needs a new version here and in every ?v= (installed phones keep cached files until then).
 // The suffix after -v must equal the ?v= on app.js in index.html, or the install refuses.
-const CACHE = 'nextstep-phone-v13';
+const CACHE = 'nextstep-phone-v14';
 // Not precached on purpose: share-card.png (only read by link-preview scrapers) and nextstep_icon_1024.png
 // (only read from the manifest when the app is installed, which needs a connection anyway).
 const ASSETS = [
   './index.html',
   './privacy.html',
-  './styles.css?v=13',
-  './flow.css?v=13',
-  './interview.css?v=13',
-  './launch.css?v=13',
-  './config.js?v=13',
-  './engine.js?v=13',
-  './course.js?v=13',
-  './provider.js?v=13',
-  './pdftext.js?v=13',
-  './coach.js?v=13',
-  './orb.js?v=13',
-  './orb-2d.js?v=13',
-  './app.js?v=13',
-  './flow.js?v=13',
-  './interview.js?v=13',
-  './update.js?v=13',
-  './pwa.js?v=13',
-  './manifest.webmanifest?v=13',
-  './nextstep_icon.svg?v=13',
-  './favicon.png?v=13',
-  './icon-192.png?v=13',
-  './icon-512.png?v=13',
-  './apple-touch-icon.png?v=13',
+  './styles.css?v=14',
+  './flow.css?v=14',
+  './interview.css?v=14',
+  './launch.css?v=14',
+  './config.js?v=14',
+  './engine.js?v=14',
+  './course.js?v=14',
+  './provider.js?v=14',
+  './pdftext.js?v=14',
+  './coach.js?v=14',
+  './orb.js?v=14',
+  './orb-2d.js?v=14',
+  './app.js?v=14',
+  './flow.js?v=14',
+  './interview.js?v=14',
+  './live.js?v=14',
+  './update.js?v=14',
+  './pwa.js?v=14',
+  './manifest.webmanifest?v=14',
+  './nextstep_icon.svg?v=14',
+  './favicon.png?v=14',
+  './icon-192.png?v=14',
+  './icon-512.png?v=14',
+  './apple-touch-icon.png?v=14',
   './noise.png',
   './fonts/dm-sans-400.woff2',
   './fonts/dm-sans-500.woff2',
@@ -63,7 +64,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || url.origin !== self.location.origin || !url.pathname.startsWith(SCOPE)) return;
   // The extract call is not a GET of an app file. Never cache it, even if a future host serves it here.
   // Extract and generate are not app files. The tower call is a different origin and is not cached either.
-  if (url.pathname.endsWith('/extract') || url.pathname.endsWith('/generate')) return;
+  if (url.pathname.endsWith('/extract') || url.pathname.endsWith('/generate') || /\/interview\/(turn|debrief)$/.test(url.pathname)) return;
   if (request.mode === 'navigate') {
     // A page is served as itself: cached copy first (query ignored, a folder URL means index.html), then the network,
     // and offline the cached app shell, so ./privacy.html shows the privacy page and the app still opens offline.

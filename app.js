@@ -916,6 +916,7 @@ const screens = {
       ${decoded}
       <div class="glass flat more-card">
         <p class="kicker quiet-kicker">More ways to prepare</p>
+        <button type="button" class="list-row" data-action="open-live"><span class="copy"><strong>Practice the interview</strong><span>A spoken practice round for this job, about 10 minutes</span></span>${I.chev}</button>
         <button type="button" class="list-row" data-action="open-mock"><span class="copy"><strong>Mock interview</strong><span>${esc(mockLine(p))}</span></span>${I.chev}</button>
         ${dayFirst ? '' : `<button type="button" class="list-row" data-action="open-day"><span class="copy"><strong>Interview day</strong><span>Your best stories, words to use and a calm checklist</span></span>${I.chev}</button>`}
       </div>
@@ -940,6 +941,7 @@ const screens = {
       <h1>Practise</h1>
       <p class="italic lg">Say it out loud first.</p>
       <p class="sub">Practise, pause, pick up again. Drafts save as you go.</p>
+      <button type="button" class="row" data-action="open-live"><span class="copy"><strong>Practice the interview</strong><em>Spoken questions for this job, about 10 minutes</em></span>${I.chev}</button>
       <button type="button" class="row" data-action="open-mock"><span class="copy"><strong>Mock interview</strong><em>${esc(mockLine(p))}</em></span>${I.chev.replace('stroke="currentColor"', 'stroke="#FFC48A"')}</button>
       <button type="button" class="row" data-action="open-answers"><span class="copy"><strong>Answer bank</strong><em>${st.answersDone} of ${st.answers} answers drafted${Array.isArray(p.questionInfo) ? ' · with what they want to hear' : ''}</em></span>${I.chev}</button>
       <button type="button" class="row" data-action="open-quiz"><span class="copy"><strong>Quiz</strong><em>${st.quizDone} of ${st.quiz} done${fromAd ? ' · built from your ad' : ''}</em></span>${I.chev}</button>
@@ -1382,6 +1384,10 @@ function coreRestore(p) {
     fresh.aboutYou = { source, label: coreOkStr(p.aboutYou.label, 40) ? p.aboutYou.label : '', text: p.aboutYou.text.trim() };
   }
   if (p.generatedBy === 'subscription' || p.generatedBy === 'template') fresh.generatedBy = p.generatedBy;
+  if (globalThis.NextStepLive && Array.isArray(p.liveSessions)) {
+    const sessions = NextStepLive.cleanSessions(p.liveSessions);
+    if (sessions.length) fresh.liveSessions = sessions;
+  }
   if (coreOkStr(p.generateNote, 300) && String(p.generateNote).trim()) fresh.generateNote = String(p.generateNote).trim();
   if (m && Number.isInteger(m.index) && m.index >= 0 && m.index <= fresh.questions.length && Array.isArray(m.answers) && m.answers.length === m.index
     && m.answers.every((a, k) => a && typeof a.text === 'string' && a.text.length <= 60000 && a.question === fresh.questions[k])) {
