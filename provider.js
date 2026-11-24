@@ -136,10 +136,22 @@
     return { url, secret };
   }
 
-  function endpointFor(prefs, extraOrigins) {
+  function towerOrigin(prefs, extraOrigins) {
     const base = allowedTowerUrl(prefs && prefs.towerUrl, extraOrigins);
     if (!base) return '';
-    return base.endsWith('/generate') ? base : base + '/generate';
+    return base.replace(/\/generate$/, '');
+  }
+
+  function endpointFor(prefs, extraOrigins) {
+    const origin = towerOrigin(prefs, extraOrigins);
+    return origin ? origin + '/generate' : '';
+  }
+
+  function interviewUrl(prefs, path, extraOrigins) {
+    const origin = towerOrigin(prefs, extraOrigins);
+    if (!origin) return '';
+    if (path !== '/interview/turn' && path !== '/interview/debrief') return '';
+    return origin + path;
   }
 
   function requestBody(input) {
@@ -205,7 +217,53 @@
     }
   }
 
-  const api = { SLOTS, allowedTowerUrl, readSettings, publicPrefs, providerReady, splitTowerPaste, endpointFor, requestBody, requestCourse };
+  async function requestInterview(prefs, path, body, opts) {
+    opts = opts || {};
+    const extra = opts.extraOrigins;
+    if (!providerReady(prefs, extra)) return failure('unconfigured', false);
+    const endpoint = interviewUrl(prefs, path, extra);
+    if (!endpoint) return failure('forbidden', true);
+    const fetchImpl = opts.fetch || root.fetch;
+    if (typeof fetchImpl !== 'function') return failure('unreachable', true);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs || (path === '/interview/debrief' ? 70000 : 50000));
+    const onAbort = () => ctrl.abort();
+    if (opts.signal) {
+      if (opts.signal.aborted) ctrl.abort();
+      else opts.signal.addEventListener('abort', onAbort);
+    }
+    try {
+      const res = await fetchImpl(endpoint, {
+        method: 'POST',
+        mode: 'cors',
+        credentials: 'omit',
+        cache: 'no-store',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + prefs.towerSecret },
+        body: JSON.stringify(body || {}),
+        signal: ctrl.signal
+      });
+      if (res.status === 401) return failure('unauthorized', true);
+      if (res.status === 413) return failure('large', true);
+      if (res.status === 429) return failure('limited', true);
+      let data = null;
+      try { data = await res.json(); } catch { data = null; }
+      if (!res.ok || !data || data.ok === false) return failure('invalid', true);
+      if (path === '/interview/debrief') {
+        if (!data.debrief) return failure('invalid', true);
+        return { ok: true, attempted: true, reason: '', message: '', debrief: data.debrief };
+      }
+      if (!data.turn) return failure('invalid', true);
+      return { ok: true, attempted: true, reason: '', message: '', turn: data.turn };
+    } catch (err) {
+      if (err && err.name === 'AbortError') return failure(opts.signal && opts.signal.aborted ? 'cancelled' : 'timeout', true);
+      return failure('unreachable', true);
+    } finally {
+      clearTimeout(timer);
+      if (opts.signal) opts.signal.removeEventListener('abort', onAbort);
+    }
+  }
+
+  const api = { SLOTS, allowedTowerUrl, readSettings, publicPrefs, providerReady, splitTowerPaste, endpointFor, interviewUrl, requestBody, requestCourse, requestInterview };
   root.NextStepProvider = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

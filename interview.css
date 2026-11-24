@@ -38,6 +38,15 @@
 .iv-note { font-size: 13px; color: var(--muted); margin-top: 4px; }
 
 .iv-q { margin-top: 10px; }
+.live-say { font-size: clamp(28px, 8vw, 40px); line-height: 1.25; margin: 8px 0 20px; }
+.live-you { font-size: 18px; line-height: 1.45; min-height: 3.2em; margin: 8px 0 12px; }
+.live-status { color: var(--amber); font-size: 15px; margin: 0 0 8px; }
+.live-screen.is-listening .live-status { color: var(--ink); }
+.live-talk { margin-bottom: 10px; }
+.live-card { margin-top: 12px; }
+.live-card h2 { font-size: 18px; line-height: 1.35; margin: 6px 0 10px; }
+.live-card p { margin: 8px 0 0; }
+.live-overall { font-size: 18px; line-height: 1.45; margin: 12px 0 8px; }
 .iv-focus:focus { outline: none; }
 .iv-ad { color: #FFDCC2; }
 .iv-calm { display: flex; align-items: baseline; gap: 8px; font-size: 14px; line-height: 1.45; color: var(--soft); margin-top: 16px; }

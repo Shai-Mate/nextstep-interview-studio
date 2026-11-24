@@ -10,6 +10,12 @@ This folder is part of the NextStep repo. Run it from a clone. It uses Node's ow
 
 `POST https://<machine>.<tailnet>.ts.net/generate`
 
+`POST https://<machine>.<tailnet>.ts.net/interview/turn`
+
+`POST https://<machine>.<tailnet>.ts.net/interview/debrief`
+
+A practice interview uses the same secret and the same Codex flags. A turn times out after 40 seconds so the next question stays quick. The body cap for those two routes is 80,000 bytes. They share the 8 requests a minute limit with `/generate`.
+
 Header: `Authorization: Bearer <the secret>`
 
 The browser origin must be `https://shai-mate.github.io`. Any other origin is refused.
