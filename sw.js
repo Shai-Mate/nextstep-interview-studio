@@ -1,34 +1,35 @@
 'use strict';
 // Any change to a shipped file needs a new version here and in every ?v= (installed phones keep cached files until then).
 // The suffix after -v must equal the ?v= on app.js in index.html, or the install refuses.
-const CACHE = 'nextstep-phone-v12';
+const CACHE = 'nextstep-phone-v13';
 // Not precached on purpose: share-card.png (only read by link-preview scrapers) and nextstep_icon_1024.png
 // (only read from the manifest when the app is installed, which needs a connection anyway).
 const ASSETS = [
   './index.html',
   './privacy.html',
-  './styles.css?v=12',
-  './flow.css?v=12',
-  './interview.css?v=12',
-  './launch.css?v=12',
-  './config.js?v=12',
-  './engine.js?v=12',
-  './course.js?v=12',
-  './provider.js?v=12',
-  './pdftext.js?v=12',
-  './coach.js?v=12',
-  './orb.js?v=12',
-  './orb-2d.js?v=12',
-  './app.js?v=12',
-  './flow.js?v=12',
-  './interview.js?v=12',
-  './pwa.js?v=12',
-  './manifest.webmanifest?v=12',
-  './nextstep_icon.svg?v=12',
-  './favicon.png?v=12',
-  './icon-192.png?v=12',
-  './icon-512.png?v=12',
-  './apple-touch-icon.png?v=12',
+  './styles.css?v=13',
+  './flow.css?v=13',
+  './interview.css?v=13',
+  './launch.css?v=13',
+  './config.js?v=13',
+  './engine.js?v=13',
+  './course.js?v=13',
+  './provider.js?v=13',
+  './pdftext.js?v=13',
+  './coach.js?v=13',
+  './orb.js?v=13',
+  './orb-2d.js?v=13',
+  './app.js?v=13',
+  './flow.js?v=13',
+  './interview.js?v=13',
+  './update.js?v=13',
+  './pwa.js?v=13',
+  './manifest.webmanifest?v=13',
+  './nextstep_icon.svg?v=13',
+  './favicon.png?v=13',
+  './icon-192.png?v=13',
+  './icon-512.png?v=13',
+  './apple-touch-icon.png?v=13',
   './noise.png',
   './fonts/dm-sans-400.woff2',
   './fonts/dm-sans-500.woff2',
@@ -53,6 +54,9 @@ self.addEventListener('install', (event) => event.waitUntil(caches.has(CACHE).th
     .catch((err) => (had ? Promise.resolve() : caches.delete(CACHE)).then(() => { throw err; }))
 )));
 self.addEventListener('activate', (event) => event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith('nextstep-phone-') && key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim())));
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);

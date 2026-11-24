@@ -885,3 +885,6 @@ input::-webkit-calendar-picker-indicator { filter: invert(.85) sepia(.4) saturat
 .when-line svg { flex: none; color: var(--amber); }
 .when-line.soon { color: var(--amber); }
 .story-hint { margin: 0 0 10px; text-align: center; }
+.generic-banner { margin: 16px 0; box-shadow: inset 0 0 0 1.5px rgba(255, 196, 138, .7); }
+.generic-banner p { margin: 8px 0 0; }
+.generic-banner .primary { margin-top: 14px; }

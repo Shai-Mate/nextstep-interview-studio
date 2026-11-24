@@ -77,6 +77,65 @@
     return !!(allowedTowerUrl(settings.towerUrl, extraOrigins) && prefs && prefs.towerSecret);
   }
 
+  function stripGenerate(url) {
+    return String(url || '').replace(/\/generate$/, '');
+  }
+
+  /* One paste can hold both lines from the tower note: the https address and the secret, in either order.
+     Labels such as "Secret:" or NEXTSTEP_TOWER_SECRET= are accepted. Other env lines are ignored. */
+  function splitTowerPaste(text, extraOrigins) {
+    const raw = String(text || '').replace(/\u0000/g, '').replace(/^\uFEFF/, '').trim();
+    if (!raw) return { url: '', secret: '' };
+    const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    let url = '';
+    let secret = '';
+    const leftovers = [];
+    const takeUrl = (value) => {
+      const allowed = allowedTowerUrl(String(value || '').replace(/^['"]|['"]$/g, '').replace(/[),.;]+$/, ''), extraOrigins);
+      if (!allowed || url) return false;
+      url = stripGenerate(allowed);
+      return true;
+    };
+    for (const line of lines) {
+      const labeled = line.match(/^(?:export\s+)?([A-Za-z][A-Za-z0-9_]*)\s*[:=]\s*(.*)$/);
+      if (labeled) {
+        const key = labeled[1].toLowerCase();
+        const value = labeled[2].trim().replace(/^['"]|['"]$/g, '');
+        if (/secret|token|password/.test(key)) {
+          if (value && !secret) secret = value;
+          continue;
+        }
+        if (/url|address|host|tower|endpoint/.test(key)) {
+          takeUrl(value);
+          continue;
+        }
+        if (labeled[1] === labeled[1].toUpperCase()) continue;
+      }
+      if (takeUrl(line)) continue;
+      const bits = line.split(/\s+/);
+      const rest = [];
+      let foundUrl = false;
+      for (const bit of bits) {
+        if (takeUrl(bit)) foundUrl = true;
+        else rest.push(bit);
+      }
+      if (foundUrl) {
+        if (!secret && rest.length === 1) secret = rest[0].replace(/^['"]|['"]$/g, '');
+        continue;
+      }
+      leftovers.push(line.replace(/^['"]|['"]$/g, ''));
+    }
+    if (!secret) {
+      const plain = leftovers.filter((line) => line && !/^https?:/i.test(line));
+      if (plain.length === 1) secret = plain[0];
+      else {
+        const token = plain.find((line) => !/\s/.test(line) && line.length >= 8);
+        if (token) secret = token;
+      }
+    }
+    return { url, secret };
+  }
+
   function endpointFor(prefs, extraOrigins) {
     const base = allowedTowerUrl(prefs && prefs.towerUrl, extraOrigins);
     if (!base) return '';
@@ -146,7 +205,7 @@
     }
   }
 
-  const api = { SLOTS, allowedTowerUrl, readSettings, publicPrefs, providerReady, endpointFor, requestBody, requestCourse };
+  const api = { SLOTS, allowedTowerUrl, readSettings, publicPrefs, providerReady, splitTowerPaste, endpointFor, requestBody, requestCourse };
   root.NextStepProvider = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -13,8 +13,45 @@
   const say = (text) => { if (offlineStatus) offlineStatus.textContent = text; };
 
   if ('serviceWorker' in navigator && window.isSecureContext) {
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    let reloadCount = 0;
+    try { reloadCount = Number(sessionStorage.getItem('nextstep.reload') || 0) || 0; } catch { /* private mode */ }
+    const plan = (event) => (window.NextStepUpdate ? NextStepUpdate.decide({ hadController, event, alreadyReloading: reloading, reloadCount }) : { skipWaiting: false, reload: false });
+    const activate = (worker, event) => {
+      const decision = plan(event);
+      if (decision.skipWaiting && worker) worker.postMessage({ type: 'SKIP_WAITING' });
+      if (decision.reload) {
+        reloading = true;
+        try { sessionStorage.setItem('nextstep.reload', '1'); } catch { /* still reload */ }
+        window.location.reload();
+      }
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', () => activate(null, 'controllerchange'));
+    const watch = (worker) => {
+      if (!worker) return;
+      worker.addEventListener('statechange', () => {
+        if (worker.state === 'installed') activate(worker, 'installed');
+      });
+    };
     navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' })
-      .then(() => navigator.serviceWorker.ready)
+      .then((registration) => {
+        watch(registration.installing);
+        watch(registration.waiting);
+        if (registration.waiting) activate(registration.waiting, 'waiting');
+        registration.addEventListener('updatefound', () => watch(registration.installing));
+        const check = (reason) => {
+          if (!window.NextStepUpdate || !NextStepUpdate.shouldCheck(reason)) return;
+          registration.update().catch(() => { /* offline, or the browser is already checking */ });
+        };
+        check('open');
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') check('visible');
+        });
+        window.addEventListener('pageshow', () => check('open'));
+        setTimeout(() => { try { sessionStorage.removeItem('nextstep.reload'); } catch { /* ignore */ } }, 15000);
+        return navigator.serviceWorker.ready;
+      })
       .then(() => say('Ready to work offline. Your answers stay on this phone'))
       .catch(() => say('Offline setup is not available here, but your work still saves on this device.'));
   } else say('Online only here · open the https link in Safari or Chrome to install');

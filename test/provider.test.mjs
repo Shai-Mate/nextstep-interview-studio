@@ -20,6 +20,21 @@ test('only a Tailscale https address, or an origin this copy allows, can be the 
   assert.equal(provider.allowedTowerUrl('https://nextstep.example.com', ['https://nextstep.example.com']), 'https://nextstep.example.com');
 });
 
+test('a pasted tower note splits into the address and the secret', () => {
+  const url = 'https://omarchy.tailnet.ts.net';
+  const secret = 'a1b2c3d4e5f6789012345678abcdef90';
+  assert.deepEqual(provider.splitTowerPaste(url + '\n' + secret), { url, secret });
+  assert.deepEqual(provider.splitTowerPaste(secret + '\r\n' + url + '\n'), { url, secret });
+  assert.deepEqual(provider.splitTowerPaste('Address: ' + url + '\nSecret: ' + secret), { url, secret });
+  assert.deepEqual(provider.splitTowerPaste(url + '\nNEXTSTEP_TOWER_SECRET=' + secret + '\nHOST=127.0.0.1\nPORT=8787'), { url, secret });
+  assert.deepEqual(provider.splitTowerPaste(url + '/generate ' + secret), { url, secret });
+  assert.deepEqual(provider.splitTowerPaste('not a tower note\nstill not one'), { url: '', secret: '' });
+  assert.equal(provider.splitTowerPaste('').url, '');
+  const only = provider.splitTowerPaste('NEXTSTEP_TOWER_SECRET=' + secret);
+  assert.equal(only.secret, secret);
+  assert.equal(only.url, '');
+});
+
 test('the secret stays out of prefs that can be exported, and out of the generate body', () => {
   const prefs = { provider: 'subscription', towerUrl: 'https://omarchy.tailnet.ts.net', towerSecret: 'super-secret-value', readAloud: true, aboutYou: { source: 'resume', label: 'résumé', text: 'I was a barista at Harbour Cafe for three years and I trained two hires.' } };
   const pub = provider.publicPrefs(prefs);
