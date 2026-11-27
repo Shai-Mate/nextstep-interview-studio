@@ -14,16 +14,22 @@
     unconfigured: '',
     later: '',
     cancelled: '',
-    timeout: 'The personal course took too long, so these are the general lessons.',
-    unreachable: 'The personal course could not be reached, so these are the general lessons.',
-    unauthorized: 'The tower did not accept the secret in Settings, so these are the general lessons.',
-    large: 'The ad and your background were too long to send, so these are the general lessons.',
-    limited: 'The tower is busy, so these are the general lessons.',
-    invalid: 'The personal course did not come back in a usable shape, so these are the general lessons.',
-    forbidden: 'That tower address is not allowed, so these are the general lessons.',
-    // Only the owner sees these: only the owner has a tower set up.
-    login: 'Codex on your tower needs signing in again. On the tower, run codex login. These are the general lessons for now.',
-    codex: 'The tower could not write the course this time, so these are the general lessons.'
+    /* Shown on the writing screen above Try again and Use general lessons, so they say only what went
+       wrong. Only the owner sees them: only the owner has a tower set up. */
+    timeout: 'The personal course took too long.',
+    unreachable: 'The tower could not be reached.',
+    offline: "You're offline. Try again when you have a connection, or use the general lessons now.",
+    unauthorized: 'The tower did not accept the secret in Settings.',
+    large: 'The ad and your background are too long to send.',
+    limited: 'The tower is busy right now.',
+    invalid: 'The personal course did not come back in a usable shape.',
+    forbidden: 'That tower address is not allowed.',
+    login: 'Codex on your tower needs signing in again. On the tower, run codex login, then try again.',
+    codex: 'The tower could not write the course this time.'
+  };
+  const offline = (opts) => {
+    const nav = opts && opts.navigator !== undefined ? opts.navigator : root.navigator;
+    return !!nav && nav.onLine === false;
   };
   // Reasons the tower itself names in a failed reply; anything else is treated as "invalid".
   const TOWER_REASONS = ['login', 'codex', 'timeout'];
@@ -188,6 +194,7 @@
     }
     const endpoint = endpointFor(prefs, extra);
     if (!endpoint) return failure('forbidden', true);
+    if (offline(opts)) return failure('offline', true);
     const fetchImpl = opts.fetch || root.fetch;
     if (typeof fetchImpl !== 'function') return failure('unreachable', true);
     const ctrl = new AbortController();
@@ -210,6 +217,7 @@
       if (res.status === 401) return failure('unauthorized', true);
       if (res.status === 413) return failure('large', true);
       if (res.status === 429) return failure('limited', true);
+      if (res.status === 504) return failure('timeout', true);
       let data = null;
       try { data = await res.json(); } catch { data = null; }
       if (!res.ok && towerReason(data)) return failure(towerReason(data), true);

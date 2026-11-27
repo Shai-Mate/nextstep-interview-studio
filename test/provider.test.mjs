@@ -77,7 +77,7 @@ test('an unconfigured phone does not call the network, and a tower call sends th
   });
   assert.equal(denied.attempted, true);
   assert.equal(denied.reason, 'unauthorized');
-  assert.match(denied.message, /general lessons/);
+  assert.equal(denied.message, 'The tower did not accept the secret in Settings.');
 });
 
 test('the tower naming a lapsed Codex login, or a Codex failure, reaches the owner in plain words', async () => {
@@ -85,9 +85,9 @@ test('the tower naming a lapsed Codex login, or a Codex failure, reaches the own
   const replying = (status, body) => ({ fetch: async () => ({ ok: false, status, json: async () => body }) });
   const input = { job: 'Greet customers and handle cash accurately on the shop floor each day.', aboutYou: { text: 'I was a barista at Harbour Cafe for three years.' } };
   const login = await provider.requestCourse(prefs, input, replying(502, { ok: false, reason: 'login' }));
-  assert.deepEqual([login.reason, login.message], ['login', 'Codex on your tower needs signing in again. On the tower, run codex login. These are the general lessons for now.']);
+  assert.deepEqual([login.reason, login.message], ['login', 'Codex on your tower needs signing in again. On the tower, run codex login, then try again.']);
   const codex = await provider.requestCourse(prefs, input, replying(502, { ok: false, reason: 'codex' }));
-  assert.deepEqual([codex.reason, codex.message], ['codex', 'The tower could not write the course this time, so these are the general lessons.']);
+  assert.deepEqual([codex.reason, codex.message], ['codex', 'The tower could not write the course this time.']);
   const slow = await provider.requestCourse(prefs, input, replying(504, { ok: false, reason: 'timeout' }));
   assert.equal(slow.reason, 'timeout');
   const odd = await provider.requestCourse(prefs, input, replying(502, { ok: false, reason: 'something-new' }));
@@ -97,4 +97,17 @@ test('the tower naming a lapsed Codex login, or a Codex failure, reaches the own
     assert.equal(res.reason, 'login', path);
   }
   for (const msg of [login.message, codex.message]) assert.equal(msg.includes('\u2014'), false);
+});
+
+test('a tower 504 is a timeout, and an offline phone does not try the tower at all', async () => {
+  const prefs = { provider: 'subscription', towerUrl: 'https://omarchy.tailnet.ts.net/', towerSecret: 'super-secret-value' };
+  const input = { job: 'Greet customers and handle cash accurately on the shop floor each day.', aboutYou: { text: 'I was a barista at Harbour Cafe for three years.' } };
+  const bare = await provider.requestCourse(prefs, input, { fetch: async () => ({ ok: false, status: 504, json: async () => { throw Error('no body'); } }) });
+  assert.deepEqual([bare.reason, bare.message], ['timeout', 'The personal course took too long.']);
+  let called = 0;
+  const off = await provider.requestCourse(prefs, input, { navigator: { onLine: false }, fetch: async () => { called += 1; throw Error('no network'); } });
+  assert.equal(called, 0);
+  assert.deepEqual([off.reason, off.attempted, off.message], ['offline', true, "You're offline. Try again when you have a connection, or use the general lessons now."]);
+  const on = await provider.requestCourse(prefs, input, { navigator: { onLine: true }, fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true, course: { requirements: ['a'] } }) }) });
+  assert.equal(on.ok, true);
 });
