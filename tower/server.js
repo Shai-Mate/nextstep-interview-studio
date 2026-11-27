@@ -11,7 +11,9 @@ const { runCodex } = require('./codex.js');
 
 const ALLOWED_ORIGIN = 'https://shai-mate.github.io';
 const MAX_BODY = 200000;
+// Courses are slow and rare; an interview takes a turn every answer, so it gets its own, larger limit.
 const MAX_PER_MINUTE = 8;
+const INTERVIEW_PER_MINUTE = 20;
 
 function isTailscaleIPv4(host) {
   if (isIP(host) !== 4) return false;
@@ -87,6 +89,7 @@ function createTowerServer(options) {
   const secret = String(opts.secret || '');
   const allowed = opts.allowedOrigin || ALLOWED_ORIGIN;
   const hits = opts.hits || [];
+  const interviewHits = opts.interviewHits || [];
   const log = typeof opts.log === 'function' ? opts.log : () => {};
   const run = opts.runCodex || runCodex;
   // The last Codex result, in memory only: enough for /health to tell a lapsed login from a timeout.
@@ -136,8 +139,10 @@ function createTowerServer(options) {
       return send(401, { ok: false, reason: 'unauthorized' });
     }
     const now = Date.now();
-    while (hits.length && now - hits[0] > 60000) hits.shift();
-    if (hits.length >= (opts.maxPerMinute || MAX_PER_MINUTE)) {
+    const recent = interviewPath ? interviewHits : hits;
+    const limit = interviewPath ? (opts.interviewMaxPerMinute || INTERVIEW_PER_MINUTE) : (opts.maxPerMinute || MAX_PER_MINUTE);
+    while (recent.length && now - recent[0] > 60000) recent.shift();
+    if (recent.length >= limit) {
       if (typeof req.resume === 'function') req.resume();
       return send(429, { ok: false, reason: 'limited' });
     }
@@ -151,7 +156,7 @@ function createTowerServer(options) {
     if (interviewPath) {
       const ad = String(data.ad || '').trim();
       if (ad.length < 40) return send(400, { ok: false, reason: 'short' });
-      hits.push(now);
+      interviewHits.push(now);
       const prompt = url.pathname === '/interview/debrief' ? live.buildDebriefPrompt(data) : live.buildTurnPrompt(data);
       const schema = url.pathname === '/interview/debrief' ? live.debriefSchema : live.turnSchema;
       try {
@@ -241,6 +246,6 @@ function main() {
   });
 }
 
-module.exports = { createTowerServer, resolveBind, parseTailscaleIp, isTailscaleIPv4, ALLOWED_ORIGIN, MAX_BODY };
+module.exports = { createTowerServer, resolveBind, parseTailscaleIp, isTailscaleIPv4, ALLOWED_ORIGIN, MAX_BODY, MAX_PER_MINUTE, INTERVIEW_PER_MINUTE };
 
 if (require.main === module) main();

@@ -282,3 +282,27 @@ test('the login check reads only Codex sign-in errors, never the echoed ad', () 
   assert.equal(failureCode('user\n' + prompt + '\nERROR: model overloaded', prompt), 'codex');
   for (const s of ['', 'model overloaded', 'HTTP 429 too many requests', 'exit 4010', 'Please log in to the staff portal']) assert.equal(failureCode(s), 'codex', s);
 });
+
+test('the interview has its own limit of 20 a minute, and courses keep 8', async () => {
+  const { MAX_PER_MINUTE, INTERVIEW_PER_MINUTE } = require('../tower/server.js');
+  assert.deepEqual([MAX_PER_MINUTE, INTERVIEW_PER_MINUTE], [8, 20]);
+  const tmpRoot = mkdtempSync(join(tmpdir(), 'nextstep-tower-'));
+  const codex = makeSpawn(null, 1, 'ERROR: model overloaded');
+  const app = await listen({ spawn: codex.spawn, tmpRoot, timeoutMs: 2000, interviewTimeoutMs: 2000 });
+  try {
+    for (let i = 0; i < 8; i += 1) assert.equal((await app.call({ path: '/generate' })).status, 502, 'course ' + (i + 1));
+    const ninth = await app.call({ path: '/generate' });
+    assert.deepEqual([ninth.status, ninth.json.reason], [429, 'limited']);
+    // Spent courses do not hold up the interview.
+    const paths = ['/interview/turn', '/interview/debrief'];
+    for (let i = 0; i < 20; i += 1) assert.equal((await app.call({ path: paths[i % 2] })).status, 502, 'interview ' + (i + 1));
+    for (const path of paths) {
+      const over = await app.call({ path });
+      assert.deepEqual([over.status, over.json.reason], [429, 'limited'], path);
+    }
+    assert.equal(codex.state.calls, 28, 'Codex ran only inside the limits');
+  } finally {
+    await app.close();
+    rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
