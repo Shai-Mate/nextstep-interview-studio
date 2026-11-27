@@ -429,6 +429,8 @@ pre { white-space: pre-wrap; word-break: break-word; font: inherit; font-size: 1
 .result.ok { color: var(--green); }
 .privacy-block { padding: 16px 0; box-shadow: inset 0 -1px 0 var(--line); }
 .privacy-block:last-of-type { box-shadow: none; }
+.privacy-group { font-size: 17px; letter-spacing: -.02em; margin-top: 28px; }
+.privacy-group + .lede { margin-top: 6px; color: var(--muted); }
 .privacy-block strong { display: block; font-size: 16px; font-weight: 600; letter-spacing: -.015em; }
 .privacy-block span { display: block; font-size: 14px; color: var(--muted); line-height: 1.45; margin-top: 4px; }
 .file { margin: 8px 0 16px; }
@@ -732,6 +734,10 @@ details.block p.source { margin: 12px 0 0 36px; font-size: 13px; color: var(--mu
 .about { margin-top: 24px; padding-top: 16px; box-shadow: inset 0 1px 0 var(--line); text-align: center; }
 .feedback-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; color: var(--amber); font-size: 15px; font-weight: 600; text-decoration: none; }
 .feedback-link:hover { text-decoration: underline; }
+button.feedback-link, button.iv-link { background: none; border: 0; font-family: inherit; cursor: pointer; }
+.feedback-sheet textarea { min-height: 120px; }
+.feedback-sheet .feedback-status { color: var(--ink); }
+.feedback-sheet .feedback-status:empty { display: none; }
 .about .hint { margin-top: 0; }
 .credit { margin-top: 16px; font-size: 13px; color: var(--muted); letter-spacing: .02em; }
 .glass.button strong { color: var(--ink); }

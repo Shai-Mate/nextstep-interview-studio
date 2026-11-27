@@ -654,6 +654,7 @@
       <p class="live-status" role="status">${esc(status)}${liveMicNote ? '. ' + esc(liveMicNote) : ''}</p>
       ${liveTyped ? `<label class="field" for="live-type">Type your answer</label><textarea id="live-type" class="compact" maxlength="4000"></textarea>` : '<button type="button" class="text-btn" data-action="live-type">Type instead</button>'}
       <div class="spacer"></div>
+      <p class="fine">Tap to talk may send your voice to Apple or Google to turn it into text. Type instead keeps it on this phone.</p>
       <button type="button" class="primary live-talk" data-action="live-talk" ${liveBusy || session.paused ? 'disabled' : ''}>${liveListening ? 'Listening' : 'Tap to talk'}</button>
       <button type="button" class="primary" data-action="live-done" ${liveBusy || session.paused ? 'disabled' : ''}>I am done answering</button>
     </div>`;

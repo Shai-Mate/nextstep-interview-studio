@@ -25,6 +25,7 @@ const ASSETS = [
   './live.js?v=15',
   './update.js?v=15',
   './pwa.js?v=15',
+  './feedback.js?v=15',
   './manifest.webmanifest?v=15',
   './nextstep_icon.svg?v=15',
   './favicon.png?v=15',

@@ -702,13 +702,9 @@ function coreProviderReady() {
   try { return !!(globalThis.NextStepProvider && NextStepProvider.providerReady(corePrefs())); }
   catch { return false; }
 }
-function coreSetupSkipped() {
-  try { return sessionStorage.getItem('nextstep.setupSkipped') === '1'; }
-  catch { return false; }
-}
 function coreGenericBanner() {
   if (!active || active.generatedBy === 'subscription') return '';
-  return `<section class="glass pad-sm generic-banner" role="status"><p class="kicker">Generic lessons</p><p>These lessons are the same for everyone. They do not use your real experience.</p><button type="button" class="primary" data-action="connect-ai"><span>Connect AI</span></button></section>`;
+  return `<section class="glass pad-sm generic-banner"><p class="kicker">Generic lessons</p><p>Built from this ad, the same for everyone who uses this ad.</p><button type="button" class="text-btn" data-action="connect-ai">Personal course (owner only)</button></section>`;
 }
 function coreAppVersion() {
   return globalThis.NextStepUpdate && NextStepUpdate.version ? NextStepUpdate.version : '';
@@ -1184,28 +1180,35 @@ const screens = {
       <h1>Private by design</h1>
       <p class="italic lg">Your words stay yours.</p>
       <div class="stack">
-        <div class="privacy-block"><strong>Answers stay on this phone</strong><span>Notes and practice answers stay in this browser. They are not uploaded, even when a personal course is written. People who can open this browser profile can read them.</span></div>
-        <div class="privacy-block"><strong>A job link is read for you</strong><span>When you paste a job link, that link and the text of the public page are sent to our server so the plan can be built. We do not keep them after the request. If the page cannot be read, you paste the ad instead, and that text stays on this phone until you choose a personal course.</span></div>
-        <div class="privacy-block"><strong>A personal course sends the ad and About you</strong><span>If you choose My subscription and tap Write my course, the job ad and the About you text go to the tower address saved on this phone. That request is not kept. The shared secret stays on this phone and is not in an exported backup. If you skip, or the tower is not set up, or the course does not come back clean, the lessons are built on this phone and About you is not sent.</span></div>
-        <div class="privacy-block"><strong>No account. No trackers.</strong><span>Nothing to sign up for, and no analytics. Preparations do not sync between devices. The practice grade is worked out on this phone. It is not a hiring verdict.</span></div>
-        <div class="privacy-block"><strong>Free</strong><span>No trial, no upgrade, no ads. The general lessons and the practice grade run on this phone. A personal course uses Codex on a tower you run yourself.</span></div>
+        <div class="privacy-block"><strong>Answers stay on this phone</strong><span>Notes and practice answers stay in this browser. They are not uploaded. People who can open this browser can read them.</span></div>
+        <div class="privacy-block"><strong>A job link is read for you</strong><span>When you paste a job link, that link and the text of the public page are sent to our server so the plan can be built. We do not keep them after the request. If the page cannot be read, you paste the ad instead, and that text stays on this phone.</span></div>
+        <div class="privacy-block"><strong>No account. No trackers.</strong><span>Nothing to sign up for, and no analytics. Preparations do not sync between phones. The lessons and the practice grade are worked out on this phone. The grade is not a hiring verdict.</span></div>
+        <div class="privacy-block"><strong>The practice interview</strong><span>Without a personal course, the questions come from the ad and the text of the session is kept on this phone. The audio is not saved. Tap to talk uses your phone's speech recognition, which may send the audio to Apple or Google to turn it into text. Type instead keeps everything on this phone.</span></div>
+        <div class="privacy-block"><strong>Free</strong><span>No trial, no upgrade, no ads.</span></div>
+        <div class="privacy-block"><strong>Feedback</strong><span>Sending feedback is not switched on yet. A note you write is saved on this phone and goes nowhere. Delete all data removes it, and it is not in an exported backup.</span></div>
+      </div>
+      <h2 class="privacy-group">Owner-only features</h2>
+      <p class="lede">These need a private server set up by the app's owner.</p>
+      <div class="stack">
+        <div class="privacy-block"><strong>A personal course sends the ad and About you</strong><span>About you is sent when a personal course is written: when you tap Write my course, or when you start a new preparation with About you already saved. The job ad and the About you text go to the server address saved on this phone. That request is not kept. The shared secret stays on this phone and is not in an exported backup.</span></div>
+        <div class="privacy-block"><strong>A live practice interview</strong><span>With a personal course connected, what you say or type in the practice interview goes to that server for each turn. It is not kept there. The audio is not saved.</span></div>
       </div>
       <details class="fold"><summary>Also good to know</summary>
         <p class="prose">Clearing site data, private browsing, or changing browsers can lose your work. Export a backup and keep it private. An exported file contains personal answers. The shareable app package contains none.
 
-The hosting provider receives normal requests for the app files. A job link also goes to the page reader, which does not receive your answers. About you is sent only when you write a personal course, and only to the tower saved on this phone. Imports append as separate copies and never overwrite existing preparations. Only import a backup you trust.</p>
+The hosting provider receives normal requests for the app files. A job link also goes to the page reader, which does not receive your answers. About you is sent only when the owner writes a personal course, and only to the server saved on this phone. Imports append as separate copies and never overwrite existing preparations. Only import a backup you trust.</p>
       </details>
       <div class="spacer"></div>
-      <button type="button" class="glass button" data-action="open-settings"><span class="copy"><strong>Personal course</strong><span>My subscription, on your tower</span></span>${I.chev}</button>
+      <button type="button" class="glass button" data-action="open-settings"><span class="copy"><strong>Personal course (owner only)</strong><span>Needs a private server set up by the app's owner</span></span>${I.chev}</button>
       ${rawSaved !== null ? `<button type="button" class="glass button" id="raw-export"><span class="copy"><strong>Download saved data as-is</strong><span>Your saved preparations, exactly as this browser kept them</span></span></button>` : ''}
-      <button type="button" class="glass button" id="export-one"><span class="copy"><strong>Export backup</strong><span>${active ? 'This preparation' : 'Every preparation on this device'}</span></span></button>
+      <button type="button" class="glass button" id="export-one"><span class="copy"><strong>Export backup</strong><span>${active ? 'This preparation' : 'Every preparation on this phone'}</span></span></button>
       <button type="button" class="text-btn" id="all-export">Export all preparations</button>
       <label class="field" for="import">Restore a backup</label>
       <input class="file" id="import" type="file" accept="application/json,.json">
       <button type="button" class="text-btn danger" id="delete-all">Delete all data</button>
       <div class="about">
-        <a class="feedback-link" href="https://github.com/Shai-Mate/nextstep-interview-studio/issues/new" target="_blank" rel="noopener noreferrer">Send feedback</a>
-        <p class="hint">GitHub issues are public, so don't paste private answers.</p>
+        <button type="button" class="feedback-link" data-feedback="privacy">Send feedback</button>
+        <p class="hint">Sending isn't switched on yet. Your note is saved on this phone.</p>
         <p class="credit">Made by Prism</p>
       </div>
       <p class="version">Phone app v${esc(coreAppVersion() || '13')} · storage schema v1</p>
@@ -1217,9 +1220,10 @@ The hosting provider receives normal requests for the app files. A job link also
     const slots = globalThis.NextStepProvider ? NextStepProvider.SLOTS : [];
     const chosen = settings.provider || 'none';
     return `<form class="screen" id="settings-form" data-screen="settings">
-      <div class="topbar">${iconBtn('settings-back', 'Back', I.back)}<span class="label">Personal course</span></div>
+      <div class="topbar">${iconBtn('settings-back', 'Back', I.back)}<span class="label">Personal course (owner only)</span></div>
       <h1>How lessons get written</h1>
       <p class="italic lg">On this phone, unless you say so.</p>
+      <p class="sub">The personal course needs a private server set up by the app's owner. Without it, Next Step builds general lessons from the job ad.</p>
       <div class="groups">${slots.map((slot) => `<label class="choice settings-choice${slot.available ? '' : ' coming'}"><input type="radio" name="provider" value="${esc(slot.id)}" ${slot.id === chosen ? 'checked' : ''} ${slot.available ? '' : 'disabled'}><span><b>${esc(slot.label)}</b><small>${esc(slot.detail)}</small></span></label>`).join('')}</div>
       <label class="field" for="tower-url">Tower address</label>
       <input id="tower-url" name="towerUrl" type="url" inputmode="url" autocomplete="off" maxlength="200" placeholder="https://machine.tailnet.ts.net" value="${esc(settings.towerUrl || '')}">
@@ -1234,10 +1238,10 @@ The hosting provider receives normal requests for the app files. A job link also
   connect() {
     const back = connectReturn && connectReturn !== 'connect';
     return `<form class="screen" id="connect-form" data-screen="connect">
-      <div class="topbar">${back ? iconBtn('connect-back', 'Back', I.back) : ''}<span class="label">Make it yours</span></div>
-      <h1 class="flow-focus" tabindex="-1">Make it yours</h1>
-      <p class="italic lg">Lessons for you, not a script.</p>
-      <p class="sub">Connect My subscription and the course is written from the job ad and what you share about yourself. The address and the secret stay on this phone.</p>
+      <div class="topbar">${back ? iconBtn('connect-back', 'Back', I.back) : ''}<span class="label">Owner only</span></div>
+      <h1 class="flow-focus" tabindex="-1">Personal course</h1>
+      <p class="italic lg">For the app's owner.</p>
+      <p class="sub">This needs a private server set up by the app's owner. With it, the course is written from the job ad and what you share about yourself. The address and the secret stay on this phone.</p>
       <label class="field" for="tower-paste">Paste both lines</label>
       <textarea class="compact" id="tower-paste" maxlength="500" placeholder="The address on one line, the secret on the other"></textarea>
       <p class="hint" id="tower-paste-status">From the note on your tower. Either line can come first.</p>
@@ -1247,7 +1251,7 @@ The hosting provider receives normal requests for the app files. A job link also
       <input id="tower-secret" type="password" autocomplete="new-password" maxlength="200" placeholder="The secret from the tower">
       <div class="spacer"></div>
       <button class="primary" type="submit">Connect</button>
-      <button type="button" class="text-btn" id="connect-skip" data-action="connect-skip">Skip for now</button>
+      <button type="button" class="text-btn" id="connect-skip" data-action="connect-skip">Not now</button>
       <p class="version">Version ${esc(coreAppVersion())}</p>
     </form>`;
   }
@@ -1505,9 +1509,9 @@ function bindScreen() {
   if ($('#retry')) $('#retry').addEventListener('click', () => { active.quiz.answers = {}; save(); show('quiz'); });
   if ($('#delete-all')) $('#delete-all').addEventListener('click', () => {
     if (!storageOK && !storageBlocked) { notify('Your saved data could not be read, so it is left exactly as it was. Download it as-is above if you want a copy.', true); return; }
-    if (!confirm('Delete every preparation on this device? This cannot be undone. Export a backup first if you want to keep them.')) return;
+    if (!confirm('Delete every preparation on this phone? This cannot be undone. Export a backup first if you want to keep them.')) return;
     try {
-      if (!storageBlocked) { localStorage.removeItem(KEY); localStorage.removeItem(CORE_PREFS_KEY); }
+      if (!storageBlocked) { localStorage.removeItem(KEY); localStorage.removeItem(CORE_PREFS_KEY); globalThis.NextStepFeedback?.clear?.(); }
       /* interview.js keeps the read-aloud choice in memory too; switch it off for the rest of this visit. */
       try { if (typeof ivReadAloud === 'boolean') ivReadAloud = false; } catch { /* interview.js not loaded */ }
       records = [];
@@ -1542,7 +1546,6 @@ document.body.addEventListener('click', (e) => {
   }
   if (action === 'connect-back') { show(connectReturn || 'welcome'); return; }
   if (action === 'connect-skip') {
-    try { sessionStorage.setItem('nextstep.setupSkipped', '1'); } catch { /* still continue */ }
     show(connectReturn || 'welcome');
     return;
   }
@@ -1638,10 +1641,11 @@ function coreAfterConnect() {
   draft = draft || {};
   show('link');
 }
+/* Everyone opens on Welcome. The personal course is an owner-only feature (it needs the owner's private
+   server), so Connect is never the first screen. It stays reachable from On this device, then Personal
+   course, and from the Generic lessons card. */
 function coreOpeningView() {
-  if (coreProviderReady() || coreSetupSkipped()) return 'welcome';
-  connectReturn = '';
-  return 'connect';
+  return 'welcome';
 }
 binders.settings = () => {
   const form = $('#settings-form');
@@ -1656,7 +1660,7 @@ binders.settings = () => {
       prefs.provider = 'none';
       try { coreWritePrefs(prefs); }
       catch { notify('This phone could not save that.', true); return; }
-      notify('Saved on this phone. Lessons stay generic until you connect.');
+      notify('Saved on this phone. Lessons are built from the job ad.');
       show('privacy');
       return;
     }

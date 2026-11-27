@@ -53,6 +53,7 @@
 <script src="live.js?v=15" defer></script>
 <script src="update.js?v=15" defer></script>
 <script src="pwa.js?v=15" defer></script>
+<script src="feedback.js?v=15" defer></script>
 </head>
 <body>
 <canvas id="aurora" aria-hidden="true"></canvas>
@@ -124,5 +125,20 @@
 </div>
 <main id="app"></main>
 <noscript>This app needs JavaScript. Practice answers stay on your phone.</noscript>
+<div id="feedback" class="sheet-wrap" hidden>
+  <button type="button" class="sheet-backdrop" data-close-feedback aria-label="Close feedback"></button>
+  <form class="sheet feedback-sheet" id="feedback-form" role="dialog" aria-modal="true" aria-labelledby="feedback-title">
+    <h2 id="feedback-title">Send feedback</h2>
+    <p>What helped, what was confusing, or a job it didn't understand.</p>
+    <label class="field" for="feedback-text">Your note</label>
+    <textarea id="feedback-text" maxlength="2000" required></textarea>
+    <label class="field" for="feedback-contact">How to reach you, optional</label>
+    <input id="feedback-contact" type="text" maxlength="200" autocomplete="email">
+    <p class="fine">When sending is switched on, this sends your note, how to reach you if you add it, the app version and the screen you were on. Leave a way to reach you only if you want a reply. Don't put private answers in it.</p>
+    <p class="feedback-status" id="feedback-status" role="status" aria-live="polite"></p>
+    <button type="submit" class="primary">Send</button>
+    <button type="button" class="text-btn" data-close-feedback>Close</button>
+  </form>
+</div>
 </body>
 </html>
