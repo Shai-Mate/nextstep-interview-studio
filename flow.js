@@ -958,20 +958,27 @@ async function flowBuild(sampleId) {
     prep.generatedBy = 'template';
     if (!prep.generateNote) prep.generateNote = note || 'The personal course could not be built, so these are the general lessons.';
   }
-  if (replaceId) {
-    const at = records.findIndex((item) => item && item.id === replaceId);
-    if (at >= 0) {
-      const old = records[at];
-      prep.id = old.id;
-      if (old.created) prep.created = old.created;
-      if (old.interviewAt && !prep.interviewAt) prep.interviewAt = old.interviewAt;
-      if (old.dailyMinutes) prep.dailyMinutes = old.dailyMinutes;
-      records.splice(at, 1);
+  /* Rewriting an existing preparation swaps it only when the personal course came back, and keeps the
+     person's lessons, notes, quiz, mock and live interviews (NextStepCourse.replaceWith). On any other
+     result the old preparation stays exactly as it was and the reason is shown. */
+  if (replaceId && records.some((item) => item && item.id === replaceId)) {
+    const swap = NextStepCourse.replaceWith(records, replaceId, prep);
+    if (!swap.swapped) {
+      active = swap.active;
+      draft = null;
+      flowAboutNote = '';
+      flowBusy = false;
+      show('today');
+      notify(note || prep.generateNote || 'The personal course could not be built. Your preparation is unchanged.');
+      return;
     }
+    records.splice(0, records.length, ...swap.records);
+    active = swap.active;
+  } else {
+    active = prep;
+    records.unshift(active);
   }
-  active = prep;
   if (mark) active.sample = mark;
-  records.unshift(active);
   persist();
   draft = null;
   flowAboutNote = '';

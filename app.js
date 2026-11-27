@@ -1396,6 +1396,12 @@ function coreRestore(p) {
     if (sessions.length) fresh.liveSessions = sessions;
   }
   if (coreOkStr(p.generateNote, 300) && String(p.generateNote).trim()) fresh.generateNote = String(p.generateNote).trim();
+  /* Notes kept when a rewritten course no longer had their lesson, question or requirement. */
+  if (Array.isArray(p.earlierNotes)) {
+    const kept = p.earlierNotes.filter((n) => n && ['lesson', 'answer', 'map'].includes(n.kind) && coreOkStr(n.about, 2000) && coreOkStr(n.text, 60000) && n.text.trim())
+      .slice(-60).map((n) => ({ kind: n.kind, about: n.about, text: n.text }));
+    if (kept.length) fresh.earlierNotes = kept;
+  }
   if (m && Number.isInteger(m.index) && m.index >= 0 && m.index <= fresh.questions.length && Array.isArray(m.answers) && m.answers.length === m.index
     && m.answers.every((a, k) => a && typeof a.text === 'string' && a.text.length <= 60000 && a.question === fresh.questions[k])) {
     fresh.mock = {

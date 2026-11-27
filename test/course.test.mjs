@@ -198,3 +198,66 @@ test('a good payload becomes the preparation, and a bad or empty one falls back 
   assert.match(other.course.map((lesson) => lesson.exercise).join(' '), /Lantern Homes/);
   assert.match(other.questions.join(' '), /lockout/i);
 });
+
+test('rewriting a preparation keeps the work, and only swaps when the personal course came back', () => {
+  const fix = load('harbour-retail.json');
+  const input = { job: adOf(fix), role: fix.role, company: fix.company, interviewAt: fix.interviewAt, aboutYou: { source: 'resume', text: fix.about } };
+  // The generic preparation the owner has been practising on.
+  const old = PrepEngine.create({ job: input.job, role: input.role, company: input.company });
+  old.id = 'prep-old';
+  old.created = '2026-11-20T10:00:00.000Z';
+  old.dailyMinutes = 20;
+  old.course[0].done = true;
+  old.course[1].done = true;
+  old.notes = { 'lesson-0': 'My lesson note', 'answer-0': 'My answer to the first question', 'answer-1': 'A draft for a question that goes away', 'map-0': 'Where I did this', 'day-2': 'Day two plan' };
+  old.quiz.answers = { 0: 1 };
+  old.mock = { index: 1, answers: [{ question: old.questions[0], text: 'A mock answer', feedback: {} }], draft: '', finished: false };
+  old.liveSessions = [{ id: 'live-1', at: '2026-11-21T09:00:00.000Z', transcript: [] }];
+  old.dayLog = { '2026-11-21': { minutes: 15, lessons: 2 } };
+  const other = { id: 'prep-other', course: [], mock: {} };
+  const records = [other, old];
+  const before = JSON.stringify(records);
+
+  // Any result other than a personal course leaves the old preparation exactly as it was.
+  for (const generated of [null, {}, { course: [] }]) {
+    const fell = course.finishCourse(input, generated);
+    fell.generatedBy = fell.generatedBy || 'template';
+    const kept = course.replaceWith(records, 'prep-old', fell);
+    assert.equal(kept.swapped, false);
+    assert.equal(kept.active, old);
+    assert.equal(kept.records, records);
+    assert.equal(JSON.stringify(records), before, 'nothing in the old preparation changed');
+  }
+
+  // A personal course that still has one of the old lessons, the first old question and the first quiz item.
+  const generated = assemble(fix);
+  generated.course[1].title = old.course[0].title;
+  generated.questions[0] = old.questions[0];
+  generated.quizItems[2] = { ...old.quizItems[0], options: old.quizItems[0].options.slice() };
+  const fresh = course.finishCourse(input, generated);
+  assert.equal(fresh.generatedBy, 'subscription');
+  const swap = course.replaceWith(records, 'prep-old', fresh);
+  assert.equal(swap.swapped, true);
+  const p = swap.active;
+  assert.equal(swap.records[0], p, 'the rewritten preparation comes first');
+  assert.equal(swap.records.length, 2);
+  assert.ok(swap.records.includes(other));
+  assert.equal(p.id, 'prep-old');
+  assert.equal(p.created, '2026-11-20T10:00:00.000Z');
+  assert.equal(p.dailyMinutes, 20);
+  assert.equal(p.course[1].done, true, 'done follows the lesson title');
+  assert.equal(p.notes['lesson-1'], 'My lesson note');
+  assert.equal(p.notes['answer-0'], 'My answer to the first question');
+  assert.equal(p.notes['day-2'], 'Day two plan');
+  assert.equal(p.quiz.answers[2], 1, 'the quiz answer follows the same question and options');
+  assert.equal(p.mock.answers[0].text, 'A mock answer', 'the mock stays while its questions are still asked');
+  assert.deepEqual(p.liveSessions.map((s) => s.id), ['live-1']);
+  assert.deepEqual(p.dayLog, old.dayLog);
+  const earlier = p.earlierNotes.map((n) => n.text);
+  assert.ok(earlier.includes('A draft for a question that goes away'), 'a note with no matching item is kept, not dropped');
+  const draft = p.earlierNotes.find((n) => n.text === 'A draft for a question that goes away');
+  assert.equal(draft.kind, 'answer');
+  assert.equal(draft.about, old.questions[1]);
+  const allOld = Object.values(old.notes);
+  for (const text of allOld) assert.ok(JSON.stringify(p).includes(JSON.stringify(text)), 'every note survives: ' + text);
+});

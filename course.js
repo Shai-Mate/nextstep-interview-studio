@@ -357,6 +357,79 @@
     return prep;
   }
 
+  /* Replacing a preparation with a freshly written course keeps the person's work. Lessons, questions
+     and requirements are matched by their text, since the new course numbers them differently:
+     `done` flags and notes move to the matching item, quiz answers move to the same question with the
+     same options, and the mock interview stays when its questions are still asked in the same order.
+     Saved live interviews, the day log and the plan settings carry over as they are. A note whose item
+     the new course no longer has is kept in `earlierNotes` (with what it was about), never dropped. */
+  const MAX_EARLIER = 60;
+  const sameText = (a, b) => clip(a, 4000).toLowerCase() === clip(b, 4000).toLowerCase();
+  function carryWork(old, prep) {
+    if (!old || typeof old !== 'object' || !prep || typeof prep !== 'object') return prep;
+    if (old.id) prep.id = old.id;
+    if (old.created) prep.created = old.created;
+    if (old.interviewAt && !prep.interviewAt) prep.interviewAt = old.interviewAt;
+    if (old.dailyMinutes) prep.dailyMinutes = old.dailyMinutes;
+    if (old.dayLog && typeof old.dayLog === 'object') prep.dayLog = { ...old.dayLog };
+    if (Array.isArray(old.liveSessions) && old.liveSessions.length) prep.liveSessions = old.liveSessions.slice();
+    if (!prep.aboutYou && old.aboutYou) prep.aboutYou = old.aboutYou;
+    prep.notes = prep.notes && typeof prep.notes === 'object' ? prep.notes : {};
+    const notes = old.notes && typeof old.notes === 'object' ? old.notes : {};
+    const earlier = Array.isArray(old.earlierNotes) ? old.earlierNotes.slice() : [];
+    const lists = {
+      lesson: [(old.course || []).map((c) => c && c.title), (prep.course || []).map((c) => c && c.title)],
+      answer: [old.questions || [], prep.questions || []],
+      map: [old.requirements || [], prep.requirements || []]
+    };
+    for (const [key, text] of Object.entries(notes)) {
+      if (typeof text !== 'string' || !text.trim()) continue;
+      const m = /^(lesson|answer|map)-(\d+)$/.exec(key);
+      if (!m) { prep.notes[key] = text; continue; }
+      const [was, now] = lists[m[1]];
+      const about = was[+m[2]];
+      const to = about === undefined ? -1 : now.findIndex((item) => sameText(item, about));
+      if (to >= 0 && !prep.notes[m[1] + '-' + to]) prep.notes[m[1] + '-' + to] = text;
+      else earlier.push({ kind: m[1], about: clip(about, 2000), text });
+    }
+    if (earlier.length) prep.earlierNotes = earlier.slice(-MAX_EARLIER);
+    (old.course || []).forEach((c) => {
+      if (!c || !c.done) return;
+      const to = (prep.course || []).find((n) => n && sameText(n.title, c.title));
+      if (to) to.done = true;
+    });
+    const answers = old.quiz && old.quiz.answers && typeof old.quiz.answers === 'object' ? old.quiz.answers : {};
+    if (Array.isArray(old.quizItems) && Array.isArray(prep.quizItems)) {
+      prep.quiz = prep.quiz && typeof prep.quiz === 'object' ? prep.quiz : { answers: {} };
+      prep.quiz.answers = prep.quiz.answers || {};
+      for (const [k, v] of Object.entries(answers)) {
+        const item = old.quizItems[+k];
+        if (!item) continue;
+        const to = prep.quizItems.findIndex((n) => n && sameText(n.q, item.q) && JSON.stringify(n.options) === JSON.stringify(item.options));
+        if (to >= 0) prep.quiz.answers[to] = v;
+      }
+    }
+    const mock = old.mock;
+    if (mock && Array.isArray(mock.answers) && mock.answers.length && Array.isArray(prep.questions)
+      && mock.answers.every((a, k) => a && a.question === prep.questions[k])) {
+      prep.mock = { ...mock, answers: mock.answers.slice(), finished: mock.index === prep.questions.length };
+    }
+    return prep;
+  }
+
+  /* Swap the preparation `replaceId` for `prep` only when a personal course came back; on any other
+     result the old one stays exactly as it was. Returns the new list, the preparation to show, and
+     whether it was swapped. */
+  function replaceWith(records, replaceId, prep) {
+    const list = Array.isArray(records) ? records : [];
+    const at = replaceId ? list.findIndex((item) => item && item.id === replaceId) : -1;
+    if (at < 0) return { records: [prep, ...list], active: prep, swapped: false, added: true };
+    const old = list[at];
+    if (!prep || prep.generatedBy !== 'subscription') return { records: list, active: old, swapped: false, added: false };
+    const next = carryWork(old, prep);
+    return { records: [next, ...list.slice(0, at), ...list.slice(at + 1)], active: next, swapped: true, added: false };
+  }
+
   const api = {
     CHECK,
     courseSchema,
@@ -367,6 +440,8 @@
     courseHints,
     buildCoursePrompt,
     finishCourse,
+    carryWork,
+    replaceWith,
     instructions: INSTRUCTIONS
   };
   root.NextStepCourse = api;
