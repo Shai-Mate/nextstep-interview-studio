@@ -145,9 +145,10 @@ test('starting a new interview while one is unfinished asks first', () => {
 });
 
 test('at the cap, the unfinished interview really stays: the oldest finished one goes first', () => {
-  const done = (n) => ({ ...finished, id: 'done-' + n, at: '2026-11-1' + n + 'T09:00:00.000Z' });
+  // Saved lists are newest first, as liveSave keeps them: done-1 is the newest, done-7 the oldest finished.
+  const done = (n) => ({ ...finished, id: 'done-' + n, at: '2026-11-2' + (8 - n) + 'T09:00:00.000Z' });
   // 7 finished interviews newer than the unfinished one, and then a new one is started.
-  const saved = [1, 2, 3, 4, 5, 6, 7].map(done).concat([waiting]);
+  const saved = [1, 2, 3, 4, 5, 6, 7].map(done).concat([{ ...waiting, at: '2026-11-20T09:00:00.000Z' }]);
   const { ctx, run } = sandbox(saved);
   run('actions["open-live"]()');
   const ids = ctx.active.liveSessions.map((s) => s.id);
