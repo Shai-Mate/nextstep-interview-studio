@@ -29,6 +29,8 @@ function sandbox(replies) {
     },
     corePrefs: () => ({ provider: 'subscription' }),
     esc: (s) => String(s ?? ''),
+    iconBtn: (action, label) => `<button type="button" data-action="${action}" aria-label="${label}"></button>`,
+    I: { back: '' },
     performance: { now: () => 0 },
     AbortController,
     console
@@ -58,6 +60,8 @@ test('a failed personal course stays on the writing screen until the person choo
   assert.match(html, /You're offline\. Try again when you have a connection, or use the general lessons now\./);
   assert.match(html, /data-action="writing-retry">Try again</);
   assert.match(html, /data-action="writing-general">Use general lessons</);
+  // The same topbar as the other flow screens, so the title clears the status bar in the installed app.
+  assert.match(html, /^<div class="screen" data-screen="writing">\s*<div class="topbar"><button type="button" data-action="cancel-writing" aria-label="Back to About you">/);
   assert.equal(calls.length, 1);
 });
 
@@ -85,6 +89,9 @@ test('Try again sends the same draft, and a course that comes back is saved', as
 test('Use general lessons is the explicit second choice, and never calls the tower', async () => {
   const { ctx, calls, run } = sandbox([fail('timeout', 'The personal course took too long.')]);
   await run('flowBuild("")');
+  run('flowWriteFailed = null');
+  assert.match(run('screens.writing()'), /^<div class="screen" data-screen="writing">\s*<div class="topbar">/, 'the waiting screen has it too');
+  run('flowWriteFailed = { message: "x" }');
   await run('actions["writing-general"]()');
   assert.equal(calls.length, 1, 'general lessons do not try the tower again');
   assert.equal(ctx.records.length, 1);

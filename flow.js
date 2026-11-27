@@ -753,6 +753,7 @@ Object.assign(screens, {
   writing() {
     if (flowWriteFailed) {
       return `<div class="screen" data-screen="writing">
+      <div class="topbar">${iconBtn('cancel-writing', 'Back to About you', I.back)}<span class="label">Personal course</span></div>
       <h1 class="flow-focus" tabindex="-1">The course wasn't written</h1>
       <p class="italic lg">Nothing is lost.</p>
       <p class="sub" role="status">${esc(flowWriteFailed.message)}</p>
@@ -763,6 +764,7 @@ Object.assign(screens, {
     </div>`;
     }
     return `<div class="screen" data-screen="writing">
+      <div class="topbar"><span class="label">Personal course</span></div>
       <h1 class="flow-focus" tabindex="-1">Writing your lessons</h1>
       <p class="italic lg">This usually takes under a minute.</p>
       <p class="sub">Your ad and what you shared are being used to write the lessons. Practice answers are not sent.</p>
@@ -1162,6 +1164,7 @@ Object.assign(actions, {
   'cancel-writing': () => {
     flowToken += 1;
     flowBusy = false;
+    flowWriteFailed = null;
     if (flowAbort) {
       try { flowAbort.abort(); } catch { /* already finished */ }
       flowAbort = null;
