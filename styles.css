@@ -894,3 +894,9 @@ input::-webkit-calendar-picker-indicator { filter: invert(.85) sepia(.4) saturat
 .generic-banner { margin: 16px 0; box-shadow: inset 0 0 0 1.5px rgba(255, 196, 138, .7); }
 .generic-banner p { margin: 8px 0 0; }
 .generic-banner .primary { margin-top: 14px; }
+
+/* From your earlier plan: read-only notes kept when a course was rewritten (Answer bank). */
+.earlier { margin-top: 32px; }
+.earlier h2 { font-size: 18px; margin: 0 0 4px; }
+.earlier-note { margin-top: 12px; }
+.earlier-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 4px 0 0; }

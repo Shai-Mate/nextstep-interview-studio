@@ -1062,6 +1062,7 @@ const screens = {
           <label class="field" for="answer-${i}">Your evidence and answer</label><textarea id="answer-${i}" rows="6" data-note="answer-${i}" placeholder="Describe something you actually did.">${esc(p.notes['answer-' + i] || '')}</textarea>
           <div class="meta live" data-live="${i}">${coreLiveHtml(p.notes['answer-' + i] || '')}</div></details>`;
       }).join('')}
+      ${coreEarlierHtml(p)}
     </div>`;
   },
   quiz() {
@@ -1258,6 +1259,18 @@ The hosting provider receives normal requests for the app files. A job link also
 };
 
 
+/* Notes and mock answers a rewritten course had no place for (NextStepCourse.carryWork). Read-only, at the
+   bottom of the Answer bank, and only when there is something to show. */
+const CORE_EARLIER_KIND = { lesson: 'Lesson', answer: 'Question', map: 'From the ad' };
+function coreEarlierHtml(p) {
+  const list = p && Array.isArray(p.earlierNotes) ? p.earlierNotes.filter((n) => n && typeof n.text === 'string' && n.text.trim()) : [];
+  if (!list.length) return '';
+  return `<section class="earlier" aria-labelledby="earlier-title">
+        <h2 id="earlier-title">From your earlier plan</h2>
+        <p class="hint">Your notes and answers from before this course was rewritten. Copy what still helps into the answers above.</p>
+        ${list.map((n) => `<article class="glass pad-sm earlier-note">${n.about ? `<p class="kicker">${esc(CORE_EARLIER_KIND[n.kind] || 'Note')}: ${esc(n.about)}</p>` : `<p class="kicker">${esc(CORE_EARLIER_KIND[n.kind] || 'Note')}</p>`}<p class="earlier-text">${esc(n.text)}</p></article>`).join('')}
+      </section>`;
+}
 function needPrep() { if (!active) { show('welcome'); return false; } return true; }
 function openLesson(i) { if (!needPrep()) return; lessonIndex = i; show('lesson'); }
 /* Used by Export backup and Download saved data as-is; `done` is the message shown once the file is out.
