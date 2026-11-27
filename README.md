@@ -1,8 +1,8 @@
-# NextStep Interview Studio
+# Next Step Interview Studio
 
 Free interview practice for any job, on your phone.
 
-Paste a job link and NextStep turns it into a short practice plan: what the job is really about, the skills the ad mentions, the questions you're likely to get, and a mock interview with a practice grade on how your answers are built. It works for any kind of job: shops and retail, trades and apprenticeships, care work, hospitality, office and tech roles.
+Paste a job link and Next Step turns it into a short practice plan: what the job is really about, the skills the ad mentions, the questions you're likely to get, and a mock interview with a practice grade on how your answers are built. It works for any kind of job: shops and retail, trades and apprenticeships, care work, hospitality, office and tech roles.
 
 **Open it: https://shai-mate.github.io/nextstep-interview-studio/**
 
@@ -18,14 +18,14 @@ Add it to your Home Screen before you start, then always open it from the icon. 
 1. Open the link in **Safari**. If it opened inside Instagram, Facebook, LinkedIn or Messenger, tap **•••** and choose **Open in Safari** (or **Open in external browser**).
 2. Tap **Share** (the square with an arrow). If you can't see it, tap **•••** first.
 3. Tap **Add to Home Screen** (scroll down or tap **More** if it's hidden), then **Add**.
-4. Open NextStep from your Home Screen.
+4. Open Next Step from your Home Screen.
 
 On iPhone, work saved in Safari doesn't move to the Home Screen app. If you already started in Safari, tap **On this device**, then **Export backup**, and use **Restore a backup** in the Home Screen app.
 
 **Android**
 1. Open the link in **Chrome**.
 2. Tap **How** on the first screen and then **Install app**, or use Chrome's menu **⋮** and tap **Install app** or **Add to Home screen**.
-3. Open NextStep from your Home Screen or app list.
+3. Open Next Step from your Home Screen or app list.
 
 Open it once while you're online. When the **How** sheet says "Ready to work offline", it works without internet.
 

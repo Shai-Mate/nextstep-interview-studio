@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "NextStep Interview Studio",
-  "short_name": "NextStep",
+  "name": "Next Step Interview Studio",
+  "short_name": "Next Step",
   "description": "Free interview practice for any job. Paste a job link, get a short plan and practise your answers. Your answers stay on your phone.",
   "start_url": "./?v=14",
   "scope": "./",

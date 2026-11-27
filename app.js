@@ -504,8 +504,8 @@ let storageBlocked = false;
 let rawSaved = null;
 let keptRecords = [];
 const CORE_SAVE_MSG = {
-  blockedLoad: "This browser won't let NextStep save anything on this device. That happens in private browsing and some in-app browsers. You can still practise; export a backup before you leave.",
-  blocked: "Not saved: this browser won't let NextStep save on this device. Export a backup before you leave.",
+  blockedLoad: "This browser won't let Next Step save anything on this device. That happens in private browsing and some in-app browsers. You can still practise; export a backup before you leave.",
+  blocked: "Not saved: this browser won't let Next Step save on this device. Export a backup before you leave.",
   unreadableLoad: 'Your saved preparations could not be read. They have not been overwritten, and you can download them as-is on the Privacy page.',
   unreadable: 'Not saved, so your earlier saved data stays exactly as it was. Export a backup before you leave.',
   full: "Could not save: this browser's storage is full or unavailable. Export a backup before you leave."
@@ -833,7 +833,7 @@ const screens = {
   welcome() {
     if (!records.length) {
       return `<div class="screen welcome" data-screen="welcome">
-        <div class="brandbar"><span class="logo">NextStep</span><button type="button" class="pill" data-action="privacy">${I.lock}<span>On this device</span></button></div>
+        <div class="brandbar"><span class="logo">Next Step</span><button type="button" class="pill" data-action="privacy">${I.lock}<span>On this device</span></button></div>
         <div class="orb-stage"><div class="orb-anchor hero" data-orb data-env="1" data-s="1" data-up="166,102" data-down="101,280" data-energy="1"></div></div>
         <h1>Show up ready.</h1>
         <p class="italic">Sound like yourself.</p>
@@ -851,7 +851,7 @@ const screens = {
       </div>`;
     }
     return `<div class="screen welcome" data-screen="welcome">
-      <div class="brandbar"><span class="logo">NextStep</span><button type="button" class="pill" data-action="privacy">${I.lock}<span>On this device</span></button></div>
+      <div class="brandbar"><span class="logo">Next Step</span><button type="button" class="pill" data-action="privacy">${I.lock}<span>On this device</span></button></div>
       <div class="ask"><p class="italic lg">Pick up where you left off.</p><div class="orb-slot md"><div class="orb-anchor md" data-orb data-env=".6" data-s=".75" data-up="80,40" data-down="40,90" data-energy="${glow(records[0])}"></div></div></div>
       <p class="sub">${records.length === 1 ? 'Your preparation stays on this device.' : records.length + ' preparations, all on this device.'}</p>
       ${keptRecords.length ? `<p class="hint kept-note">${esc(coreKeptLine())}</p>` : ''}
@@ -1410,7 +1410,7 @@ function bindImport() {
       if (f.size > 20 * 1024 * 1024) throw Error('this backup is over 20 MB.');
       let b;
       try { b = JSON.parse(await f.text()); } catch { throw Error('this file is not a readable backup.'); }
-      if (!b || b.schema !== 1 || !Array.isArray(b.preparations) || b.preparations.length > 500) throw Error('this is not a NextStep backup this version can open.');
+      if (!b || b.schema !== 1 || !Array.isArray(b.preparations) || b.preparations.length > 500) throw Error('this is not a Next Step backup this version can open.');
       const copies = b.preparations.map((p) => coreRestore(p));
       records.push(...copies);
       const ok = persist();
@@ -1512,7 +1512,7 @@ function bindScreen() {
       active = null;
       draft = null;
       show('welcome');
-      notify(storageBlocked ? 'Cleared. Nothing from this visit was saved on this device.' : 'Everything NextStep saved on this device was deleted.');
+      notify(storageBlocked ? 'Cleared. Nothing from this visit was saved on this device.' : 'Everything Next Step saved on this device was deleted.');
     } catch { notify('Could not delete saved preparations.'); }
   });
   bindImport();

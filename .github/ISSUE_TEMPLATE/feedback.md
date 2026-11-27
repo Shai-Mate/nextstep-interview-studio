@@ -1,11 +1,11 @@
 ---
 name: Feedback
-about: Tell us how NextStep worked for you, what helped and what didn't
+about: Tell us how Next Step worked for you, what helped and what didn't
 title: "Feedback: "
 labels: feedback
 ---
 
-Thank you for trying NextStep. A few lines is plenty, and every answer helps.
+Thank you for trying Next Step. A few lines is plenty, and every answer helps.
 
 > **GitHub issues are public.** Please don't paste your practice answers, the job ad, or anything about yourself you wouldn't want strangers to read.
 

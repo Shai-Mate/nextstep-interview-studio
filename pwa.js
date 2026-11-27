@@ -130,9 +130,9 @@
   const copyLabel = byId('install-copy-label');
   const titles = {
     'in-app': iOS ? 'Open this page in Safari first' : 'Open this page in your browser first',
-    desktop: 'Install NextStep',
+    desktop: 'Install Next Step',
     installed: "You're using the app",
-    added: 'NextStep is installed'
+    added: 'Next Step is installed'
   };
   const appUrl = location.origin + location.pathname.replace(/index\.html$/, '');
   const browserName = iOS ? 'Safari' : android ? 'Chrome' : 'your browser';
@@ -143,7 +143,7 @@
     if (!sheet) return;
     const now = state();
     sheet.querySelectorAll('[data-install-for]').forEach((el) => { el.hidden = !el.dataset.installFor.split(' ').includes(now); });
-    if (title) title.textContent = titles[now] || 'Put NextStep on your Home Screen';
+    if (title) title.textContent = titles[now] || 'Put Next Step on your Home Screen';
     if (lede) lede.hidden = now === 'in-app' || now === 'installed' || now === 'added';
     const offer = canPrompt();
     if (installNow) installNow.hidden = !offer;
