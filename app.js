@@ -1183,13 +1183,14 @@ const screens = {
         <div class="privacy-block"><strong>Answers stay on this phone</strong><span>Notes and practice answers stay in this browser. They are not uploaded. People who can open this browser can read them.</span></div>
         <div class="privacy-block"><strong>A job link is read for you</strong><span>When you paste a job link, that link and the text of the public page are sent to our server so the plan can be built. We do not keep them after the request. If the page cannot be read, you paste the ad instead, and that text stays on this phone.</span></div>
         <div class="privacy-block"><strong>No account. No trackers.</strong><span>Nothing to sign up for, and no analytics. Preparations do not sync between phones. The lessons and the practice grade are worked out on this phone. The grade is not a hiring verdict.</span></div>
+        <div class="privacy-block"><strong>The practice interview</strong><span>Without a personal course, the questions come from the ad and the text of the session is kept on this phone. The audio is not saved. Tap to talk uses your phone's speech recognition, which may send the audio to Apple or Google to turn it into text. Type instead keeps everything on this phone.</span></div>
         <div class="privacy-block"><strong>Free</strong><span>No trial, no upgrade, no ads.</span></div>
-        <div class="privacy-block"><strong>Feedback</strong><span>Sending feedback is not switched on yet. A note you write is saved on this phone and goes nowhere. Don't put private answers in it.</span></div>
+        <div class="privacy-block"><strong>Feedback</strong><span>Sending feedback is not switched on yet. A note you write is saved on this phone and goes nowhere. Delete all data removes it, and it is not in an exported backup.</span></div>
       </div>
       <h2 class="privacy-group">Owner-only features</h2>
       <p class="lede">These need a private server set up by the app's owner.</p>
       <div class="stack">
-        <div class="privacy-block"><strong>A personal course sends the ad and About you</strong><span>When you tap Write my course, the job ad and the About you text go to the server address saved on this phone. That request is not kept. The shared secret stays on this phone and is not in an exported backup.</span></div>
+        <div class="privacy-block"><strong>A personal course sends the ad and About you</strong><span>About you is sent when a personal course is written: when you tap Write my course, or when you start a new preparation with About you already saved. The job ad and the About you text go to the server address saved on this phone. That request is not kept. The shared secret stays on this phone and is not in an exported backup.</span></div>
         <div class="privacy-block"><strong>A live practice interview</strong><span>With a personal course connected, what you say or type in the practice interview goes to that server for each turn. It is not kept there. The audio is not saved.</span></div>
       </div>
       <details class="fold"><summary>Also good to know</summary>
@@ -1200,7 +1201,7 @@ The hosting provider receives normal requests for the app files. A job link also
       <div class="spacer"></div>
       <button type="button" class="glass button" data-action="open-settings"><span class="copy"><strong>Personal course (owner only)</strong><span>Needs a private server set up by the app's owner</span></span>${I.chev}</button>
       ${rawSaved !== null ? `<button type="button" class="glass button" id="raw-export"><span class="copy"><strong>Download saved data as-is</strong><span>Your saved preparations, exactly as this browser kept them</span></span></button>` : ''}
-      <button type="button" class="glass button" id="export-one"><span class="copy"><strong>Export backup</strong><span>${active ? 'This preparation' : 'Every preparation on this device'}</span></span></button>
+      <button type="button" class="glass button" id="export-one"><span class="copy"><strong>Export backup</strong><span>${active ? 'This preparation' : 'Every preparation on this phone'}</span></span></button>
       <button type="button" class="text-btn" id="all-export">Export all preparations</button>
       <label class="field" for="import">Restore a backup</label>
       <input class="file" id="import" type="file" accept="application/json,.json">
@@ -1508,7 +1509,7 @@ function bindScreen() {
   if ($('#retry')) $('#retry').addEventListener('click', () => { active.quiz.answers = {}; save(); show('quiz'); });
   if ($('#delete-all')) $('#delete-all').addEventListener('click', () => {
     if (!storageOK && !storageBlocked) { notify('Your saved data could not be read, so it is left exactly as it was. Download it as-is above if you want a copy.', true); return; }
-    if (!confirm('Delete every preparation on this device? This cannot be undone. Export a backup first if you want to keep them.')) return;
+    if (!confirm('Delete every preparation on this phone? This cannot be undone. Export a backup first if you want to keep them.')) return;
     try {
       if (!storageBlocked) { localStorage.removeItem(KEY); localStorage.removeItem(CORE_PREFS_KEY); globalThis.NextStepFeedback?.clear?.(); }
       /* interview.js keeps the read-aloud choice in memory too; switch it off for the rest of this visit. */

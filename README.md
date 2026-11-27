@@ -70,14 +70,14 @@ With an interview date, the minutes still left in the lessons are split across t
 
 Owner-only features need a private server (the tower) set up by the app's owner:
 
-- A personal course: About you stays on the phone. It is sent only when you tap Write my course, together with the ad, to the tower address saved in Personal course. The tower does not keep that text. The tower secret is not included in an exported backup.
+- A personal course: About you stays on the phone. About you is sent when a personal course is written: when you tap Write my course, or when you start a new preparation with About you already saved. It goes with the ad to the tower address saved in Personal course. The tower does not keep that text. The tower secret is not included in an exported backup.
 - A live practice interview: with the tower connected, each turn and the debrief go to the tower and are not kept there. Without it, the interview uses generic questions from the ad and stays on the phone.
 
 Read more: [How your data stays private](privacy.html).
 
 ## Feedback
 
-Tap **Send feedback** in the app (On this device, or at the end of a practice interview). Sending is not switched on yet: for now the note is saved on the phone and goes nowhere, until the owner chooses where feedback goes. Please don't put private answers or personal details in it.
+Tap **Send feedback** in the app (On this device, or at the end of a practice interview). Sending is not switched on yet: for now the note is saved on the phone and goes nowhere, until the owner chooses where feedback goes. Delete all data removes it, and it is not in an exported backup. Leave a way to reach you only if you want a reply. Don't put private answers in it.
 
 Made by Prism.
 
