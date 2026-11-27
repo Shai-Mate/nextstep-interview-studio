@@ -19,7 +19,6 @@ const IV_KIND_TIP = {
   closing: 'Your turn to ask. One or two questions of your own is plenty.'
 };
 const IV_PREFS_KEY = 'nextstep.prefs.v1';
-const IV_FEEDBACK_URL = 'https://github.com/Shai-Mate/nextstep-interview-studio/issues/new';
 const IV_MIC = '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3a2.5 2.5 0 012.5 2.5v4a2.5 2.5 0 01-5 0v-4A2.5 2.5 0 0110 3zM5 9.5a5 5 0 0010 0M10 14.5V17"></path></svg>';
 const IV_SPEAKER = '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8v4h3l4 3.5v-11L6.5 8z"></path><path class="iv-wave" d="M13.5 7.5a3.5 3.5 0 010 5M15.5 5.5a6.5 6.5 0 010 9"></path></svg>';
 let ivPart = 'action';
@@ -210,7 +209,7 @@ function logHtml(m) {
   }).join('')}`;
 }
 function ivFeedbackLink() {
-  return `<div class="iv-send"><a class="iv-link" href="${IV_FEEDBACK_URL}" target="_blank" rel="noopener noreferrer">Send feedback</a><p class="fine">GitHub issues are public, so don't paste private answers.</p></div>`;
+  return `<div class="iv-send"><button type="button" class="iv-link" data-feedback="interview">Send feedback</button><p class="fine">Sending isn't switched on yet. Your note is saved on this phone.</p></div>`;
 }
 
 /* ---------- the session report ---------- */

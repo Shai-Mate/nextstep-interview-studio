@@ -1206,8 +1206,8 @@ The hosting provider receives normal requests for the app files. A job link also
       <input class="file" id="import" type="file" accept="application/json,.json">
       <button type="button" class="text-btn danger" id="delete-all">Delete all data</button>
       <div class="about">
-        <a class="feedback-link" href="https://github.com/Shai-Mate/nextstep-interview-studio/issues/new" target="_blank" rel="noopener noreferrer">Send feedback</a>
-        <p class="hint">GitHub issues are public, so don't paste private answers.</p>
+        <button type="button" class="feedback-link" data-feedback="privacy">Send feedback</button>
+        <p class="hint">Sending isn't switched on yet. Your note is saved on this phone.</p>
         <p class="credit">Made by Prism</p>
       </div>
       <p class="version">Phone app v${esc(coreAppVersion() || '13')} · storage schema v1</p>
@@ -1510,7 +1510,7 @@ function bindScreen() {
     if (!storageOK && !storageBlocked) { notify('Your saved data could not be read, so it is left exactly as it was. Download it as-is above if you want a copy.', true); return; }
     if (!confirm('Delete every preparation on this device? This cannot be undone. Export a backup first if you want to keep them.')) return;
     try {
-      if (!storageBlocked) { localStorage.removeItem(KEY); localStorage.removeItem(CORE_PREFS_KEY); }
+      if (!storageBlocked) { localStorage.removeItem(KEY); localStorage.removeItem(CORE_PREFS_KEY); globalThis.NextStepFeedback?.clear?.(); }
       /* interview.js keeps the read-aloud choice in memory too; switch it off for the rest of this visit. */
       try { if (typeof ivReadAloud === 'boolean') ivReadAloud = false; } catch { /* interview.js not loaded */ }
       records = [];
