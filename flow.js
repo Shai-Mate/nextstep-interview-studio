@@ -150,6 +150,9 @@ let flowBusy = false;
 let flowFallback = null;
 let flowToken = 0;
 let flowAbort = null;
+/* A personal course that did not come back: { message }. The writing screen then shows why, with
+   Try again (the same draft) and Use general lessons. Nothing is built or saved until one is chosen. */
+let flowWriteFailed = null;
 const FLOW_FALLBACK = {
   invalid: 'That does not look like a web link. Check it, or paste the ad text below.',
   login: 'That page asks people to sign in, so we could not read it. This is common on LinkedIn and Indeed. Paste the ad text below. It stays on this phone.',
@@ -748,7 +751,20 @@ Object.assign(screens, {
     </form>`;
   },
   writing() {
+    if (flowWriteFailed) {
+      return `<div class="screen" data-screen="writing">
+      <div class="topbar">${iconBtn('cancel-writing', 'Back to About you', I.back)}<span class="label">Personal course</span></div>
+      <h1 class="flow-focus" tabindex="-1">The course wasn't written</h1>
+      <p class="italic lg">Nothing is lost.</p>
+      <p class="sub" role="status">${esc(flowWriteFailed.message)}</p>
+      <p class="hint">Your ad and what you shared are still here. Try again, or use the general lessons built from this ad.</p>
+      <div class="spacer"></div>
+      <button type="button" class="primary" data-action="writing-retry">Try again</button>
+      <button type="button" class="text-btn" data-action="writing-general">Use general lessons</button>
+    </div>`;
+    }
     return `<div class="screen" data-screen="writing">
+      <div class="topbar"><span class="label">Personal course</span></div>
       <h1 class="flow-focus" tabindex="-1">Writing your lessons</h1>
       <p class="italic lg">This usually takes under a minute.</p>
       <p class="sub">Your ad and what you shared are being used to write the lessons. Practice answers are not sent.</p>
@@ -905,8 +921,10 @@ async function flowReadProfile() {
 
 /* Saves a new preparation from `draft` and plays the decode moment.
    A personal course is attempted only when About you has text and My subscription is ready. */
-async function flowBuild(sampleId) {
+async function flowBuild(sampleId, opts) {
+  const general = !!(opts && opts.general);
   const token = ++flowToken;
+  flowWriteFailed = null;
   const source = draft || {};
   const input = {
     role: source.role || '',
@@ -920,9 +938,8 @@ async function flowBuild(sampleId) {
   const mark = sampleId || source.sampleId || '';
   const replaceId = source.replaceId || '';
   let generated = null;
-  let note = '';
   let attempted = false;
-  if (input.aboutYou && flowProviderReady()) {
+  if (!general && input.aboutYou && flowProviderReady()) {
     attempted = true;
     flowBusy = true;
     const ctrl = new AbortController();
@@ -943,7 +960,13 @@ async function flowBuild(sampleId) {
     flowBusy = false;
     if (flowAbort === ctrl) flowAbort = null;
     if (res.ok) generated = res.course;
-    else if (res.attempted) note = res.message;
+    else if (res.reason === 'cancelled') return;
+    else if (res.attempted) {
+      // Stay here: show why, and let the person choose. The general lessons are never automatic.
+      flowWriteFailed = { message: res.message };
+      show('writing');
+      return;
+    }
   }
   if (token !== flowToken) return;
   let prep;
@@ -955,23 +978,36 @@ async function flowBuild(sampleId) {
     return;
   }
   if (attempted && prep.generatedBy !== 'subscription') {
+    // The course came back but did not pass the checks: the same choice as any other failure.
+    flowWriteFailed = { message: 'The personal course did not pass the checks.' };
+    show('writing');
+    return;
+  }
+  if (general && flowProviderReady() && input.aboutYou) {
     prep.generatedBy = 'template';
-    if (!prep.generateNote) prep.generateNote = note || 'The personal course could not be built, so these are the general lessons.';
+    prep.generateNote = 'These are the general lessons, built from this ad.';
   }
-  if (replaceId) {
-    const at = records.findIndex((item) => item && item.id === replaceId);
-    if (at >= 0) {
-      const old = records[at];
-      prep.id = old.id;
-      if (old.created) prep.created = old.created;
-      if (old.interviewAt && !prep.interviewAt) prep.interviewAt = old.interviewAt;
-      if (old.dailyMinutes) prep.dailyMinutes = old.dailyMinutes;
-      records.splice(at, 1);
+  /* Rewriting an existing preparation swaps it only when the personal course came back, and keeps the
+     person's lessons, notes, quiz, mock and live interviews (NextStepCourse.replaceWith). On any other
+     result the old preparation stays exactly as it was and the reason is shown. */
+  if (replaceId && records.some((item) => item && item.id === replaceId)) {
+    const swap = NextStepCourse.replaceWith(records, replaceId, prep);
+    if (!swap.swapped) {
+      active = swap.active;
+      draft = null;
+      flowAboutNote = '';
+      flowBusy = false;
+      show('today');
+      notify('Your preparation is unchanged.');
+      return;
     }
+    records.splice(0, records.length, ...swap.records);
+    active = swap.active;
+  } else {
+    active = prep;
+    records.unshift(active);
   }
-  active = prep;
   if (mark) active.sample = mark;
-  records.unshift(active);
   persist();
   draft = null;
   flowAboutNote = '';
@@ -1123,9 +1159,12 @@ Object.assign(actions, {
     flowAboutNote = '';
     show('link');
   },
+  'writing-retry': () => (draft ? flowBuild(draft.sampleId || '') : undefined),
+  'writing-general': () => (draft ? flowBuild(draft.sampleId || '', { general: true }) : undefined),
   'cancel-writing': () => {
     flowToken += 1;
     flowBusy = false;
+    flowWriteFailed = null;
     if (flowAbort) {
       try { flowAbort.abort(); } catch { /* already finished */ }
       flowAbort = null;

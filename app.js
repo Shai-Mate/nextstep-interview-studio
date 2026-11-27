@@ -1062,6 +1062,7 @@ const screens = {
           <label class="field" for="answer-${i}">Your evidence and answer</label><textarea id="answer-${i}" rows="6" data-note="answer-${i}" placeholder="Describe something you actually did.">${esc(p.notes['answer-' + i] || '')}</textarea>
           <div class="meta live" data-live="${i}">${coreLiveHtml(p.notes['answer-' + i] || '')}</div></details>`;
       }).join('')}
+      ${coreEarlierHtml(p)}
     </div>`;
   },
   quiz() {
@@ -1258,6 +1259,18 @@ The hosting provider receives normal requests for the app files. A job link also
 };
 
 
+/* Notes and mock answers a rewritten course had no place for (NextStepCourse.carryWork). Read-only, at the
+   bottom of the Answer bank, and only when there is something to show. */
+const CORE_EARLIER_KIND = { lesson: 'Lesson', answer: 'Question', map: 'From the ad' };
+function coreEarlierHtml(p) {
+  const list = p && Array.isArray(p.earlierNotes) ? p.earlierNotes.filter((n) => n && typeof n.text === 'string' && n.text.trim()) : [];
+  if (!list.length) return '';
+  return `<section class="earlier" aria-labelledby="earlier-title">
+        <h2 id="earlier-title">From your earlier plan</h2>
+        <p class="hint">Your notes and answers from before this course was rewritten. Copy what still helps into the answers above.</p>
+        ${list.map((n) => `<article class="glass pad-sm earlier-note">${n.about ? `<p class="kicker">${esc(CORE_EARLIER_KIND[n.kind] || 'Note')}: ${esc(n.about)}</p>` : `<p class="kicker">${esc(CORE_EARLIER_KIND[n.kind] || 'Note')}</p>`}<p class="earlier-text">${esc(n.text)}</p></article>`).join('')}
+      </section>`;
+}
 function needPrep() { if (!active) { show('welcome'); return false; } return true; }
 function openLesson(i) { if (!needPrep()) return; lessonIndex = i; show('lesson'); }
 /* Used by Export backup and Download saved data as-is; `done` is the message shown once the file is out.
@@ -1284,9 +1297,15 @@ function coreDownload(text, name, done) {
   setTimeout(() => URL.revokeObjectURL(url), 40000);
   if (done) notify(done);
 }
-function exportBackup(all) {
+/* A backup carries the preparations and the personal course setup (provider, tower address, About you)
+   through publicPrefs, which never includes the tower secret. */
+function coreBackupPayload(all) {
   const payload = { schema: 1, preparations: !all && active ? [active] : records };
-  coreDownload(JSON.stringify(payload, null, 2), 'nextstep-backup.json', 'Backup exported. It includes your job ads, notes and answers. About you is included when a course used it. The tower secret is not. Keep it private.');
+  if (globalThis.NextStepProvider) payload.prefs = NextStepProvider.publicPrefs(corePrefs());
+  return payload;
+}
+function exportBackup(all) {
+  coreDownload(JSON.stringify(coreBackupPayload(all), null, 2), 'nextstep-backup.json', 'Backup exported. It includes your job ads, notes and answers, About you and the personal course setup. The tower secret is not included. Keep it private.');
 }
 /* Backup restore. A preparation is rebuilt with PrepEngine.create(p) for safe defaults, but when the
    backup carries its own plan (questions, questionInfo, requirements, course, quizItems) that plan is
@@ -1396,6 +1415,12 @@ function coreRestore(p) {
     if (sessions.length) fresh.liveSessions = sessions;
   }
   if (coreOkStr(p.generateNote, 300) && String(p.generateNote).trim()) fresh.generateNote = String(p.generateNote).trim();
+  /* Notes kept when a rewritten course no longer had their lesson, question or requirement. */
+  if (Array.isArray(p.earlierNotes)) {
+    const kept = p.earlierNotes.filter((n) => n && ['lesson', 'answer', 'map'].includes(n.kind) && coreOkStr(n.about, 2000) && coreOkStr(n.text, 60000) && n.text.trim())
+      .slice(-60).map((n) => ({ kind: n.kind, about: n.about, text: n.text }));
+    if (kept.length) fresh.earlierNotes = kept;
+  }
   if (m && Number.isInteger(m.index) && m.index >= 0 && m.index <= fresh.questions.length && Array.isArray(m.answers) && m.answers.length === m.index
     && m.answers.every((a, k) => a && typeof a.text === 'string' && a.text.length <= 60000 && a.question === fresh.questions[k])) {
     fresh.mock = {
@@ -1421,10 +1446,18 @@ function bindImport() {
       const copies = b.preparations.map((p) => coreRestore(p));
       records.push(...copies);
       const ok = persist();
+      // Settings from the backup fill only what is empty here; the secret is never in a backup.
+      let filled = false;
+      if (b.prefs && globalThis.NextStepProvider) {
+        const merged = NextStepProvider.restorePrefs(corePrefs(), b.prefs);
+        if (merged.changed) {
+          try { coreWritePrefs(merged.prefs); filled = true; } catch { /* the preparations are still restored */ }
+        }
+      }
       active = null;
       show('welcome');
       const n = copies.length + (copies.length === 1 ? ' preparation' : ' preparations');
-      notify(ok ? 'Restored ' + n + ' as separate copies.' : "Opened for this visit only: this browser couldn't save it. Keep your backup file.", !ok);
+      notify(ok ? 'Restored ' + n + ' as separate copies.' + (filled ? ' Empty settings were filled in from the backup.' : '') : "Opened for this visit only: this browser couldn't save it. Keep your backup file.", !ok);
     } catch (err) { notify('Could not restore: ' + err.message, true); }
   });
 }
@@ -1509,7 +1542,7 @@ function bindScreen() {
   if ($('#retry')) $('#retry').addEventListener('click', () => { active.quiz.answers = {}; save(); show('quiz'); });
   if ($('#delete-all')) $('#delete-all').addEventListener('click', () => {
     if (!storageOK && !storageBlocked) { notify('Your saved data could not be read, so it is left exactly as it was. Download it as-is above if you want a copy.', true); return; }
-    if (!confirm('Delete every preparation on this phone? This cannot be undone. Export a backup first if you want to keep them.')) return;
+    if (!confirm('Delete every preparation on this phone? This also forgets the personal course setup. This cannot be undone. Export a backup first if you want to keep them.')) return;
     try {
       if (!storageBlocked) { localStorage.removeItem(KEY); localStorage.removeItem(CORE_PREFS_KEY); globalThis.NextStepFeedback?.clear?.(); }
       /* interview.js keeps the read-aloud choice in memory too; switch it off for the rest of this visit. */

@@ -14,14 +14,26 @@
     unconfigured: '',
     later: '',
     cancelled: '',
-    timeout: 'The personal course took too long, so these are the general lessons.',
-    unreachable: 'The personal course could not be reached, so these are the general lessons.',
-    unauthorized: 'The tower did not accept the secret in Settings, so these are the general lessons.',
-    large: 'The ad and your background were too long to send, so these are the general lessons.',
-    limited: 'The tower is busy, so these are the general lessons.',
-    invalid: 'The personal course did not come back in a usable shape, so these are the general lessons.',
-    forbidden: 'That tower address is not allowed, so these are the general lessons.'
+    /* Shown on the writing screen above Try again and Use general lessons, so they say only what went
+       wrong. Only the owner sees them: only the owner has a tower set up. */
+    timeout: 'The personal course took too long.',
+    unreachable: 'The tower could not be reached.',
+    offline: "You're offline. Try again when you have a connection, or use the general lessons now.",
+    unauthorized: 'The tower did not accept the secret in Settings.',
+    large: 'The ad and your background are too long to send.',
+    limited: 'The tower is busy right now.',
+    invalid: 'The personal course did not come back in a usable shape.',
+    forbidden: 'That tower address is not allowed.',
+    login: 'Codex on your tower needs signing in again. On the tower, run codex login, then try again.',
+    codex: 'The tower could not write the course this time.'
   };
+  const offline = (opts) => {
+    const nav = opts && opts.navigator !== undefined ? opts.navigator : root.navigator;
+    return !!nav && nav.onLine === false;
+  };
+  // Reasons the tower itself names in a failed reply; anything else is treated as "invalid".
+  const TOWER_REASONS = ['login', 'codex', 'timeout'];
+  const towerReason = (data) => (data && data.ok === false && TOWER_REASONS.includes(data.reason) ? data.reason : '');
 
   function extraFromWindow() {
     try {
@@ -69,6 +81,36 @@
       towerSecretSet: settings.towerSecretSet,
       aboutYou: about && typeof about.text === 'string' ? { source: about.source || '', label: about.label || '', text: about.text } : null
     };
+  }
+
+  /* Restoring a backup's prefs fills only what is empty on this phone: the provider when none is chosen,
+     the tower address when none is set (and only an allowed one), About you when there is none. It never
+     overwrites a setting, and the secret is never read from a backup or changed. Returns
+     { prefs, changed } with a new prefs object. */
+  function restorePrefs(current, saved, extraOrigins) {
+    const now = current && typeof current === 'object' && !Array.isArray(current) ? { ...current } : {};
+    const from = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+    const filled = [];
+    if (readSettings(now).provider === 'none' && SLOTS.some((slot) => slot.id === from.provider) && from.provider !== 'none') {
+      now.provider = from.provider;
+      filled.push('provider');
+    }
+    const url = typeof from.towerUrl === 'string' ? from.towerUrl.trim() : '';
+    if (!readSettings(now).towerUrl && url && url.length <= 300 && allowedTowerUrl(url, extraOrigins)) {
+      now.towerUrl = url;
+      filled.push('towerUrl');
+    }
+    const had = now.aboutYou && typeof now.aboutYou === 'object' && typeof now.aboutYou.text === 'string' && now.aboutYou.text.trim();
+    const about = from.aboutYou && typeof from.aboutYou === 'object' ? from.aboutYou : null;
+    if (!had && about && typeof about.text === 'string' && about.text.trim() && about.text.length <= 40000) {
+      now.aboutYou = {
+        source: typeof about.source === 'string' ? about.source.slice(0, 20) : '',
+        label: typeof about.label === 'string' ? about.label.slice(0, 40) : '',
+        text: about.text.trim()
+      };
+      filled.push('aboutYou');
+    }
+    return { prefs: now, changed: filled.length > 0, filled };
   }
 
   function providerReady(prefs, extraOrigins) {
@@ -182,6 +224,7 @@
     }
     const endpoint = endpointFor(prefs, extra);
     if (!endpoint) return failure('forbidden', true);
+    if (offline(opts)) return failure('offline', true);
     const fetchImpl = opts.fetch || root.fetch;
     if (typeof fetchImpl !== 'function') return failure('unreachable', true);
     const ctrl = new AbortController();
@@ -204,8 +247,10 @@
       if (res.status === 401) return failure('unauthorized', true);
       if (res.status === 413) return failure('large', true);
       if (res.status === 429) return failure('limited', true);
+      if (res.status === 504) return failure('timeout', true);
       let data = null;
       try { data = await res.json(); } catch { data = null; }
+      if (!res.ok && towerReason(data)) return failure(towerReason(data), true);
       if (!res.ok || !data || data.ok === false || !data.course || typeof data.course !== 'object') return failure('invalid', true);
       return { ok: true, attempted: true, reason: '', message: '', course: data.course };
     } catch (err) {
@@ -223,6 +268,7 @@
     if (!providerReady(prefs, extra)) return failure('unconfigured', false);
     const endpoint = interviewUrl(prefs, path, extra);
     if (!endpoint) return failure('forbidden', true);
+    if (offline(opts)) return failure('offline', true);
     const fetchImpl = opts.fetch || root.fetch;
     if (typeof fetchImpl !== 'function') return failure('unreachable', true);
     const ctrl = new AbortController();
@@ -245,8 +291,10 @@
       if (res.status === 401) return failure('unauthorized', true);
       if (res.status === 413) return failure('large', true);
       if (res.status === 429) return failure('limited', true);
+      if (res.status === 504) return failure('timeout', true);
       let data = null;
       try { data = await res.json(); } catch { data = null; }
+      if (!res.ok && towerReason(data)) return failure(towerReason(data), true);
       if (!res.ok || !data || data.ok === false) return failure('invalid', true);
       if (path === '/interview/debrief') {
         if (!data.debrief) return failure('invalid', true);
@@ -263,7 +311,7 @@
     }
   }
 
-  const api = { SLOTS, allowedTowerUrl, readSettings, publicPrefs, providerReady, splitTowerPaste, endpointFor, interviewUrl, requestBody, requestCourse, requestInterview };
+  const api = { SLOTS, allowedTowerUrl, readSettings, publicPrefs, restorePrefs, providerReady, splitTowerPaste, endpointFor, interviewUrl, requestBody, requestCourse, requestInterview };
   root.NextStepProvider = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

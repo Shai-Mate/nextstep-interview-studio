@@ -11,7 +11,9 @@ const { runCodex } = require('./codex.js');
 
 const ALLOWED_ORIGIN = 'https://shai-mate.github.io';
 const MAX_BODY = 200000;
+// Courses are slow and rare; an interview takes a turn every answer, so it gets its own, larger limit.
 const MAX_PER_MINUTE = 8;
+const INTERVIEW_PER_MINUTE = 20;
 
 function isTailscaleIPv4(host) {
   if (isIP(host) !== 4) return false;
@@ -87,8 +89,20 @@ function createTowerServer(options) {
   const secret = String(opts.secret || '');
   const allowed = opts.allowedOrigin || ALLOWED_ORIGIN;
   const hits = opts.hits || [];
+  const interviewHits = opts.interviewHits || [];
   const log = typeof opts.log === 'function' ? opts.log : () => {};
   const run = opts.runCodex || runCodex;
+  // The last Codex result, in memory only: enough for /health to tell a lapsed login from a timeout.
+  // ok means Codex ran and answered; a course or turn that then fails its checks is still ok here
+  // (the reply to the phone says invalid), because Codex itself is working.
+  let lastCodex = null;
+  const remember = (ok, reason) => { lastCodex = { ok, reason: ok ? null : reason, at: new Date().toISOString() }; };
+  const FAILURES = ['timeout', 'codex', 'invalid', 'login'];
+  const failure = (err) => {
+    const reason = err && FAILURES.includes(err.code) ? err.code : 'codex';
+    remember(false, reason);
+    return reason;
+  };
 
   async function handle(req, res) {
     const started = Date.now();
@@ -108,7 +122,7 @@ function createTowerServer(options) {
     };
     const url = new URL(req.url || '/', 'http://tower.local');
     const interviewPath = url.pathname === '/interview/turn' || url.pathname === '/interview/debrief';
-    if (req.method === 'GET' && url.pathname === '/health') return send(200, { ok: true });
+    if (req.method === 'GET' && url.pathname === '/health') return send(200, { ok: true, codex: lastCodex });
     if (url.pathname !== '/generate' && !interviewPath) return send(404, { ok: false, reason: 'missing' });
     if (!cors) return send(403, { ok: false, reason: 'forbidden' });
     if (req.method === 'OPTIONS') {
@@ -125,8 +139,10 @@ function createTowerServer(options) {
       return send(401, { ok: false, reason: 'unauthorized' });
     }
     const now = Date.now();
-    while (hits.length && now - hits[0] > 60000) hits.shift();
-    if (hits.length >= (opts.maxPerMinute || MAX_PER_MINUTE)) {
+    const recent = interviewPath ? interviewHits : hits;
+    const limit = interviewPath ? (opts.interviewMaxPerMinute || INTERVIEW_PER_MINUTE) : (opts.maxPerMinute || MAX_PER_MINUTE);
+    while (recent.length && now - recent[0] > 60000) recent.shift();
+    if (recent.length >= limit) {
       if (typeof req.resume === 'function') req.resume();
       return send(429, { ok: false, reason: 'limited' });
     }
@@ -140,7 +156,7 @@ function createTowerServer(options) {
     if (interviewPath) {
       const ad = String(data.ad || '').trim();
       if (ad.length < 40) return send(400, { ok: false, reason: 'short' });
-      hits.push(now);
+      interviewHits.push(now);
       const prompt = url.pathname === '/interview/debrief' ? live.buildDebriefPrompt(data) : live.buildTurnPrompt(data);
       const schema = url.pathname === '/interview/debrief' ? live.debriefSchema : live.turnSchema;
       try {
@@ -152,6 +168,7 @@ function createTowerServer(options) {
           spawn: opts.spawn,
           tmpRoot: opts.tmpRoot
         });
+        remember(true);
         const checked = url.pathname === '/interview/debrief'
           ? live.validateDebrief(generated, Array.isArray(data.answers) ? data.answers.length : 0)
           : live.validateTurn(generated);
@@ -159,7 +176,7 @@ function createTowerServer(options) {
         if (url.pathname === '/interview/debrief') return send(200, { ok: true, debrief: checked.value });
         return send(200, { ok: true, turn: checked.value });
       } catch (err) {
-        const reason = err && (err.code === 'timeout' || err.code === 'codex' || err.code === 'invalid') ? err.code : 'codex';
+        const reason = failure(err);
         return send(reason === 'timeout' ? 504 : 502, { ok: false, reason });
       }
     }
@@ -175,6 +192,7 @@ function createTowerServer(options) {
         spawn: opts.spawn,
         tmpRoot: opts.tmpRoot
       });
+      remember(true);
       const checked = course.validateCourse(generated, {
         ad: prepared.ad,
         about: prepared.about,
@@ -184,7 +202,7 @@ function createTowerServer(options) {
       if (!checked.ok) return send(502, { ok: false, reason: 'invalid' });
       return send(200, { ok: true, course: checked.value });
     } catch (err) {
-      const reason = err && (err.code === 'timeout' || err.code === 'codex' || err.code === 'invalid') ? err.code : 'codex';
+      const reason = failure(err);
       return send(reason === 'timeout' ? 504 : 502, { ok: false, reason });
     }
   }
@@ -228,6 +246,6 @@ function main() {
   });
 }
 
-module.exports = { createTowerServer, resolveBind, parseTailscaleIp, isTailscaleIPv4, ALLOWED_ORIGIN, MAX_BODY };
+module.exports = { createTowerServer, resolveBind, parseTailscaleIp, isTailscaleIPv4, ALLOWED_ORIGIN, MAX_BODY, MAX_PER_MINUTE, INTERVIEW_PER_MINUTE };
 
 if (require.main === module) main();

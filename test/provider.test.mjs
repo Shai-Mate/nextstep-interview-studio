@@ -77,5 +77,74 @@ test('an unconfigured phone does not call the network, and a tower call sends th
   });
   assert.equal(denied.attempted, true);
   assert.equal(denied.reason, 'unauthorized');
-  assert.match(denied.message, /general lessons/);
+  assert.equal(denied.message, 'The tower did not accept the secret in Settings.');
+});
+
+test('the tower naming a lapsed Codex login, or a Codex failure, reaches the owner in plain words', async () => {
+  const prefs = { provider: 'subscription', towerUrl: 'https://omarchy.tailnet.ts.net/', towerSecret: 'super-secret-value' };
+  const replying = (status, body) => ({ fetch: async () => ({ ok: false, status, json: async () => body }) });
+  const input = { job: 'Greet customers and handle cash accurately on the shop floor each day.', aboutYou: { text: 'I was a barista at Harbour Cafe for three years.' } };
+  const login = await provider.requestCourse(prefs, input, replying(502, { ok: false, reason: 'login' }));
+  assert.deepEqual([login.reason, login.message], ['login', 'Codex on your tower needs signing in again. On the tower, run codex login, then try again.']);
+  const codex = await provider.requestCourse(prefs, input, replying(502, { ok: false, reason: 'codex' }));
+  assert.deepEqual([codex.reason, codex.message], ['codex', 'The tower could not write the course this time.']);
+  const slow = await provider.requestCourse(prefs, input, replying(504, { ok: false, reason: 'timeout' }));
+  assert.equal(slow.reason, 'timeout');
+  const odd = await provider.requestCourse(prefs, input, replying(502, { ok: false, reason: 'something-new' }));
+  assert.equal(odd.reason, 'invalid', 'an unknown reason is still treated as invalid');
+  for (const path of ['/interview/turn', '/interview/debrief']) {
+    const res = await provider.requestInterview(prefs, path, { ad: input.job }, replying(502, { ok: false, reason: 'login' }));
+    assert.equal(res.reason, 'login', path);
+  }
+  for (const msg of [login.message, codex.message]) assert.equal(msg.includes('\u2014'), false);
+});
+
+test('a tower 504 is a timeout, and an offline phone does not try the tower at all', async () => {
+  const prefs = { provider: 'subscription', towerUrl: 'https://omarchy.tailnet.ts.net/', towerSecret: 'super-secret-value' };
+  const input = { job: 'Greet customers and handle cash accurately on the shop floor each day.', aboutYou: { text: 'I was a barista at Harbour Cafe for three years.' } };
+  const bare = await provider.requestCourse(prefs, input, { fetch: async () => ({ ok: false, status: 504, json: async () => { throw Error('no body'); } }) });
+  assert.deepEqual([bare.reason, bare.message], ['timeout', 'The personal course took too long.']);
+  let called = 0;
+  const off = await provider.requestCourse(prefs, input, { navigator: { onLine: false }, fetch: async () => { called += 1; throw Error('no network'); } });
+  assert.equal(called, 0);
+  assert.deepEqual([off.reason, off.attempted, off.message], ['offline', true, "You're offline. Try again when you have a connection, or use the general lessons now."]);
+  const on = await provider.requestCourse(prefs, input, { navigator: { onLine: true }, fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true, course: { requirements: ['a'] } }) }) });
+  assert.equal(on.ok, true);
+});
+
+test('a backup carries the personal course setup but never the secret, and restore fills only empty settings', async () => {
+  const { readFileSync } = await import('node:fs');
+  const SECRET = 'super-secret-value-never-exported';
+  const prefs = {
+    provider: 'subscription',
+    towerUrl: 'https://omarchy.tailnet.ts.net/',
+    towerSecret: SECRET,
+    aboutYou: { source: 'resume', label: 'résumé', text: 'I was a barista at Harbour Cafe for three years.' }
+  };
+  // The export is built exactly as app.js builds it: the preparations plus publicPrefs(corePrefs()).
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  assert.match(app, /payload\.prefs = NextStepProvider\.publicPrefs\(corePrefs\(\)\)/);
+  assert.doesNotMatch(app.slice(app.indexOf('function coreBackupPayload'), app.indexOf('function exportBackup')), /towerSecret/);
+  const exported = JSON.stringify({ schema: 1, preparations: [{ id: 'p1', notes: {} }], prefs: provider.publicPrefs(prefs) }, null, 2);
+  assert.equal(exported.includes(SECRET), false, 'the secret is never in an export');
+  assert.equal(exported.includes('towerSecret"'), false);
+  const saved = JSON.parse(exported).prefs;
+  assert.deepEqual([saved.provider, saved.towerUrl, saved.aboutYou.text], ['subscription', 'https://omarchy.tailnet.ts.net/', prefs.aboutYou.text]);
+
+  // An empty phone gets the setup, but no secret.
+  const fresh = provider.restorePrefs({}, saved);
+  assert.equal(fresh.changed, true);
+  assert.equal(fresh.prefs.provider, 'subscription');
+  assert.equal(fresh.prefs.towerUrl, 'https://omarchy.tailnet.ts.net/');
+  assert.equal(fresh.prefs.aboutYou.text, prefs.aboutYou.text);
+  assert.equal('towerSecret' in fresh.prefs, false);
+  // A phone that already has settings keeps every one of them, including its secret.
+  const mine = { provider: 'subscription', towerUrl: 'https://other.tailnet.ts.net/', towerSecret: 'mine-only', aboutYou: { text: 'My own words.' }, readAloud: true };
+  const kept = provider.restorePrefs(mine, { ...saved, provider: 'byok', towerSecret: 'from-the-file' });
+  assert.equal(kept.changed, false);
+  assert.deepEqual(kept.prefs, mine);
+  // A backup's secret field, or a tower address that is not allowed, is never applied.
+  const odd = provider.restorePrefs({}, { towerSecret: 'from-the-file', towerUrl: 'https://evil.example.com/' });
+  assert.equal(odd.changed, false);
+  assert.deepEqual(odd.prefs, {});
 });

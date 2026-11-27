@@ -31,7 +31,7 @@ function assemble(person) {
 }
 const goodCourse = assemble(fix);
 
-function makeSpawn(write, exitCode) {
+function makeSpawn(write, exitCode, stderrText) {
   const state = { last: null, calls: 0 };
   const spawn = (bin, args) => {
     state.calls += 1;
@@ -45,6 +45,7 @@ function makeSpawn(write, exitCode) {
     process.nextTick(() => {
       if (exitCode === 'hang') return;
       if (write) require('fs').writeFileSync(out, write);
+      if (stderrText) child.stderr.emit('data', Buffer.from(stderrText));
       child.emit('close', exitCode || 0);
     });
     return child;
@@ -209,6 +210,99 @@ test('a timeout, bad Codex output, and the rate limit never echo the résumé', 
     assert.equal(third.text.includes(TOKEN), false);
   } finally {
     await limited.close();
+    rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test('a lapsed Codex login says login on every route, never echoes stderr, and shows on /health', async () => {
+  const tmpRoot = mkdtempSync(join(tmpdir(), 'nextstep-tower-'));
+  const STDERR = 'ERROR: unexpected status 401 Unauthorized: token_revoked. Please log in again. STDERR_ONLY_QX7 ' + TOKEN;
+  const lapsed = makeSpawn(null, 1, STDERR);
+  const app = await listen({ spawn: lapsed.spawn, tmpRoot, timeoutMs: 2000, interviewTimeoutMs: 2000, maxPerMinute: 20 });
+  try {
+    const fresh = await app.call({ method: 'GET', path: '/health', body: null, auth: '' });
+    assert.deepEqual(fresh.json, { ok: true, codex: null }, 'nothing run yet');
+    for (const path of ['/generate', '/interview/turn', '/interview/debrief']) {
+      const res = await app.call({ path });
+      assert.equal(res.status, 502, path + ' ' + res.text);
+      assert.deepEqual(res.json, { ok: false, reason: 'login' }, path);
+      for (const secretish of ['STDERR_ONLY_QX7', 'token_revoked', TOKEN, MARKER]) assert.equal(res.text.includes(secretish), false, path + ' echoes ' + secretish);
+    }
+    const logs = JSON.stringify(app.logs);
+    for (const secretish of ['STDERR_ONLY_QX7', 'token_revoked', TOKEN, MARKER, SECRET]) assert.equal(logs.includes(secretish), false, 'logs hold ' + secretish);
+    const health = await app.call({ method: 'GET', path: '/health', body: null, auth: '' });
+    assert.equal(health.status, 200);
+    assert.deepEqual(Object.keys(health.json).sort(), ['codex', 'ok']);
+    assert.deepEqual(Object.keys(health.json.codex).sort(), ['at', 'ok', 'reason']);
+    assert.equal(health.json.codex.ok, false);
+    assert.equal(health.json.codex.reason, 'login');
+    assert.ok(!Number.isNaN(Date.parse(health.json.codex.at)));
+    assert.equal(health.text.includes('STDERR_ONLY_QX7'), false);
+  } finally { await app.close(); }
+
+  const other = makeSpawn(null, 2, 'stream error: connection reset by peer');
+  const broken = await listen({ spawn: other.spawn, tmpRoot, timeoutMs: 2000 });
+  try {
+    const res = await broken.call();
+    assert.deepEqual([res.status, res.json], [502, { ok: false, reason: 'codex' }], 'any other non-zero exit stays codex');
+    assert.equal((await broken.call({ method: 'GET', path: '/health', body: null, auth: '' })).json.codex.reason, 'codex');
+  } finally { await broken.close(); }
+
+  const good = makeSpawn(JSON.stringify(goodCourse));
+  const healthy = await listen({ spawn: good.spawn, tmpRoot, timeoutMs: 2000 });
+  try {
+    assert.equal((await healthy.call()).status, 200);
+    const h = await healthy.call({ method: 'GET', path: '/health', body: null, auth: '' });
+    assert.equal(h.json.codex.ok, true);
+    assert.equal(h.json.codex.reason, null);
+  } finally {
+    await healthy.close();
+    rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test('the login check reads only Codex sign-in errors, never the echoed ad', () => {
+  const { failureCode } = require('../tower/codex.js');
+  // Real lines from a revoked login on the tower (the account and ids replaced).
+  for (const s of [
+    'ERROR: unexpected status 401 Unauthorized: {"error":{"code":"token_revoked"}}',
+    'ERROR: Your refresh token was revoked. Please log out and sign in again.',
+    'Error: Not logged in. Run codex login.',
+    'error: token_revoked'
+  ]) assert.equal(failureCode('user\nSome ad text\n' + s), 'login', s);
+  // The reviewer's repros: ad text echoed back by codex exec, then an unrelated error.
+  const ads = [
+    'Benefits: health, dental, 401(k) match.\nERROR: stream disconnected before completion: model overloaded',
+    'You will log in to the POS at the start of each shift.\nERROR: rate limit reached, try again in 20s',
+    'Prevent unauthorized access to the stockroom.\nERROR: context window exceeded'
+  ];
+  for (const s of ads) assert.equal(failureCode('user\n' + s), 'codex', s);
+  // A prompt line that happens to look like an error is the ad, not Codex.
+  const prompt = 'Role: cashier\nERROR: please log in again if the till locks.\nShifts: weekends';
+  assert.equal(failureCode('user\n' + prompt + '\nERROR: model overloaded', prompt), 'codex');
+  for (const s of ['', 'model overloaded', 'HTTP 429 too many requests', 'exit 4010', 'Please log in to the staff portal']) assert.equal(failureCode(s), 'codex', s);
+});
+
+test('the interview has its own limit of 20 a minute, and courses keep 8', async () => {
+  const { MAX_PER_MINUTE, INTERVIEW_PER_MINUTE } = require('../tower/server.js');
+  assert.deepEqual([MAX_PER_MINUTE, INTERVIEW_PER_MINUTE], [8, 20]);
+  const tmpRoot = mkdtempSync(join(tmpdir(), 'nextstep-tower-'));
+  const codex = makeSpawn(null, 1, 'ERROR: model overloaded');
+  const app = await listen({ spawn: codex.spawn, tmpRoot, timeoutMs: 2000, interviewTimeoutMs: 2000 });
+  try {
+    for (let i = 0; i < 8; i += 1) assert.equal((await app.call({ path: '/generate' })).status, 502, 'course ' + (i + 1));
+    const ninth = await app.call({ path: '/generate' });
+    assert.deepEqual([ninth.status, ninth.json.reason], [429, 'limited']);
+    // Spent courses do not hold up the interview.
+    const paths = ['/interview/turn', '/interview/debrief'];
+    for (let i = 0; i < 20; i += 1) assert.equal((await app.call({ path: paths[i % 2] })).status, 502, 'interview ' + (i + 1));
+    for (const path of paths) {
+      const over = await app.call({ path });
+      assert.deepEqual([over.status, over.json.reason], [429, 'limited'], path);
+    }
+    assert.equal(codex.state.calls, 28, 'Codex ran only inside the limits');
+  } finally {
+    await app.close();
     rmSync(tmpRoot, { recursive: true, force: true });
   }
 });
