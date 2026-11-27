@@ -216,3 +216,11 @@ test('an older unfinished interview opens read-only, with its answers and no deb
   assert.equal(ctx.saves, 0);
   assert.equal(calls.length, 0);
 });
+
+test('at the cap, an empty interview goes before a finished one', () => {
+  const done = (n) => ({ ...finished, id: 'f' + n });
+  const list = [{ ...empty, id: 'new' }, ...[1, 2, 3, 4, 5, 6, 7].map(done), { ...empty, id: 'left-empty' }];
+  assert.deepEqual(live.trimSessions(list, 'new').map((s) => s.id), ['new', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7']);
+  // The one being saved is kept even while it is still empty.
+  assert.ok(live.trimSessions([{ ...empty, id: 'new' }, ...[1, 2, 3, 4, 5, 6, 7, 8].map(done)], 'new').some((s) => s.id === 'new'));
+});

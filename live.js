@@ -522,9 +522,10 @@
     }));
   }
 
-  /* Keep at most `max` saved interviews, newest first. When one has to go, the oldest finished one goes
-     first, so unfinished ones survive; the one being saved and the newest unfinished one are never
-     dropped. Only with nothing finished left does the oldest other unfinished one go. */
+  /* Keep at most `max` saved interviews, newest first. When one has to go, an empty one (opened and left,
+     no answers and no debrief, hidden from Past interviews) goes first, then the oldest finished one, so
+     unfinished ones survive; the one being saved and the newest unfinished one are never dropped. Only
+     with nothing else left does the oldest other unfinished one go. */
   const MAX_SESSIONS = 8;
   function trimSessions(list, keepId, max) {
     const cap = max || MAX_SESSIONS;
@@ -533,6 +534,7 @@
     const protect = new Set([keepId, openOne && openOne.id].filter(Boolean));
     while (out.length > cap) {
       let at = -1;
+      for (let i = out.length - 1; i >= 0 && at < 0; i -= 1) if (!protect.has(out[i] && out[i].id) && !worthListing(out[i])) at = i;
       for (let i = out.length - 1; i >= 0 && at < 0; i -= 1) if (!protect.has(out[i] && out[i].id) && finishedSession(out[i])) at = i;
       for (let i = out.length - 1; i >= 0 && at < 0; i -= 1) if (!protect.has(out[i] && out[i].id)) at = i;
       if (at < 0) break;
