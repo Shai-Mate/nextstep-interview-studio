@@ -309,7 +309,35 @@
     login: 'Codex on your tower needs signing in again. On the tower, run codex login. These are generic questions from the ad for now.',
     codex: 'The tower could not run the interviewer this time, so these are generic questions from the ad.'
   };
+  /* A live interviewer that does not answer: the interview stays live. A timeout or an unreachable
+     tower is retried once on its own; after that the person sees why, with Try again and Continue with
+     general questions. These are the reasons, in plain words, for the toast and the screen. */
+  const STALL_REASONS = {
+    login: 'Codex on your tower needs signing in again. On the tower, run codex login, then try again.',
+    codex: 'The tower could not run the interviewer this time.',
+    unauthorized: 'The tower did not accept the secret in Settings.',
+    limited: 'The tower is busy right now. Wait a minute, then try again.',
+    offline: "You're offline. Try again when you have a connection, or continue with general questions.",
+    timeout: 'The interviewer took too long to answer.',
+    unreachable: 'The tower could not be reached.',
+    large: 'This interview is too long to send.',
+    invalid: 'The answer did not come back in a usable shape.',
+    forbidden: 'That tower address is not allowed.'
+  };
+  const RETRY_ON_ITS_OWN = ['timeout', 'unreachable'];
+  const stallMessage = (reason) => STALL_REASONS[reason] || STALL_REASONS.invalid;
+  const retryOnItsOwn = (reason, retried) => !retried && RETRY_ON_ITS_OWN.includes(reason);
+  /* What the debrief says about a generic interview: one that was live and then switched is not
+     described as never connected. */
+  function genericNote(session) {
+    if (!session || !session.generic) return '';
+    return session.wasLive
+      ? 'The live interviewer stopped answering partway, so the rest is generic, from the ad and your words.'
+      : 'Generic debrief from the ad and your words. A live interviewer was not connected.';
+  }
+
   function useTemplate(session, about, reason) {
+    if (session.mode === 'live') session.wasLive = true;
     session.mode = 'template';
     session.generic = true;
     session.note = TOWER_NOTES[reason] || 'The live interviewer could not be reached, so these are generic questions from the ad.';
@@ -436,6 +464,7 @@
       at: typeof item.at === 'string' ? item.at : '',
       mode: item.mode === 'live' ? 'live' : 'template',
       generic: !!item.generic,
+      wasLive: !!item.wasLive,
       note: typeof item.note === 'string' ? item.note.slice(0, 300) : '',
       questions: Array.isArray(item.questions) ? item.questions.filter((q) => typeof q === 'string').slice(0, 7) : [],
       answers: item.answers.filter((a) => a && typeof a.question === 'string' && typeof a.answer === 'string').slice(0, 7).map((a) => ({
@@ -461,6 +490,7 @@
       at: session.at,
       mode: session.mode,
       generic: session.generic,
+      wasLive: !!session.wasLive,
       note: session.note,
       questions: session.questions,
       answers: session.answers,
@@ -472,7 +502,7 @@
     CHECK, turnSchema, debriefSchema, answerIsThin, templateQuestions, createSession,
     validateTurn, validateDebrief, applyAnswer, applyTurn, applyDebrief, endSession, useTemplate,
     templateDebrief, strongerFrom, contextFrom, turnPayload, debriefPayload, buildTurnPrompt, buildDebriefPrompt,
-    cleanSessions, snapshot, fullAnswer
+    cleanSessions, snapshot, fullAnswer, stallMessage, retryOnItsOwn, genericNote
   };
   root.NextStepLive = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -486,6 +516,8 @@
   let liveTyped = false;
   let liveMicNote = '';
   let liveBusy = false;
+  // The interviewer did not answer: { kind: 'turn' | 'debrief', reason }. The interview stays live.
+  let liveStall = null;
 
   function livePrep() { return active; }
   function liveShow(name) { show(name); }
@@ -587,9 +619,17 @@
       liveShow('live');
     }
   }
-  async function liveRequest(kind) {
+  function liveStalled(kind, reason) {
+    liveStall = { kind, reason };
+    if (typeof notify === 'function') notify(stallMessage(reason));
+    liveSave();
+    liveSpeak('');
+    liveShow('live');
+  }
+  async function liveRequest(kind, retried) {
     const prep = livePrep();
     if (!liveSession || !prep || liveBusy) return;
+    liveStall = null;
     liveBusy = true;
     liveShow('live');
     const provider = window.NextStepProvider;
@@ -603,18 +643,13 @@
     liveBusy = false;
     if (!liveSession) return;
     if (!result.ok) {
-      useTemplate(liveSession, (prep.aboutYou && prep.aboutYou.text) || '', result.reason);
-      if (typeof notify === 'function') notify(liveSession.note);
-      liveSave();
-      if (liveSession.phase === 'review') { liveSpeak(''); liveShow('live-review'); }
-      else { liveSpeak(liveSession.current); liveShow('live'); }
+      if (result.reason === 'cancelled') { liveShow('live'); return; }
+      if (retryOnItsOwn(result.reason, retried)) return liveRequest(kind, true);
+      liveStalled(kind, result.reason);
       return;
     }
     const applied = kind === 'debrief' ? applyDebrief(liveSession, result.debrief) : applyTurn(liveSession, result.turn);
-    if (!applied.ok) {
-      useTemplate(liveSession, (prep.aboutYou && prep.aboutYou.text) || '');
-      if (typeof notify === 'function') notify(liveSession.note);
-    }
+    if (!applied.ok) { liveStalled(kind, 'invalid'); return; }
     liveSave();
     if (liveSession.phase === 'review' || liveSession.pending === 'debrief' && applied.effect === 'review') {
       liveShow('live-review');
@@ -651,6 +686,9 @@
     const status = session.paused ? 'Paused' : liveBusy ? 'One moment' : liveListening ? 'Listening' : session.phase === 'wait' ? 'One moment' : 'Your turn';
     return `<div class="screen live-screen${liveListening ? ' is-listening' : ''}" data-screen="live">
       <div class="topbar">${iconBtn('live-end', 'End interview', I.close)}<span class="label">Practice the interview</span><button type="button" class="quiet" data-action="live-pause">${session.paused ? 'Resume' : 'Pause'}</button></div>
+      ${liveStall ? `<section class="glass pad-sm generic-banner" role="alert"><p class="kicker">The interviewer didn't answer.</p><p>${esc(stallMessage(liveStall.reason))}</p>
+        <button type="button" class="primary" data-action="live-retry">Try again</button>
+        <button type="button" class="text-btn" data-action="live-general">Continue with general questions</button></section>` : ''}
       ${session.generic ? `<section class="glass pad-sm generic-banner" role="status"><p class="kicker">Generic interview</p><p>${esc(session.note || 'These questions come from the ad, not a live interviewer.')}</p></section>` : ''}
       <p class="kicker">Interviewer</p>
       <h1 class="live-say" id="live-say">${esc(session.current || (liveBusy ? 'Getting the next question.' : ''))}</h1>
@@ -660,8 +698,8 @@
       ${liveTyped ? `<label class="field" for="live-type">Type your answer</label><textarea id="live-type" class="compact" maxlength="4000"></textarea>` : '<button type="button" class="text-btn" data-action="live-type">Type instead</button>'}
       <div class="spacer"></div>
       <p class="fine">Tap to talk may send your voice to Apple or Google to turn it into text. Type instead keeps it on this phone.</p>
-      <button type="button" class="primary live-talk" data-action="live-talk" ${liveBusy || session.paused ? 'disabled' : ''}>${liveListening ? 'Listening' : 'Tap to talk'}</button>
-      <button type="button" class="primary" data-action="live-done" ${liveBusy || session.paused ? 'disabled' : ''}>I am done answering</button>
+      <button type="button" class="primary live-talk" data-action="live-talk" ${liveBusy || liveStall || session.paused ? 'disabled' : ''}>${liveListening ? 'Listening' : 'Tap to talk'}</button>
+      <button type="button" class="primary" data-action="live-done" ${liveBusy || liveStall || session.paused ? 'disabled' : ''}>I am done answering</button>
     </div>`;
   };
   screens['live-review'] = function () {
@@ -677,7 +715,7 @@
       <div class="topbar">${iconBtn('close-today', 'Close', I.close)}<span class="label">Debrief</span></div>
       <h1>How that interview went</h1>
       <p class="italic lg">Practice, not a verdict.</p>
-      ${session.generic ? '<p class="flow-note">Generic debrief from the ad and your words. A live interviewer was not connected.</p>' : ''}
+      ${session.generic ? `<p class="flow-note">${esc(genericNote(session))}</p>` : ''}
       <p class="live-overall">${esc(debrief.overall)}</p>
       ${items}
       <button type="button" class="primary gap-top" data-action="close-today"><span>Back to today</span></button>
@@ -692,6 +730,7 @@
     liveHeard = '';
     liveTyped = false;
     liveMicNote = '';
+    liveStall = null;
     const prep = livePrep();
     liveSession = createSession(prep, { provider: typeof coreProviderReady === 'function' && coreProviderReady() });
     liveSession.about = prep && prep.aboutYou ? prep.aboutYou.text : '';
@@ -712,8 +751,25 @@
     const box = document.getElementById('live-type');
     if (box) box.focus();
   };
+  actions['live-retry'] = function () {
+    if (!liveSession || liveBusy || !liveStall) return undefined;
+    const kind = liveStall.kind;
+    liveStall = null;
+    return liveRequest(kind, true);
+  };
+  actions['live-general'] = function () {
+    if (!liveSession || liveBusy || !liveStall) return;
+    const reason = liveStall.reason;
+    liveStall = null;
+    const prep = livePrep();
+    useTemplate(liveSession, (prep && prep.aboutYou && prep.aboutYou.text) || '', reason);
+    liveSave();
+    if (liveSession.phase === 'review') { liveSpeak(''); liveShow('live-review'); return; }
+    liveSpeak(liveSession.current);
+    liveShow('live');
+  };
   actions['live-done'] = function () {
-    if (!liveSession || liveBusy) return;
+    if (!liveSession || liveBusy || liveStall) return;
     const typed = document.getElementById('live-type');
     const text = typed && typed.value.trim() ? typed.value : liveHeard;
     liveSubmit(text);
@@ -733,6 +789,7 @@
     if (result.effect === 'request-debrief') { liveRequest('debrief'); return; }
     if (result.effect === 'review') { liveShow('live-review'); return; }
     liveSession = null;
+    liveStall = null;
     liveShow('today');
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -238,6 +238,7 @@
     if (!providerReady(prefs, extra)) return failure('unconfigured', false);
     const endpoint = interviewUrl(prefs, path, extra);
     if (!endpoint) return failure('forbidden', true);
+    if (offline(opts)) return failure('offline', true);
     const fetchImpl = opts.fetch || root.fetch;
     if (typeof fetchImpl !== 'function') return failure('unreachable', true);
     const ctrl = new AbortController();
@@ -260,6 +261,7 @@
       if (res.status === 401) return failure('unauthorized', true);
       if (res.status === 413) return failure('large', true);
       if (res.status === 429) return failure('limited', true);
+      if (res.status === 504) return failure('timeout', true);
       let data = null;
       try { data = await res.json(); } catch { data = null; }
       if (!res.ok && towerReason(data)) return failure(towerReason(data), true);
