@@ -188,7 +188,7 @@ test('a slow reply from an interview that was ended never lands in the resumed o
   const lateB = new Promise((r) => { releaseB = r; });
   const turnA = { say: 'Thanks. Tell me about a time a customer was upset.', kind: 'question' };
   const turnB = { say: 'B opening question that must not appear in A.', kind: 'question' };
-  const { ctx, calls, run } = sandbox([finished, waiting], [() => lateB, { ok: true, turn: turnA }]);
+  const { ctx, calls, run } = sandbox([finished, waiting], [lateB, { ok: true, turn: turnA }]);
   run('actions["open-live"]()'); // interview B asks for its opening question, and the tower is slow
   await settle();
   run('actions["live-end"]()'); // B is ended before its reply comes
