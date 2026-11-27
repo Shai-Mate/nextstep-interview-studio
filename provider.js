@@ -83,6 +83,36 @@
     };
   }
 
+  /* Restoring a backup's prefs fills only what is empty on this phone: the provider when none is chosen,
+     the tower address when none is set (and only an allowed one), About you when there is none. It never
+     overwrites a setting, and the secret is never read from a backup or changed. Returns
+     { prefs, changed } with a new prefs object. */
+  function restorePrefs(current, saved, extraOrigins) {
+    const now = current && typeof current === 'object' && !Array.isArray(current) ? { ...current } : {};
+    const from = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+    const filled = [];
+    if (readSettings(now).provider === 'none' && SLOTS.some((slot) => slot.id === from.provider) && from.provider !== 'none') {
+      now.provider = from.provider;
+      filled.push('provider');
+    }
+    const url = typeof from.towerUrl === 'string' ? from.towerUrl.trim() : '';
+    if (!readSettings(now).towerUrl && url && url.length <= 300 && allowedTowerUrl(url, extraOrigins)) {
+      now.towerUrl = url;
+      filled.push('towerUrl');
+    }
+    const had = now.aboutYou && typeof now.aboutYou === 'object' && typeof now.aboutYou.text === 'string' && now.aboutYou.text.trim();
+    const about = from.aboutYou && typeof from.aboutYou === 'object' ? from.aboutYou : null;
+    if (!had && about && typeof about.text === 'string' && about.text.trim() && about.text.length <= 40000) {
+      now.aboutYou = {
+        source: typeof about.source === 'string' ? about.source.slice(0, 20) : '',
+        label: typeof about.label === 'string' ? about.label.slice(0, 40) : '',
+        text: about.text.trim()
+      };
+      filled.push('aboutYou');
+    }
+    return { prefs: now, changed: filled.length > 0, filled };
+  }
+
   function providerReady(prefs, extraOrigins) {
     const settings = readSettings(prefs);
     if (settings.provider !== 'subscription') return false;
@@ -281,7 +311,7 @@
     }
   }
 
-  const api = { SLOTS, allowedTowerUrl, readSettings, publicPrefs, providerReady, splitTowerPaste, endpointFor, interviewUrl, requestBody, requestCourse, requestInterview };
+  const api = { SLOTS, allowedTowerUrl, readSettings, publicPrefs, restorePrefs, providerReady, splitTowerPaste, endpointFor, interviewUrl, requestBody, requestCourse, requestInterview };
   root.NextStepProvider = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

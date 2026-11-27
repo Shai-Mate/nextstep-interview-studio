@@ -1284,9 +1284,15 @@ function coreDownload(text, name, done) {
   setTimeout(() => URL.revokeObjectURL(url), 40000);
   if (done) notify(done);
 }
-function exportBackup(all) {
+/* A backup carries the preparations and the personal course setup (provider, tower address, About you)
+   through publicPrefs, which never includes the tower secret. */
+function coreBackupPayload(all) {
   const payload = { schema: 1, preparations: !all && active ? [active] : records };
-  coreDownload(JSON.stringify(payload, null, 2), 'nextstep-backup.json', 'Backup exported. It includes your job ads, notes and answers. About you is included when a course used it. The tower secret is not. Keep it private.');
+  if (globalThis.NextStepProvider) payload.prefs = NextStepProvider.publicPrefs(corePrefs());
+  return payload;
+}
+function exportBackup(all) {
+  coreDownload(JSON.stringify(coreBackupPayload(all), null, 2), 'nextstep-backup.json', 'Backup exported. It includes your job ads, notes and answers, About you and the personal course setup. The tower secret is not included. Keep it private.');
 }
 /* Backup restore. A preparation is rebuilt with PrepEngine.create(p) for safe defaults, but when the
    backup carries its own plan (questions, questionInfo, requirements, course, quizItems) that plan is
@@ -1427,10 +1433,18 @@ function bindImport() {
       const copies = b.preparations.map((p) => coreRestore(p));
       records.push(...copies);
       const ok = persist();
+      // Settings from the backup fill only what is empty here; the secret is never in a backup.
+      let filled = false;
+      if (b.prefs && globalThis.NextStepProvider) {
+        const merged = NextStepProvider.restorePrefs(corePrefs(), b.prefs);
+        if (merged.changed) {
+          try { coreWritePrefs(merged.prefs); filled = true; } catch { /* the preparations are still restored */ }
+        }
+      }
       active = null;
       show('welcome');
       const n = copies.length + (copies.length === 1 ? ' preparation' : ' preparations');
-      notify(ok ? 'Restored ' + n + ' as separate copies.' : "Opened for this visit only: this browser couldn't save it. Keep your backup file.", !ok);
+      notify(ok ? 'Restored ' + n + ' as separate copies.' + (filled ? ' Empty settings were filled in from the backup.' : '') : "Opened for this visit only: this browser couldn't save it. Keep your backup file.", !ok);
     } catch (err) { notify('Could not restore: ' + err.message, true); }
   });
 }
@@ -1515,7 +1529,7 @@ function bindScreen() {
   if ($('#retry')) $('#retry').addEventListener('click', () => { active.quiz.answers = {}; save(); show('quiz'); });
   if ($('#delete-all')) $('#delete-all').addEventListener('click', () => {
     if (!storageOK && !storageBlocked) { notify('Your saved data could not be read, so it is left exactly as it was. Download it as-is above if you want a copy.', true); return; }
-    if (!confirm('Delete every preparation on this phone? This cannot be undone. Export a backup first if you want to keep them.')) return;
+    if (!confirm('Delete every preparation on this phone? This also forgets the personal course setup. This cannot be undone. Export a backup first if you want to keep them.')) return;
     try {
       if (!storageBlocked) { localStorage.removeItem(KEY); localStorage.removeItem(CORE_PREFS_KEY); globalThis.NextStepFeedback?.clear?.(); }
       /* interview.js keeps the read-aloud choice in memory too; switch it off for the rest of this visit. */

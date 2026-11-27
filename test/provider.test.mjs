@@ -111,3 +111,40 @@ test('a tower 504 is a timeout, and an offline phone does not try the tower at a
   const on = await provider.requestCourse(prefs, input, { navigator: { onLine: true }, fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true, course: { requirements: ['a'] } }) }) });
   assert.equal(on.ok, true);
 });
+
+test('a backup carries the personal course setup but never the secret, and restore fills only empty settings', async () => {
+  const { readFileSync } = await import('node:fs');
+  const SECRET = 'super-secret-value-never-exported';
+  const prefs = {
+    provider: 'subscription',
+    towerUrl: 'https://omarchy.tailnet.ts.net/',
+    towerSecret: SECRET,
+    aboutYou: { source: 'resume', label: 'résumé', text: 'I was a barista at Harbour Cafe for three years.' }
+  };
+  // The export is built exactly as app.js builds it: the preparations plus publicPrefs(corePrefs()).
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  assert.match(app, /payload\.prefs = NextStepProvider\.publicPrefs\(corePrefs\(\)\)/);
+  assert.doesNotMatch(app.slice(app.indexOf('function coreBackupPayload'), app.indexOf('function exportBackup')), /towerSecret/);
+  const exported = JSON.stringify({ schema: 1, preparations: [{ id: 'p1', notes: {} }], prefs: provider.publicPrefs(prefs) }, null, 2);
+  assert.equal(exported.includes(SECRET), false, 'the secret is never in an export');
+  assert.equal(exported.includes('towerSecret"'), false);
+  const saved = JSON.parse(exported).prefs;
+  assert.deepEqual([saved.provider, saved.towerUrl, saved.aboutYou.text], ['subscription', 'https://omarchy.tailnet.ts.net/', prefs.aboutYou.text]);
+
+  // An empty phone gets the setup, but no secret.
+  const fresh = provider.restorePrefs({}, saved);
+  assert.equal(fresh.changed, true);
+  assert.equal(fresh.prefs.provider, 'subscription');
+  assert.equal(fresh.prefs.towerUrl, 'https://omarchy.tailnet.ts.net/');
+  assert.equal(fresh.prefs.aboutYou.text, prefs.aboutYou.text);
+  assert.equal('towerSecret' in fresh.prefs, false);
+  // A phone that already has settings keeps every one of them, including its secret.
+  const mine = { provider: 'subscription', towerUrl: 'https://other.tailnet.ts.net/', towerSecret: 'mine-only', aboutYou: { text: 'My own words.' }, readAloud: true };
+  const kept = provider.restorePrefs(mine, { ...saved, provider: 'byok', towerSecret: 'from-the-file' });
+  assert.equal(kept.changed, false);
+  assert.deepEqual(kept.prefs, mine);
+  // A backup's secret field, or a tower address that is not allowed, is never applied.
+  const odd = provider.restorePrefs({}, { towerSecret: 'from-the-file', towerUrl: 'https://evil.example.com/' });
+  assert.equal(odd.changed, false);
+  assert.deepEqual(odd.prefs, {});
+});
