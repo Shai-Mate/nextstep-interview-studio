@@ -97,7 +97,7 @@
       ended: false,
       userEnded: false,
       pending: provider ? 'turn' : '',
-      note: provider ? '' : 'Generic interview. These questions come from the ad, not a live interviewer.',
+      note: provider ? '' : 'These questions come from the ad, not a live interviewer.',
       at: new Date().toISOString()
     };
     if (!provider) session.transcript.push({ who: 'interviewer', text: session.current });
