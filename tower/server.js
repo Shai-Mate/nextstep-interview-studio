@@ -89,6 +89,15 @@ function createTowerServer(options) {
   const hits = opts.hits || [];
   const log = typeof opts.log === 'function' ? opts.log : () => {};
   const run = opts.runCodex || runCodex;
+  // The last Codex result, in memory only: enough for /health to tell a lapsed login from a timeout.
+  let lastCodex = null;
+  const remember = (ok, reason) => { lastCodex = { ok, reason: ok ? null : reason, at: new Date().toISOString() }; };
+  const FAILURES = ['timeout', 'codex', 'invalid', 'login'];
+  const failure = (err) => {
+    const reason = err && FAILURES.includes(err.code) ? err.code : 'codex';
+    remember(false, reason);
+    return reason;
+  };
 
   async function handle(req, res) {
     const started = Date.now();
@@ -108,7 +117,7 @@ function createTowerServer(options) {
     };
     const url = new URL(req.url || '/', 'http://tower.local');
     const interviewPath = url.pathname === '/interview/turn' || url.pathname === '/interview/debrief';
-    if (req.method === 'GET' && url.pathname === '/health') return send(200, { ok: true });
+    if (req.method === 'GET' && url.pathname === '/health') return send(200, { ok: true, codex: lastCodex });
     if (url.pathname !== '/generate' && !interviewPath) return send(404, { ok: false, reason: 'missing' });
     if (!cors) return send(403, { ok: false, reason: 'forbidden' });
     if (req.method === 'OPTIONS') {
@@ -152,6 +161,7 @@ function createTowerServer(options) {
           spawn: opts.spawn,
           tmpRoot: opts.tmpRoot
         });
+        remember(true);
         const checked = url.pathname === '/interview/debrief'
           ? live.validateDebrief(generated, Array.isArray(data.answers) ? data.answers.length : 0)
           : live.validateTurn(generated);
@@ -159,7 +169,7 @@ function createTowerServer(options) {
         if (url.pathname === '/interview/debrief') return send(200, { ok: true, debrief: checked.value });
         return send(200, { ok: true, turn: checked.value });
       } catch (err) {
-        const reason = err && (err.code === 'timeout' || err.code === 'codex' || err.code === 'invalid') ? err.code : 'codex';
+        const reason = failure(err);
         return send(reason === 'timeout' ? 504 : 502, { ok: false, reason });
       }
     }
@@ -175,6 +185,7 @@ function createTowerServer(options) {
         spawn: opts.spawn,
         tmpRoot: opts.tmpRoot
       });
+      remember(true);
       const checked = course.validateCourse(generated, {
         ad: prepared.ad,
         about: prepared.about,
@@ -184,7 +195,7 @@ function createTowerServer(options) {
       if (!checked.ok) return send(502, { ok: false, reason: 'invalid' });
       return send(200, { ok: true, course: checked.value });
     } catch (err) {
-      const reason = err && (err.code === 'timeout' || err.code === 'codex' || err.code === 'invalid') ? err.code : 'codex';
+      const reason = failure(err);
       return send(reason === 'timeout' ? 504 : 502, { ok: false, reason });
     }
   }

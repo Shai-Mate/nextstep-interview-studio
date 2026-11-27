@@ -31,7 +31,7 @@ function assemble(person) {
 }
 const goodCourse = assemble(fix);
 
-function makeSpawn(write, exitCode) {
+function makeSpawn(write, exitCode, stderrText) {
   const state = { last: null, calls: 0 };
   const spawn = (bin, args) => {
     state.calls += 1;
@@ -45,6 +45,7 @@ function makeSpawn(write, exitCode) {
     process.nextTick(() => {
       if (exitCode === 'hang') return;
       if (write) require('fs').writeFileSync(out, write);
+      if (stderrText) child.stderr.emit('data', Buffer.from(stderrText));
       child.emit('close', exitCode || 0);
     });
     return child;
@@ -211,4 +212,57 @@ test('a timeout, bad Codex output, and the rate limit never echo the résumé', 
     await limited.close();
     rmSync(tmpRoot, { recursive: true, force: true });
   }
+});
+
+test('a lapsed Codex login says login on every route, never echoes stderr, and shows on /health', async () => {
+  const tmpRoot = mkdtempSync(join(tmpdir(), 'nextstep-tower-'));
+  const STDERR = 'ERROR: unexpected status 401 Unauthorized: token_revoked. Please log in again. STDERR_ONLY_QX7 ' + TOKEN;
+  const lapsed = makeSpawn(null, 1, STDERR);
+  const app = await listen({ spawn: lapsed.spawn, tmpRoot, timeoutMs: 2000, interviewTimeoutMs: 2000, maxPerMinute: 20 });
+  try {
+    const fresh = await app.call({ method: 'GET', path: '/health', body: null, auth: '' });
+    assert.deepEqual(fresh.json, { ok: true, codex: null }, 'nothing run yet');
+    for (const path of ['/generate', '/interview/turn', '/interview/debrief']) {
+      const res = await app.call({ path });
+      assert.equal(res.status, 502, path + ' ' + res.text);
+      assert.deepEqual(res.json, { ok: false, reason: 'login' }, path);
+      for (const secretish of ['STDERR_ONLY_QX7', 'token_revoked', TOKEN, MARKER]) assert.equal(res.text.includes(secretish), false, path + ' echoes ' + secretish);
+    }
+    const logs = JSON.stringify(app.logs);
+    for (const secretish of ['STDERR_ONLY_QX7', 'token_revoked', TOKEN, MARKER, SECRET]) assert.equal(logs.includes(secretish), false, 'logs hold ' + secretish);
+    const health = await app.call({ method: 'GET', path: '/health', body: null, auth: '' });
+    assert.equal(health.status, 200);
+    assert.deepEqual(Object.keys(health.json).sort(), ['codex', 'ok']);
+    assert.deepEqual(Object.keys(health.json.codex).sort(), ['at', 'ok', 'reason']);
+    assert.equal(health.json.codex.ok, false);
+    assert.equal(health.json.codex.reason, 'login');
+    assert.ok(!Number.isNaN(Date.parse(health.json.codex.at)));
+    assert.equal(health.text.includes('STDERR_ONLY_QX7'), false);
+  } finally { await app.close(); }
+
+  const other = makeSpawn(null, 2, 'stream error: connection reset by peer');
+  const broken = await listen({ spawn: other.spawn, tmpRoot, timeoutMs: 2000 });
+  try {
+    const res = await broken.call();
+    assert.deepEqual([res.status, res.json], [502, { ok: false, reason: 'codex' }], 'any other non-zero exit stays codex');
+    assert.equal((await broken.call({ method: 'GET', path: '/health', body: null, auth: '' })).json.codex.reason, 'codex');
+  } finally { await broken.close(); }
+
+  const good = makeSpawn(JSON.stringify(goodCourse));
+  const healthy = await listen({ spawn: good.spawn, tmpRoot, timeoutMs: 2000 });
+  try {
+    assert.equal((await healthy.call()).status, 200);
+    const h = await healthy.call({ method: 'GET', path: '/health', body: null, auth: '' });
+    assert.equal(h.json.codex.ok, true);
+    assert.equal(h.json.codex.reason, null);
+  } finally {
+    await healthy.close();
+    rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test('the login check reads only known sign-in phrases', () => {
+  const { failureCode } = require('../tower/codex.js');
+  for (const s of ['401 Unauthorized', 'token_revoked', 'You are not logged in', 'Please log in', 'Sign in again', 'unauthorised']) assert.equal(failureCode(s), 'login', s);
+  for (const s of ['', 'model overloaded', 'HTTP 429 too many requests', 'connection reset', 'exit 4010']) assert.equal(failureCode(s), 'codex', s);
 });

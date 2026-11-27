@@ -9,6 +9,14 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 
+/* Codex says why it failed on stderr. Only the last few KB are kept, in memory, to tell a lapsed login
+   from any other failure. That text is never logged and never returned: it can quote the prompt. */
+const STDERR_TAIL = 4096;
+const LOGIN_FAILURE = /\b401\b|token_revoked|not logged in|log in|sign in again|unauthori[sz]ed/i;
+function failureCode(stderrTail) {
+  return LOGIN_FAILURE.test(String(stderrTail || '')) ? 'login' : 'codex';
+}
+
 function runCodex(options) {
   const opts = options || {};
   const prompt = String(opts.prompt || '');
@@ -53,12 +61,18 @@ function runCodex(options) {
       finish(Object.assign(err, { code: 'codex' }));
       return;
     }
+    let stderrTail = '';
+    if (child.stderr && typeof child.stderr.on === 'function') {
+      child.stderr.on('data', (chunk) => { stderrTail = (stderrTail + String(chunk)).slice(-STDERR_TAIL); });
+    }
     if (child.stderr && typeof child.stderr.resume === 'function') child.stderr.resume();
     child.on('error', (err) => finish(Object.assign(err, { code: 'codex' })));
     child.on('close', (code) => {
       if (killed) return;
       if (code !== 0) {
-        finish(Object.assign(Error('codex'), { code: 'codex' }));
+        const reason = failureCode(stderrTail);
+        stderrTail = '';
+        finish(Object.assign(Error(reason), { code: reason }));
         return;
       }
       let raw = '';
@@ -72,4 +86,4 @@ function runCodex(options) {
   });
 }
 
-module.exports = { runCodex };
+module.exports = { runCodex, failureCode };
