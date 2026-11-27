@@ -182,3 +182,23 @@ test('Resume keeps the position: a pending live turn keeps its question, and gen
   assert.ok(s.index <= s.questions.length - 1);
   assert.equal(s.current, s.questions[s.index]);
 });
+
+test('a slow reply from an interview that was ended never lands in the resumed one', async () => {
+  let releaseB;
+  const lateB = new Promise((r) => { releaseB = r; });
+  const turnA = { say: 'Thanks. Tell me about a time a customer was upset.', kind: 'question' };
+  const turnB = { say: 'B opening question that must not appear in A.', kind: 'question' };
+  const { ctx, calls, run } = sandbox([finished, waiting], [() => lateB, { ok: true, turn: turnA }]);
+  run('actions["open-live"]()'); // interview B asks for its opening question, and the tower is slow
+  await settle();
+  run('actions["live-end"]()'); // B is ended before its reply comes
+  await run('actions["live-resume"]({ dataset: { id: "open-1" } })'); // A asks its own pending turn
+  await settle();
+  assert.deepEqual(calls, ['/interview/turn', '/interview/turn'], 'A sent its own request');
+  releaseB({ ok: true, turn: turnB }); // B's reply finally arrives
+  await settle(); await settle();
+  const a = ctx.active.liveSessions.find((s) => s.id === 'open-1');
+  assert.equal(JSON.stringify(a).includes('B opening question'), false);
+  assert.equal(a.state.current, turnA.say);
+  assert.match(run('screens.live()'), /a customer was upset/);
+});

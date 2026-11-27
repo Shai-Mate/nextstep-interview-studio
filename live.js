@@ -655,6 +655,10 @@
   let liveStall = null;
   // A past interview opened from Practise, shown read-only on the review screen. Never saved back.
   let liveViewing = null;
+  /* Each request to the tower belongs to one interview. Starting, resuming or ending one lets go of the
+     request in flight, so its reply, when it comes, is dropped instead of landing in another interview. */
+  let liveAsk = 0;
+  function liveLetGo() { liveAsk += 1; liveBusy = false; }
 
   function livePrep() { return active; }
   function liveShow(name) { liveViewing = null; show(name); }
@@ -766,6 +770,8 @@
   async function liveRequest(kind, retried) {
     const prep = livePrep();
     if (!liveSession || !prep || liveBusy) return;
+    const mine = liveSession;
+    const ask = ++liveAsk;
     liveStall = null;
     liveBusy = true;
     liveShow('live');
@@ -777,8 +783,8 @@
     try {
       if (provider && typeof provider.requestInterview === 'function') result = await provider.requestInterview(prefs, path, body);
     } catch { result = { ok: false, reason: 'unreachable' }; }
+    if (ask !== liveAsk || liveSession !== mine) return;
     liveBusy = false;
-    if (!liveSession) return;
     if (!result.ok) {
       if (result.reason === 'cancelled') { liveShow('live'); return; }
       if (retryOnItsOwn(result.reason, retried)) return liveRequest(kind, true);
@@ -881,6 +887,7 @@
     liveTyped = false;
     liveMicNote = '';
     liveStall = null;
+    liveLetGo();
     liveSession = session;
     liveSave();
     if (session.pending) return liveRequest(session.pending);
@@ -901,6 +908,7 @@
     liveTyped = false;
     liveMicNote = '';
     liveStall = null;
+    liveLetGo();
     const prep = livePrep();
     liveSession = createSession(prep, { provider: typeof coreProviderReady === 'function' && coreProviderReady() });
     liveSession.about = prep && prep.aboutYou ? prep.aboutYou.text : '';
@@ -954,6 +962,7 @@
     if (!liveSession) { liveShow('today'); return; }
     liveStopRec();
     liveStopSpeak();
+    liveLetGo();
     const result = endSession(liveSession);
     liveSave();
     if (result.effect === 'request-debrief') { liveRequest('debrief'); return; }
