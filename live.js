@@ -482,7 +482,7 @@
         })),
         overall: String(item.debrief.overall || '').slice(0, 500)
       } : null,
-      // Where an unfinished interview stood, so it can be resumed. Sessions saved before v15 lack these;
+      // Where an unfinished interview stood, so it can be resumed. Sessions saved before v16 lack these;
       // resumeSession rebuilds them from the answers.
       state: cleanState(item.state)
     }));
