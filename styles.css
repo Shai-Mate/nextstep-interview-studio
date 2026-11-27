@@ -900,3 +900,10 @@ input::-webkit-calendar-picker-indicator { filter: invert(.85) sepia(.4) saturat
 .earlier h2 { font-size: 18px; margin: 0 0 4px; }
 .earlier-note { margin-top: 12px; }
 .earlier-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 4px 0 0; }
+
+/* Past interviews on Practise (live.js keeps them in prep.liveSessions). */
+.past { margin: 4px 0 16px; }
+.past .kicker { margin: 8px 0 4px; }
+.row.static { cursor: default; }
+.row.static:active { transform: none; }
+.row .row-action { flex: none; font-size: 14px; font-weight: 600; color: var(--amber); }

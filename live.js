@@ -480,8 +480,101 @@
           stronger: String(part.stronger || '').slice(0, 500)
         })),
         overall: String(item.debrief.overall || '').slice(0, 500)
-      } : null
+      } : null,
+      // Where an unfinished interview stood, so it can be resumed. Sessions saved before v15 lack these;
+      // resumeSession rebuilds them from the answers.
+      state: cleanState(item.state)
     }));
+  }
+
+  const PHASES = ['wait', 'listen', 'debrief', 'review', 'closed'];
+  function cleanState(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const index = Number.isInteger(value.index) && value.index >= 0 && value.index <= 7 ? value.index : 0;
+    return {
+      phase: PHASES.includes(value.phase) ? value.phase : 'wait',
+      pending: value.pending === 'turn' || value.pending === 'debrief' ? value.pending : '',
+      index,
+      follow: !!value.follow,
+      current: typeof value.current === 'string' ? value.current.slice(0, 500) : '',
+      ended: !!value.ended,
+      userEnded: !!value.userEnded,
+      transcript: Array.isArray(value.transcript) ? value.transcript
+        .filter((t) => t && (t.who === 'interviewer' || t.who === 'you') && typeof t.text === 'string')
+        .slice(-40).map((t) => ({ who: t.who, text: t.text.slice(0, 4000) })) : []
+    };
+  }
+
+  /* A saved interview is finished once it has a debrief. One with answers and no debrief is unfinished;
+     one with neither was opened and left, so there is nothing to show. */
+  const finishedSession = (s) => !!(s && s.debrief && Array.isArray(s.debrief.items));
+  const worthListing = (s) => !!s && (finishedSession(s) || (Array.isArray(s.answers) && s.answers.length > 0));
+  function pastSessions(prep) {
+    const list = cleanSessions(prep && prep.liveSessions).filter(worthListing);
+    const newestOpen = list.find((s) => !finishedSession(s));
+    return list.map((s) => ({
+      id: s.id,
+      at: s.at,
+      live: s.mode === 'live' || s.wasLive,
+      finished: finishedSession(s),
+      resume: !!newestOpen && s.id === newestOpen.id
+    }));
+  }
+
+  function transcriptFrom(answers) {
+    const out = [];
+    answers.forEach((a) => {
+      out.push({ who: 'interviewer', text: a.question }, { who: 'you', text: a.answer });
+      if (a.follow) out.push({ who: 'interviewer', text: a.follow });
+      if (a.followAnswer) out.push({ who: 'you', text: a.followAnswer });
+    });
+    return out;
+  }
+
+  /* Rebuild a working session from a saved one, ready to carry on. A live interview that was waiting asks
+     again for its pending turn or debrief; one that ended waits for its debrief. A generic one carries on
+     from its question, and one with no questions left gets its generic debrief. */
+  function resumeSession(saved, about) {
+    const clean = cleanSessions([saved])[0];
+    if (!clean || finishedSession(clean)) return null;
+    const st = clean.state || { phase: 'wait', pending: '', index: clean.answers.length, follow: false, current: '', ended: false, userEnded: false, transcript: [] };
+    const session = {
+      id: clean.id,
+      at: clean.at,
+      mode: clean.mode,
+      generic: clean.generic,
+      wasLive: clean.wasLive,
+      note: clean.note,
+      questions: clean.questions.length ? clean.questions : templateQuestions({}),
+      answers: clean.answers,
+      transcript: st.transcript.length ? st.transcript : transcriptFrom(clean.answers),
+      debrief: null,
+      paused: false,
+      follow: st.follow,
+      index: clean.state ? st.index : clean.answers.length,
+      current: '',
+      ended: st.ended,
+      userEnded: st.userEnded,
+      pending: '',
+      phase: 'wait',
+      about: about || ''
+    };
+    if (session.mode === 'live') {
+      if (session.ended) { session.phase = 'debrief'; session.pending = 'debrief'; return session; }
+      if (st.phase === 'listen' && st.current && !st.pending) { session.phase = 'listen'; session.current = st.current; return session; }
+      session.pending = 'turn';
+      return session;
+    }
+    if (session.ended || session.index >= session.questions.length) {
+      session.ended = true;
+      session.debrief = templateDebrief(session, session.about);
+      session.phase = 'review';
+      return session;
+    }
+    session.current = st.current || session.questions[session.index];
+    if (session.transcript[session.transcript.length - 1]?.text !== session.current) session.transcript.push({ who: 'interviewer', text: session.current });
+    session.phase = 'listen';
+    return session;
   }
 
   function snapshot(session) {
@@ -494,7 +587,17 @@
       note: session.note,
       questions: session.questions,
       answers: session.answers,
-      debrief: session.debrief
+      debrief: session.debrief,
+      state: {
+        phase: session.phase,
+        pending: session.pending || '',
+        index: session.index,
+        follow: !!session.follow,
+        current: session.current || '',
+        ended: !!session.ended,
+        userEnded: !!session.userEnded,
+        transcript: Array.isArray(session.transcript) ? session.transcript.slice(-40) : []
+      }
     };
   }
 
@@ -502,7 +605,8 @@
     CHECK, turnSchema, debriefSchema, answerIsThin, templateQuestions, createSession,
     validateTurn, validateDebrief, applyAnswer, applyTurn, applyDebrief, endSession, useTemplate,
     templateDebrief, strongerFrom, contextFrom, turnPayload, debriefPayload, buildTurnPrompt, buildDebriefPrompt,
-    cleanSessions, snapshot, fullAnswer, stallMessage, retryOnItsOwn, genericNote
+    cleanSessions, snapshot, fullAnswer, stallMessage, retryOnItsOwn, genericNote,
+    pastSessions, resumeSession, finishedSession
   };
   root.NextStepLive = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -518,9 +622,11 @@
   let liveBusy = false;
   // The interviewer did not answer: { kind: 'turn' | 'debrief', reason }. The interview stays live.
   let liveStall = null;
+  // A past interview opened from Practise, shown read-only on the review screen. Never saved back.
+  let liveViewing = null;
 
   function livePrep() { return active; }
-  function liveShow(name) { show(name); }
+  function liveShow(name) { liveViewing = null; show(name); }
   function liveSave() {
     const prep = livePrep();
     if (!prep || !liveSession) return;
@@ -703,7 +809,7 @@
     </div>`;
   };
   screens['live-review'] = function () {
-    const session = liveSession;
+    const session = liveViewing || liveSession;
     const debrief = session && session.debrief;
     if (!session || !debrief) return screens.today ? screens.today() : '';
     const items = debrief.items.map((item, i) => {
@@ -718,12 +824,45 @@
       ${session.generic ? `<p class="flow-note">${esc(genericNote(session))}</p>` : ''}
       <p class="live-overall">${esc(debrief.overall)}</p>
       ${items}
+      ${liveViewing && liveViewing.transcript.length ? `<details class="fold"><summary>Transcript</summary>${liveViewing.transcript.map((t) => `<p><strong>${t.who === 'you' ? 'You' : 'Interviewer'}.</strong> ${esc(t.text)}</p>`).join('')}</details>` : ''}
       <button type="button" class="primary gap-top" data-action="close-today"><span>Back to today</span></button>
     </div>`;
   };
 
+  actions['live-past'] = function (el) {
+    const prep = livePrep();
+    const id = el && el.dataset ? el.dataset.id : '';
+    const saved = NextStepLive.cleanSessions(prep && prep.liveSessions).find((s) => s.id === id);
+    if (!saved || !finishedSession(saved)) return;
+    liveViewing = { ...saved, transcript: saved.state && saved.state.transcript.length ? saved.state.transcript : transcriptFrom(saved.answers) };
+    show('live-review');
+  };
+  actions['live-resume'] = function (el) {
+    const prep = livePrep();
+    const id = el && el.dataset ? el.dataset.id : '';
+    const saved = prep && Array.isArray(prep.liveSessions) ? prep.liveSessions.find((s) => s && s.id === id) : null;
+    const session = saved && resumeSession(saved, prep.aboutYou && prep.aboutYou.text);
+    if (!session) return undefined;
+    if (typeof ivPrime === 'function') ivPrime();
+    liveStopRec();
+    liveStopSpeak();
+    liveHeard = '';
+    liveTyped = false;
+    liveMicNote = '';
+    liveStall = null;
+    liveSession = session;
+    liveSave();
+    if (session.pending) return liveRequest(session.pending);
+    if (session.phase === 'review') { liveShow('live-review'); return undefined; }
+    liveSpeak(session.current);
+    liveShow('live');
+    return undefined;
+  };
+
   actions['open-live'] = function () {
     if (typeof needPrep === 'function' && !needPrep()) return;
+    const open = pastSessions(livePrep()).find((s) => s.resume);
+    if (open && !confirm('Start a new one? The unfinished one stays in Past interviews.')) return;
     if (typeof ivPrime === 'function') ivPrime();
     liveStopRec();
     liveStopSpeak();

@@ -941,6 +941,7 @@ const screens = {
       <p class="italic lg">Say it out loud first.</p>
       <p class="sub">Practise, pause, pick up again. Drafts save as you go.</p>
       <button type="button" class="row" data-action="open-live"><span class="copy"><strong>Practice the interview</strong><em>Spoken questions for this job, about 10 minutes</em></span>${I.chev}</button>
+      ${corePastHtml(p)}
       <button type="button" class="row" data-action="open-mock"><span class="copy"><strong>Mock interview</strong><em>${esc(mockLine(p))}</em></span>${I.chev.replace('stroke="currentColor"', 'stroke="#FFC48A"')}</button>
       <button type="button" class="row" data-action="open-answers"><span class="copy"><strong>Answer bank</strong><em>${st.answersDone} of ${st.answers} answers drafted${Array.isArray(p.questionInfo) ? ' · with what they want to hear' : ''}</em></span>${I.chev}</button>
       <button type="button" class="row" data-action="open-quiz"><span class="copy"><strong>Quiz</strong><em>${st.quizDone} of ${st.quiz} done${fromAd ? ' · built from your ad' : ''}</em></span>${I.chev}</button>
@@ -1270,6 +1271,25 @@ function coreEarlierHtml(p) {
         <p class="hint">Your notes and answers from before this course was rewritten. Copy what still helps into the answers above.</p>
         ${list.map((n) => `<article class="glass pad-sm earlier-note">${n.about ? `<p class="kicker">${esc(CORE_EARLIER_KIND[n.kind] || 'Note')}: ${esc(n.about)}</p>` : `<p class="kicker">${esc(CORE_EARLIER_KIND[n.kind] || 'Note')}</p>`}<p class="earlier-text">${esc(n.text)}</p></article>`).join('')}
       </section>`;
+}
+/* Past interviews, under Practice the interview on Practise, only when there is one to show. A finished
+   one opens its debrief read-only; the newest unfinished one can be resumed. */
+function corePastWhen(at) {
+  const d = new Date(at);
+  if (!at || Number.isNaN(d.getTime())) return 'Earlier';
+  try { return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+  catch { return d.toISOString().slice(0, 10); }
+}
+function corePastHtml(p) {
+  const list = globalThis.NextStepLive ? NextStepLive.pastSessions(p) : [];
+  if (!list.length) return '';
+  const rows = list.map((s) => {
+    const line = `${s.live ? 'Live' : 'Generic'} · ${s.finished ? 'Finished' : 'Unfinished'}`;
+    if (s.finished) return `<button type="button" class="row" data-action="live-past" data-id="${esc(s.id)}"><span class="copy"><strong>${esc(corePastWhen(s.at))}</strong><em>${line}</em></span>${I.chev}</button>`;
+    if (s.resume) return `<button type="button" class="row" data-action="live-resume" data-id="${esc(s.id)}"><span class="copy"><strong>${esc(corePastWhen(s.at))}</strong><em>${line}</em></span><span class="row-action">Resume</span></button>`;
+    return `<div class="row static"><span class="copy"><strong>${esc(corePastWhen(s.at))}</strong><em>${line}</em></span></div>`;
+  }).join('');
+  return `<section class="past" aria-labelledby="past-title"><h2 class="kicker" id="past-title">Past interviews</h2>${rows}</section>`;
 }
 function needPrep() { if (!active) { show('welcome'); return false; } return true; }
 function openLesson(i) { if (!needPrep()) return; lessonIndex = i; show('lesson'); }
