@@ -1287,7 +1287,7 @@ function corePastHtml(p) {
     const line = `${s.live ? 'Live' : 'Generic'} · ${s.finished ? 'Finished' : 'Unfinished'}`;
     if (s.finished) return `<button type="button" class="row" data-action="live-past" data-id="${esc(s.id)}"><span class="copy"><strong>${esc(corePastWhen(s.at))}</strong><em>${line}</em></span>${I.chev}</button>`;
     if (s.resume) return `<button type="button" class="row" data-action="live-resume" data-id="${esc(s.id)}"><span class="copy"><strong>${esc(corePastWhen(s.at))}</strong><em>${line}</em></span><span class="row-action">Resume</span></button>`;
-    return `<div class="row static"><span class="copy"><strong>${esc(corePastWhen(s.at))}</strong><em>${line}</em></span></div>`;
+    return `<button type="button" class="row" data-action="live-past" data-id="${esc(s.id)}"><span class="copy"><strong>${esc(corePastWhen(s.at))}</strong><em>${line}</em></span>${I.chev}</button>`;
   }).join('');
   return `<section class="past" aria-labelledby="past-title"><h2 class="kicker" id="past-title">Past interviews</h2>${rows}</section>`;
 }

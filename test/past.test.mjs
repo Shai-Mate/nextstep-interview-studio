@@ -71,7 +71,7 @@ test('Past interviews shows only when there is one, with date, live or generic, 
   assert.match(html, /<h2 class="kicker" id="past-title">Past interviews<\/h2>/);
   assert.match(html, /data-action="live-resume" data-id="open-1"[\s\S]*?Live · Unfinished[\s\S]*?Resume/);
   assert.match(html, /data-action="live-past" data-id="done-1"[\s\S]*?Live · Finished/);
-  assert.match(html, /<div class="row static">[\s\S]*?Generic · Unfinished/, 'only the newest unfinished one gets Resume');
+  assert.match(html, /data-action="live-past" data-id="old-1"[\s\S]*?Generic · Unfinished/, 'an older unfinished one opens read-only; only the newest gets Resume');
   assert.equal((html.match(/Resume/g) || []).length, 1);
   assert.doesNotMatch(html, /style=|—/);
   assert.match(APP, /Spoken questions for this job, about 10 minutes<\/em><\/span>\$\{I\.chev\}<\/button>\n      \$\{corePastHtml\(p\)\}/, 'it sits under Practice the interview');
@@ -201,4 +201,18 @@ test('a slow reply from an interview that was ended never lands in the resumed o
   assert.equal(JSON.stringify(a).includes('B opening question'), false);
   assert.equal(a.state.current, turnA.say);
   assert.match(run('screens.live()'), /a customer was upset/);
+});
+
+test('an older unfinished interview opens read-only, with its answers and no debrief', () => {
+  const { ctx, calls, run } = sandbox([waiting, oldOpen]);
+  run('actions["live-past"]({ dataset: { id: "old-1" } })');
+  assert.equal(ctx.view, 'live-review');
+  const html = run('screens["live-review"]()');
+  assert.match(html, /An unfinished interview/);
+  assert.match(html, /Unfinished, so there is no debrief\./);
+  assert.match(html, /I like helping people find what they need/);
+  assert.match(html, /<summary>Transcript<\/summary>/);
+  assert.doesNotMatch(html, /What landed|<textarea|data-action="live-(talk|done|retry|resume)"/);
+  assert.equal(ctx.saves, 0);
+  assert.equal(calls.length, 0);
 });

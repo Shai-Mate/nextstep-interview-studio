@@ -848,7 +848,19 @@
   screens['live-review'] = function () {
     const session = liveViewing || liveSession;
     const debrief = session && session.debrief;
-    if (!session || !debrief) return screens.today ? screens.today() : '';
+    if (!session || (!debrief && !liveViewing)) return screens.today ? screens.today() : '';
+    // An unfinished past interview opened read-only: what was said, and no debrief.
+    if (!debrief) {
+      const said = session.answers.map((a, i) => `<article class="glass pad-sm live-card"><p class="kicker">Question ${i + 1}</p><h2>${esc(a.question)}</h2><p><strong>What you said.</strong> ${esc(fullAnswer(a))}</p></article>`).join('');
+      return `<div class="screen" data-screen="live-review">
+      <div class="topbar">${iconBtn('close-today', 'Close', I.close)}<span class="label">Past interview</span></div>
+      <h1>An unfinished interview</h1>
+      <p class="italic lg">Unfinished, so there is no debrief.</p>
+      ${said}
+      ${session.transcript.length ? `<details class="fold"><summary>Transcript</summary>${session.transcript.map((t) => `<p><strong>${t.who === 'you' ? 'You' : 'Interviewer'}.</strong> ${esc(t.text)}</p>`).join('')}</details>` : ''}
+      <button type="button" class="primary gap-top" data-action="close-today"><span>Back to today</span></button>
+    </div>`;
+    }
     const items = debrief.items.map((item, i) => {
       const q = session.answers[i] ? session.answers[i].question : '';
       const said = session.answers[i] ? fullAnswer(session.answers[i]) : '';
@@ -870,7 +882,7 @@
     const prep = livePrep();
     const id = el && el.dataset ? el.dataset.id : '';
     const saved = NextStepLive.cleanSessions(prep && prep.liveSessions).find((s) => s.id === id);
-    if (!saved || !finishedSession(saved)) return;
+    if (!saved || !Array.isArray(saved.answers) || (!finishedSession(saved) && !saved.answers.length)) return;
     liveViewing = { ...saved, transcript: saved.state && saved.state.transcript.length ? saved.state.transcript : transcriptFrom(saved.answers) };
     show('live-review');
   };

@@ -904,6 +904,4 @@ input::-webkit-calendar-picker-indicator { filter: invert(.85) sepia(.4) saturat
 /* Past interviews on Practise (live.js keeps them in prep.liveSessions). */
 .past { margin: 4px 0 16px; }
 .past .kicker { margin: 8px 0 4px; }
-.row.static { cursor: default; }
-.row.static:active { transform: none; }
 .row .row-action { flex: none; font-size: 14px; font-weight: 600; color: var(--amber); }
