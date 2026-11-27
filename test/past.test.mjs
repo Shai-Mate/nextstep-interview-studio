@@ -160,3 +160,25 @@ test('at the cap, the unfinished interview really stays: the oldest finished one
   const trimmed = live.trimSessions([{ ...empty, id: 'new' }, ...[1, 2, 3, 4, 5, 6, 7, 8].map(open)], 'new');
   assert.deepEqual(trimmed.map((s) => s.id), ['new', 'open-1', 'open-2', 'open-3', 'open-4', 'open-5', 'open-6', 'open-7']);
 });
+
+test('Resume keeps the position: a pending live turn keeps its question, and generic after live carries on', async () => {
+  // Live, Q2 answered, turn pending: the caption keeps Q2 and the next turn moves the count on.
+  const back = live.resumeSession(waiting, ABOUT);
+  assert.deepEqual([back.phase, back.pending, back.current, back.index], ['wait', 'turn', A2.question, 1]);
+  assert.equal(live.applyTurn(back, { say: 'Tell me about a time a customer was upset.', kind: 'question' }).ok, true);
+  assert.equal(back.index, 2, 'the count moves on after the resumed turn');
+  // Generic after live: the live part reached question 6, the generic list has 5, and one is on screen.
+  const switched = { ...waiting, id: 'switched', mode: 'template', generic: true, wasLive: true,
+    state: { ...waiting.state, phase: 'listen', pending: '', index: 5, current: QUESTIONS[4] } };
+  const again = live.resumeSession(switched, ABOUT);
+  assert.deepEqual([again.phase, again.current, again.debrief], ['listen', QUESTIONS[4], null], 'not ended at once');
+  assert.equal(again.index, 4);
+  const answered = live.applyAnswer(again, 'At Harbour Cafe a regular brought back a bag of beans that was the wrong grind. I listened first, checked the receipt, apologised, and offered an exchange or a refund. I ground a fresh bag while she waited, and she came back the next week.');
+  assert.equal(answered.effect, 'review', 'answering it finishes the interview');
+  // useTemplate keeps the index inside the generic list too.
+  const s = live.createSession({ questions: QUESTIONS }, { provider: true });
+  s.index = 6;
+  live.useTemplate(s, ABOUT);
+  assert.ok(s.index <= s.questions.length - 1);
+  assert.equal(s.current, s.questions[s.index]);
+});

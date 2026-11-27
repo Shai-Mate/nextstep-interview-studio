@@ -343,8 +343,9 @@
     session.note = TOWER_NOTES[reason] || 'The live interviewer could not be reached, so these are generic questions from the ad.';
     session.about = about || session.about || '';
     session.pending = '';
+    session.index = Math.min(session.index, Math.max(0, session.questions.length - 1));
     if (!session.current) {
-      session.current = session.questions[Math.min(session.index, session.questions.length - 1)] || session.questions[0];
+      session.current = session.questions[session.index] || session.questions[0];
       session.transcript.push({ who: 'interviewer', text: session.current });
     }
     if (session.phase === 'wait' || session.phase === 'debrief') session.phase = session.ended ? 'review' : 'listen';
@@ -579,9 +580,20 @@
       about: about || ''
     };
     if (session.mode === 'live') {
+      // Keep the question that was on screen: the caption shows it while the turn is asked again, and
+      // applyTurn only moves `index` on when there is a current question.
+      session.current = st.current;
       if (session.ended) { session.phase = 'debrief'; session.pending = 'debrief'; return session; }
-      if (st.phase === 'listen' && st.current && !st.pending) { session.phase = 'listen'; session.current = st.current; return session; }
+      if (st.phase === 'listen' && st.current && !st.pending) { session.phase = 'listen'; return session; }
       session.pending = 'turn';
+      return session;
+    }
+    // A generic interview saved at a question carries on at that question, even when its index ran
+    // past the generic list (one that was live first keeps the live count).
+    if (!session.ended && st.phase === 'listen' && st.current) {
+      session.current = st.current;
+      session.index = Math.min(session.index, Math.max(0, session.questions.length - 1));
+      session.phase = 'listen';
       return session;
     }
     if (session.ended || session.index >= session.questions.length) {
