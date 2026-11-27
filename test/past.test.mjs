@@ -143,3 +143,20 @@ test('starting a new interview while one is unfinished asks first', () => {
   fresh.run('actions["open-live"]()');
   assert.deepEqual(fresh.ctx.asked, [], 'no question when nothing is unfinished');
 });
+
+test('at the cap, the unfinished interview really stays: the oldest finished one goes first', () => {
+  const done = (n) => ({ ...finished, id: 'done-' + n, at: '2026-11-1' + n + 'T09:00:00.000Z' });
+  // 7 finished interviews newer than the unfinished one, and then a new one is started.
+  const saved = [1, 2, 3, 4, 5, 6, 7].map(done).concat([waiting]);
+  const { ctx, run } = sandbox(saved);
+  run('actions["open-live"]()');
+  const ids = ctx.active.liveSessions.map((s) => s.id);
+  assert.equal(ids.length, 8);
+  assert.ok(ids.includes('open-1'), 'the unfinished one is kept, as the question promised');
+  assert.equal(ids.includes('done-7'), false, 'the oldest finished one went instead');
+  assert.equal(ctx.asked.length, 1);
+  // With nothing finished, the newest unfinished and the new one stay; the oldest other one goes.
+  const open = (n) => ({ ...waiting, id: 'open-' + n });
+  const trimmed = live.trimSessions([{ ...empty, id: 'new' }, ...[1, 2, 3, 4, 5, 6, 7, 8].map(open)], 'new');
+  assert.deepEqual(trimmed.map((s) => s.id), ['new', 'open-1', 'open-2', 'open-3', 'open-4', 'open-5', 'open-6', 'open-7']);
+});

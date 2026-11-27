@@ -521,6 +521,25 @@
     }));
   }
 
+  /* Keep at most `max` saved interviews, newest first. When one has to go, the oldest finished one goes
+     first, so unfinished ones survive; the one being saved and the newest unfinished one are never
+     dropped. Only with nothing finished left does the oldest other unfinished one go. */
+  const MAX_SESSIONS = 8;
+  function trimSessions(list, keepId, max) {
+    const cap = max || MAX_SESSIONS;
+    const out = Array.isArray(list) ? list.slice() : [];
+    const openOne = out.find((s) => s && s.id !== keepId && !finishedSession(s) && Array.isArray(s.answers) && s.answers.length);
+    const protect = new Set([keepId, openOne && openOne.id].filter(Boolean));
+    while (out.length > cap) {
+      let at = -1;
+      for (let i = out.length - 1; i >= 0 && at < 0; i -= 1) if (!protect.has(out[i] && out[i].id) && finishedSession(out[i])) at = i;
+      for (let i = out.length - 1; i >= 0 && at < 0; i -= 1) if (!protect.has(out[i] && out[i].id)) at = i;
+      if (at < 0) break;
+      out.splice(at, 1);
+    }
+    return out;
+  }
+
   function transcriptFrom(answers) {
     const out = [];
     answers.forEach((a) => {
@@ -606,7 +625,7 @@
     validateTurn, validateDebrief, applyAnswer, applyTurn, applyDebrief, endSession, useTemplate,
     templateDebrief, strongerFrom, contextFrom, turnPayload, debriefPayload, buildTurnPrompt, buildDebriefPrompt,
     cleanSessions, snapshot, fullAnswer, stallMessage, retryOnItsOwn, genericNote,
-    pastSessions, resumeSession, finishedSession
+    pastSessions, resumeSession, finishedSession, trimSessions
   };
   root.NextStepLive = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -635,7 +654,7 @@
     const at = list.findIndex((item) => item.id === shot.id);
     if (at >= 0) list[at] = shot;
     else list.unshift(shot);
-    prep.liveSessions = list.slice(0, 8);
+    prep.liveSessions = trimSessions(list, shot.id);
     if (typeof save === 'function') save();
   }
   function liveRecognizer() {
