@@ -90,6 +90,8 @@ function createTowerServer(options) {
   const log = typeof opts.log === 'function' ? opts.log : () => {};
   const run = opts.runCodex || runCodex;
   // The last Codex result, in memory only: enough for /health to tell a lapsed login from a timeout.
+  // ok means Codex ran and answered; a course or turn that then fails its checks is still ok here
+  // (the reply to the phone says invalid), because Codex itself is working.
   let lastCodex = null;
   const remember = (ok, reason) => { lastCodex = { ok, reason: ok ? null : reason, at: new Date().toISOString() }; };
   const FAILURES = ['timeout', 'codex', 'invalid', 'login'];

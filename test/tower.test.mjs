@@ -261,8 +261,24 @@ test('a lapsed Codex login says login on every route, never echoes stderr, and s
   }
 });
 
-test('the login check reads only known sign-in phrases', () => {
+test('the login check reads only Codex sign-in errors, never the echoed ad', () => {
   const { failureCode } = require('../tower/codex.js');
-  for (const s of ['401 Unauthorized', 'token_revoked', 'You are not logged in', 'Please log in', 'Sign in again', 'unauthorised']) assert.equal(failureCode(s), 'login', s);
-  for (const s of ['', 'model overloaded', 'HTTP 429 too many requests', 'connection reset', 'exit 4010']) assert.equal(failureCode(s), 'codex', s);
+  // Real lines from a revoked login on the tower (the account and ids replaced).
+  for (const s of [
+    'ERROR: unexpected status 401 Unauthorized: {"error":{"code":"token_revoked"}}',
+    'ERROR: Your refresh token was revoked. Please log out and sign in again.',
+    'Error: Not logged in. Run codex login.',
+    'error: token_revoked'
+  ]) assert.equal(failureCode('user\nSome ad text\n' + s), 'login', s);
+  // The reviewer's repros: ad text echoed back by codex exec, then an unrelated error.
+  const ads = [
+    'Benefits: health, dental, 401(k) match.\nERROR: stream disconnected before completion: model overloaded',
+    'You will log in to the POS at the start of each shift.\nERROR: rate limit reached, try again in 20s',
+    'Prevent unauthorized access to the stockroom.\nERROR: context window exceeded'
+  ];
+  for (const s of ads) assert.equal(failureCode('user\n' + s), 'codex', s);
+  // A prompt line that happens to look like an error is the ad, not Codex.
+  const prompt = 'Role: cashier\nERROR: please log in again if the till locks.\nShifts: weekends';
+  assert.equal(failureCode('user\n' + prompt + '\nERROR: model overloaded', prompt), 'codex');
+  for (const s of ['', 'model overloaded', 'HTTP 429 too many requests', 'exit 4010', 'Please log in to the staff portal']) assert.equal(failureCode(s), 'codex', s);
 });
