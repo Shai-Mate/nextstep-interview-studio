@@ -741,7 +741,7 @@ Object.assign(screens, {
       <fieldset><legend>Interview stage, optional</legend><div class="choices">${groups.stage.map((v) => `<label class="choice"><input type="radio" name="aboutStage" value="${esc(v)}" ${v === stage ? 'checked' : ''}><span>${esc(v)}</span></label>`).join('')}</div></fieldset>
       <label class="field" for="about-date">Interview date, optional</label>
       <input id="about-date" type="date" value="${esc(form.date || '')}">
-      <p class="hint">${ready ? 'Write my course sends this background and the ad to the tower you saved in Settings. Practice answers are not sent.' : 'My subscription is not set up, so this plan uses the general lessons. You can add the tower under On this device, then Personal course.'}</p>
+      <p class="hint">${ready ? 'Write my course sends this background and the ad to the tower you saved in Settings. Practice answers are not sent.' : 'This plan uses the general lessons, built from the job ad. What you write here is not sent anywhere.'}</p>
       <div class="spacer"></div>
       <button class="primary" type="submit" ${flowBusy ? 'disabled' : ''}>${ready ? 'Write my course' : 'Build general lessons'}</button>
       <button type="button" class="text-btn" id="about-skip" ${flowBusy ? 'disabled' : ''}>Skip, use general lessons</button>

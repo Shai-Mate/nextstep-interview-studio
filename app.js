@@ -702,13 +702,9 @@ function coreProviderReady() {
   try { return !!(globalThis.NextStepProvider && NextStepProvider.providerReady(corePrefs())); }
   catch { return false; }
 }
-function coreSetupSkipped() {
-  try { return sessionStorage.getItem('nextstep.setupSkipped') === '1'; }
-  catch { return false; }
-}
 function coreGenericBanner() {
   if (!active || active.generatedBy === 'subscription') return '';
-  return `<section class="glass pad-sm generic-banner" role="status"><p class="kicker">Generic lessons</p><p>These lessons are the same for everyone. They do not use your real experience.</p><button type="button" class="primary" data-action="connect-ai"><span>Connect AI</span></button></section>`;
+  return `<section class="glass pad-sm generic-banner"><p class="kicker">Generic lessons</p><p>Built from this ad, the same for everyone who uses this ad.</p><button type="button" class="text-btn" data-action="connect-ai">Personal course (owner only)</button></section>`;
 }
 function coreAppVersion() {
   return globalThis.NextStepUpdate && NextStepUpdate.version ? NextStepUpdate.version : '';
@@ -1196,7 +1192,7 @@ const screens = {
 The hosting provider receives normal requests for the app files. A job link also goes to the page reader, which does not receive your answers. About you is sent only when you write a personal course, and only to the tower saved on this phone. Imports append as separate copies and never overwrite existing preparations. Only import a backup you trust.</p>
       </details>
       <div class="spacer"></div>
-      <button type="button" class="glass button" data-action="open-settings"><span class="copy"><strong>Personal course</strong><span>My subscription, on your tower</span></span>${I.chev}</button>
+      <button type="button" class="glass button" data-action="open-settings"><span class="copy"><strong>Personal course (owner only)</strong><span>Needs a private server set up by the app's owner</span></span>${I.chev}</button>
       ${rawSaved !== null ? `<button type="button" class="glass button" id="raw-export"><span class="copy"><strong>Download saved data as-is</strong><span>Your saved preparations, exactly as this browser kept them</span></span></button>` : ''}
       <button type="button" class="glass button" id="export-one"><span class="copy"><strong>Export backup</strong><span>${active ? 'This preparation' : 'Every preparation on this device'}</span></span></button>
       <button type="button" class="text-btn" id="all-export">Export all preparations</button>
@@ -1217,9 +1213,10 @@ The hosting provider receives normal requests for the app files. A job link also
     const slots = globalThis.NextStepProvider ? NextStepProvider.SLOTS : [];
     const chosen = settings.provider || 'none';
     return `<form class="screen" id="settings-form" data-screen="settings">
-      <div class="topbar">${iconBtn('settings-back', 'Back', I.back)}<span class="label">Personal course</span></div>
+      <div class="topbar">${iconBtn('settings-back', 'Back', I.back)}<span class="label">Personal course (owner only)</span></div>
       <h1>How lessons get written</h1>
       <p class="italic lg">On this phone, unless you say so.</p>
+      <p class="sub">The personal course needs a private server set up by the app's owner. Without it, Next Step builds general lessons from the job ad.</p>
       <div class="groups">${slots.map((slot) => `<label class="choice settings-choice${slot.available ? '' : ' coming'}"><input type="radio" name="provider" value="${esc(slot.id)}" ${slot.id === chosen ? 'checked' : ''} ${slot.available ? '' : 'disabled'}><span><b>${esc(slot.label)}</b><small>${esc(slot.detail)}</small></span></label>`).join('')}</div>
       <label class="field" for="tower-url">Tower address</label>
       <input id="tower-url" name="towerUrl" type="url" inputmode="url" autocomplete="off" maxlength="200" placeholder="https://machine.tailnet.ts.net" value="${esc(settings.towerUrl || '')}">
@@ -1234,10 +1231,10 @@ The hosting provider receives normal requests for the app files. A job link also
   connect() {
     const back = connectReturn && connectReturn !== 'connect';
     return `<form class="screen" id="connect-form" data-screen="connect">
-      <div class="topbar">${back ? iconBtn('connect-back', 'Back', I.back) : ''}<span class="label">Make it yours</span></div>
-      <h1 class="flow-focus" tabindex="-1">Make it yours</h1>
-      <p class="italic lg">Lessons for you, not a script.</p>
-      <p class="sub">Connect My subscription and the course is written from the job ad and what you share about yourself. The address and the secret stay on this phone.</p>
+      <div class="topbar">${back ? iconBtn('connect-back', 'Back', I.back) : ''}<span class="label">Owner only</span></div>
+      <h1 class="flow-focus" tabindex="-1">Personal course</h1>
+      <p class="italic lg">For the app's owner.</p>
+      <p class="sub">This needs a private server set up by the app's owner. With it, the course is written from the job ad and what you share about yourself. The address and the secret stay on this phone.</p>
       <label class="field" for="tower-paste">Paste both lines</label>
       <textarea class="compact" id="tower-paste" maxlength="500" placeholder="The address on one line, the secret on the other"></textarea>
       <p class="hint" id="tower-paste-status">From the note on your tower. Either line can come first.</p>
@@ -1247,7 +1244,7 @@ The hosting provider receives normal requests for the app files. A job link also
       <input id="tower-secret" type="password" autocomplete="new-password" maxlength="200" placeholder="The secret from the tower">
       <div class="spacer"></div>
       <button class="primary" type="submit">Connect</button>
-      <button type="button" class="text-btn" id="connect-skip" data-action="connect-skip">Skip for now</button>
+      <button type="button" class="text-btn" id="connect-skip" data-action="connect-skip">Not now</button>
       <p class="version">Version ${esc(coreAppVersion())}</p>
     </form>`;
   }
@@ -1542,7 +1539,6 @@ document.body.addEventListener('click', (e) => {
   }
   if (action === 'connect-back') { show(connectReturn || 'welcome'); return; }
   if (action === 'connect-skip') {
-    try { sessionStorage.setItem('nextstep.setupSkipped', '1'); } catch { /* still continue */ }
     show(connectReturn || 'welcome');
     return;
   }
@@ -1638,10 +1634,11 @@ function coreAfterConnect() {
   draft = draft || {};
   show('link');
 }
+/* Everyone opens on Welcome. The personal course is an owner-only feature (it needs the owner's private
+   server), so Connect is never the first screen. It stays reachable from On this device, then Personal
+   course, and from the Generic lessons card. */
 function coreOpeningView() {
-  if (coreProviderReady() || coreSetupSkipped()) return 'welcome';
-  connectReturn = '';
-  return 'connect';
+  return 'welcome';
 }
 binders.settings = () => {
   const form = $('#settings-form');
@@ -1656,7 +1653,7 @@ binders.settings = () => {
       prefs.provider = 'none';
       try { coreWritePrefs(prefs); }
       catch { notify('This phone could not save that.', true); return; }
-      notify('Saved on this phone. Lessons stay generic until you connect.');
+      notify('Saved on this phone. Lessons are built from the job ad.');
       show('privacy');
       return;
     }
