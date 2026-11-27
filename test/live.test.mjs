@@ -103,6 +103,13 @@ test('ending early still debriefs, and a failed live turn falls back to the ad',
   assert.match(liveSession.note, /generic questions/);
   assert.equal(liveSession.phase, 'listen');
   assert.ok(liveSession.current);
+
+  const lapsed = live.createSession(prep(), { provider: true });
+  live.useTemplate(lapsed, ABOUT, 'login');
+  assert.equal(lapsed.note, 'Codex on your tower needs signing in again. On the tower, run codex login. These are generic questions from the ad for now.');
+  const failed = live.createSession(prep(), { provider: true });
+  live.useTemplate(failed, ABOUT, 'codex');
+  assert.equal(failed.note, 'The tower could not run the interviewer this time, so these are generic questions from the ad.');
 });
 
 test('the phone calls the interview routes with the bearer secret kept out of the body', async () => {

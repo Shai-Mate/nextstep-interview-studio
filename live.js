@@ -304,10 +304,15 @@
     return { ok: true, session, effect: 'review' };
   }
 
-  function useTemplate(session, about) {
+  // Only the owner sees these: only the owner has a tower set up.
+  const TOWER_NOTES = {
+    login: 'Codex on your tower needs signing in again. On the tower, run codex login. These are generic questions from the ad for now.',
+    codex: 'The tower could not run the interviewer this time, so these are generic questions from the ad.'
+  };
+  function useTemplate(session, about, reason) {
     session.mode = 'template';
     session.generic = true;
-    session.note = 'The live interviewer could not be reached, so these are generic questions from the ad.';
+    session.note = TOWER_NOTES[reason] || 'The live interviewer could not be reached, so these are generic questions from the ad.';
     session.about = about || session.about || '';
     session.pending = '';
     if (!session.current) {
@@ -598,7 +603,7 @@
     liveBusy = false;
     if (!liveSession) return;
     if (!result.ok) {
-      useTemplate(liveSession, (prep.aboutYou && prep.aboutYou.text) || '');
+      useTemplate(liveSession, (prep.aboutYou && prep.aboutYou.text) || '', result.reason);
       if (typeof notify === 'function') notify(liveSession.note);
       liveSave();
       if (liveSession.phase === 'review') { liveSpeak(''); liveShow('live-review'); }

@@ -79,3 +79,22 @@ test('an unconfigured phone does not call the network, and a tower call sends th
   assert.equal(denied.reason, 'unauthorized');
   assert.match(denied.message, /general lessons/);
 });
+
+test('the tower naming a lapsed Codex login, or a Codex failure, reaches the owner in plain words', async () => {
+  const prefs = { provider: 'subscription', towerUrl: 'https://omarchy.tailnet.ts.net/', towerSecret: 'super-secret-value' };
+  const replying = (status, body) => ({ fetch: async () => ({ ok: false, status, json: async () => body }) });
+  const input = { job: 'Greet customers and handle cash accurately on the shop floor each day.', aboutYou: { text: 'I was a barista at Harbour Cafe for three years.' } };
+  const login = await provider.requestCourse(prefs, input, replying(502, { ok: false, reason: 'login' }));
+  assert.deepEqual([login.reason, login.message], ['login', 'Codex on your tower needs signing in again. On the tower, run codex login. These are the general lessons for now.']);
+  const codex = await provider.requestCourse(prefs, input, replying(502, { ok: false, reason: 'codex' }));
+  assert.deepEqual([codex.reason, codex.message], ['codex', 'The tower could not write the course this time, so these are the general lessons.']);
+  const slow = await provider.requestCourse(prefs, input, replying(504, { ok: false, reason: 'timeout' }));
+  assert.equal(slow.reason, 'timeout');
+  const odd = await provider.requestCourse(prefs, input, replying(502, { ok: false, reason: 'something-new' }));
+  assert.equal(odd.reason, 'invalid', 'an unknown reason is still treated as invalid');
+  for (const path of ['/interview/turn', '/interview/debrief']) {
+    const res = await provider.requestInterview(prefs, path, { ad: input.job }, replying(502, { ok: false, reason: 'login' }));
+    assert.equal(res.reason, 'login', path);
+  }
+  for (const msg of [login.message, codex.message]) assert.equal(msg.includes('\u2014'), false);
+});

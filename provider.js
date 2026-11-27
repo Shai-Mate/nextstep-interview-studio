@@ -20,8 +20,14 @@
     large: 'The ad and your background were too long to send, so these are the general lessons.',
     limited: 'The tower is busy, so these are the general lessons.',
     invalid: 'The personal course did not come back in a usable shape, so these are the general lessons.',
-    forbidden: 'That tower address is not allowed, so these are the general lessons.'
+    forbidden: 'That tower address is not allowed, so these are the general lessons.',
+    // Only the owner sees these: only the owner has a tower set up.
+    login: 'Codex on your tower needs signing in again. On the tower, run codex login. These are the general lessons for now.',
+    codex: 'The tower could not write the course this time, so these are the general lessons.'
   };
+  // Reasons the tower itself names in a failed reply; anything else is treated as "invalid".
+  const TOWER_REASONS = ['login', 'codex', 'timeout'];
+  const towerReason = (data) => (data && data.ok === false && TOWER_REASONS.includes(data.reason) ? data.reason : '');
 
   function extraFromWindow() {
     try {
@@ -206,6 +212,7 @@
       if (res.status === 429) return failure('limited', true);
       let data = null;
       try { data = await res.json(); } catch { data = null; }
+      if (!res.ok && towerReason(data)) return failure(towerReason(data), true);
       if (!res.ok || !data || data.ok === false || !data.course || typeof data.course !== 'object') return failure('invalid', true);
       return { ok: true, attempted: true, reason: '', message: '', course: data.course };
     } catch (err) {
@@ -247,6 +254,7 @@
       if (res.status === 429) return failure('limited', true);
       let data = null;
       try { data = await res.json(); } catch { data = null; }
+      if (!res.ok && towerReason(data)) return failure(towerReason(data), true);
       if (!res.ok || !data || data.ok === false) return failure('invalid', true);
       if (path === '/interview/debrief') {
         if (!data.debrief) return failure('invalid', true);
