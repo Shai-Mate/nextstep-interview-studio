@@ -261,3 +261,20 @@ test('rewriting a preparation keeps the work, and only swaps when the personal c
   const allOld = Object.values(old.notes);
   for (const text of allOld) assert.ok(JSON.stringify(p).includes(JSON.stringify(text)), 'every note survives: ' + text);
 });
+
+test('written mock answers survive a rewrite that asks different questions', () => {
+  const fix = load('harbour-retail.json');
+  const input = { job: adOf(fix), role: fix.role, company: fix.company, interviewAt: fix.interviewAt, aboutYou: { source: 'resume', text: fix.about } };
+  const old = PrepEngine.create({ job: input.job, role: input.role, company: input.company });
+  old.id = 'prep-old';
+  old.questions[0] = 'Tell me about a time you helped a customer.';
+  old.mock = { index: 1, answers: [{ question: old.questions[0], text: 'A real STAR story I wrote', feedback: {} }], draft: 'Half of my second answer', finished: false };
+  const generated = assemble(fix);
+  generated.questions[0] = 'Describe a hard customer.';
+  const swap = course.replaceWith([old], 'prep-old', course.finishCourse(input, generated));
+  assert.equal(swap.swapped, true);
+  const earlier = swap.active.earlierNotes;
+  assert.deepEqual(earlier.find((n) => n.text === 'A real STAR story I wrote'), { kind: 'answer', about: 'Tell me about a time you helped a customer.', text: 'A real STAR story I wrote' });
+  assert.deepEqual(earlier.find((n) => n.text === 'Half of my second answer'), { kind: 'answer', about: old.questions[1], text: 'Half of my second answer' });
+  assert.equal(swap.active.mock.answers.length, 0, 'the new course starts its own mock interview');
+});

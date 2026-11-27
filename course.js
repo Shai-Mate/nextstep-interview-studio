@@ -392,7 +392,6 @@
       if (to >= 0 && !prep.notes[m[1] + '-' + to]) prep.notes[m[1] + '-' + to] = text;
       else earlier.push({ kind: m[1], about: clip(about, 2000), text });
     }
-    if (earlier.length) prep.earlierNotes = earlier.slice(-MAX_EARLIER);
     (old.course || []).forEach((c) => {
       if (!c || !c.done) return;
       const to = (prep.course || []).find((n) => n && sameText(n.title, c.title));
@@ -413,7 +412,16 @@
     if (mock && Array.isArray(mock.answers) && mock.answers.length && Array.isArray(prep.questions)
       && mock.answers.every((a, k) => a && a.question === prep.questions[k])) {
       prep.mock = { ...mock, answers: mock.answers.slice(), finished: mock.index === prep.questions.length };
+    } else if (mock) {
+      // The new course asks different questions: the written mock answers (and an unsent draft) are kept
+      // as earlier notes with the question they answered, never dropped.
+      (Array.isArray(mock.answers) ? mock.answers : []).forEach((a) => {
+        if (a && typeof a.text === 'string' && a.text.trim()) earlier.push({ kind: 'answer', about: clip(a.question, 2000), text: a.text });
+      });
+      const asked = Array.isArray(old.questions) ? old.questions[mock.index] : '';
+      if (typeof mock.draft === 'string' && mock.draft.trim()) earlier.push({ kind: 'answer', about: clip(asked, 2000), text: mock.draft });
     }
+    if (earlier.length) prep.earlierNotes = earlier.slice(-MAX_EARLIER);
     return prep;
   }
 
