@@ -257,7 +257,7 @@
     const about = normalizeAbout(typeof input.about === 'string' ? { text: input.about, source: input.aboutSource } : input.aboutYou || input.about);
     const hints = input.hints && typeof input.hints === 'object' ? input.hints : {};
     return {
-      company: clip(input.company, 120),
+      company: /^company$/i.test(clip(input.company, 120)) ? '' : clip(input.company, 120),
       role: clip(input.role, 120),
       stage: clip(input.stage || (input.intake && input.intake.stage), 40) || 'Not sure yet',
       interviewAt: validDay(input.interviewAt),
@@ -339,7 +339,7 @@
     const checked = validateCourse(generated, {
       ad: prep.job,
       about: about ? about.text : '',
-      company: prep.company,
+      company: /^company$/i.test(clip(prep.company, 120)) ? '' : prep.company,
       role: prep.role
     });
     if (!checked.ok) {

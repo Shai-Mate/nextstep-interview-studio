@@ -1123,7 +1123,7 @@ function create(input) {
 
   const guess = String(input.role || '').trim() && String(input.company || '').trim() ? { role: '', company: '' } : guessNames(analyze(job, {}));
   const role = String(input.role || '').trim().slice(0, 120) || guess.role || 'New opportunity';
-  const company = String(input.company || '').trim().slice(0, 120) || guess.company || 'Company';
+  const company = String(input.company || '').trim().slice(0, 120) || guess.company || '';
   const a = analyze(job, { role, company });
   // An ad in another language is not quoted into English questions, lessons or quiz items.
   const ranked = a._french ? [] : a._ranked;
@@ -1139,7 +1139,7 @@ function create(input) {
   const keep = new Set(a.skills.map((s) => s.toLowerCase().split(/\s+/)[0]).concat(['english', 'french', 'spanish', 'red', 'food', 'first', 'google', 'microsoft']));
   const roleShort = /^new opportunity$/i.test(role) ? '' : clean(role.replace(/\s*\([^)]*\)/g, '').replace(/\s+[–—|·]\s+.*$/, ''));
   const jobName = roleShort ? `the ${roleShort} job` : 'this job';
-  const at = /^company$/i.test(company) ? '' : ` at ${company}`;
+  const at = !company || /^company$/i.test(company) ? '' : ` at ${company}`;
   const seed = fnv(job.slice(0, 4000) + job.length);
   const used = new Set();
   const people = (() => {

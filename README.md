@@ -1,8 +1,8 @@
-# NextStep Interview Studio
+# Next Step Interview Studio
 
 Free interview practice for any job, on your phone.
 
-Paste a job link and NextStep turns it into a short practice plan: what the job is really about, the skills the ad mentions, the questions you're likely to get, and a mock interview with a practice grade on how your answers are built. It works for any kind of job: shops and retail, trades and apprenticeships, care work, hospitality, office and tech roles.
+Paste a job link and Next Step turns it into a short practice plan: what the job is really about, the skills the ad mentions, the questions you're likely to get, and a mock interview with a practice grade on how your answers are built. It works for any kind of job: shops and retail, trades and apprenticeships, care work, hospitality, office and tech roles.
 
 **Open it: https://shai-mate.github.io/nextstep-interview-studio/**
 
@@ -18,14 +18,14 @@ Add it to your Home Screen before you start, then always open it from the icon. 
 1. Open the link in **Safari**. If it opened inside Instagram, Facebook, LinkedIn or Messenger, tap **•••** and choose **Open in Safari** (or **Open in external browser**).
 2. Tap **Share** (the square with an arrow). If you can't see it, tap **•••** first.
 3. Tap **Add to Home Screen** (scroll down or tap **More** if it's hidden), then **Add**.
-4. Open NextStep from your Home Screen.
+4. Open Next Step from your Home Screen.
 
 On iPhone, work saved in Safari doesn't move to the Home Screen app. If you already started in Safari, tap **On this device**, then **Export backup**, and use **Restore a backup** in the Home Screen app.
 
 **Android**
 1. Open the link in **Chrome**.
 2. Tap **How** on the first screen and then **Install app**, or use Chrome's menu **⋮** and tap **Install app** or **Add to Home screen**.
-3. Open NextStep from your Home Screen or app list.
+3. Open Next Step from your Home Screen or app list.
 
 Open it once while you're online. When the **How** sheet says "Ready to work offline", it works without internet.
 
@@ -123,7 +123,7 @@ The Worker allows only `http` and `https`, blocks private and local addresses (i
 - Classic scripts, loaded in this order: `config.js` (extract URL, optional tower origins), `engine.js` (reads the job ad and builds the general plan; pure, also runs in Node; `schedule` paces lessons once a date is set), `course.js` (personal-course schema, prompt, checks, and fallback onto `PrepEngine.create`), `provider.js` (My subscription talks to the tower; your own key and OpenRouter are slots only), `pdftext.js` (résumé text, on the phone), `coach.js` (on-device feedback, practice grade and readiness score; pure), `orb.js` (the orb: a WebGL ray-traced glass sphere in liquid light, with molecules that scatter and re-form and a voice pulse in the mock interview; it loads `orb-2d.js`, the Canvas 2D orb, only when WebGL is unavailable or fails), `app.js` (screens, local storage, backups, Personal course settings), `flow.js` (first-run flow, including About you), `interview.js` (mock interview), `pwa.js` (service worker registration and install help).
 - `pwa.js` tailors the install sheet to iPhone Safari, other iPhone browsers, in-app browsers, Android and computers, and exposes `window.NextStepInstall = { canPrompt(), prompt(), platform, installed }`. `platform` is `ios-safari`, `ios-browser`, `in-app`, `android` or `desktop`; `prompt()` resolves to `accepted`, `dismissed` or `unavailable`; a `nextstep-install-change` event fires on `window` when `canPrompt()` or `installed` may have changed.
 - Styles: `styles.css`, `flow.css`, `interview.css`, `launch.css` (install sheet and privacy page). `privacy.html` is a static page with no scripts.
-- Offline: `sw.js` precaches the app files in cache `nextstep-phone-v14` (`?v=14` URLs) and removes older `nextstep-phone-*` caches. Install fetches each file from the network with a reload, so a new cache name updates phones instead of mixing versions. On each open, and when the app becomes visible, it checks for a new service worker. A waiting update activates and the open page reloads once. Settings shows the version number. Pages are then served as themselves from the cache first, then the network; offline, unknown pages fall back to the app. `/extract` and `/generate` are not cached. `share-card.png` (link previews only) and `nextstep_icon_1024.png` (read from the manifest at install time) are not precached.
+- Offline: `sw.js` precaches the app files in cache `nextstep-phone-v15` (`?v=15` URLs) and removes older `nextstep-phone-*` caches. Install fetches each file from the network with a reload, so a new cache name updates phones instead of mixing versions. On each open, and when the app becomes visible, it checks for a new service worker. A waiting update activates and the open page reloads once. Settings shows the version number. Pages are then served as themselves from the cache first, then the network; offline, unknown pages fall back to the app. `/extract` and `/generate` are not cached. `share-card.png` (link previews only) and `nextstep_icon_1024.png` (read from the manifest at install time) are not precached.
 - `orb-gl.js` from version 8 is no longer loaded or cached and can be deleted.
 - Content Security Policy: this site's own files (`default-src 'self'`), no inline scripts or inline styles. `connect-src` allows this site, the extract Worker, and `https://*.ts.net` so a phone on the same tailnet can call Tailscale Serve. The tower hostname is typed in Personal course. It is not committed. A non-Tailscale origin has to be added to `connect-src` in `index.html` and to `window.NEXTSTEP_TOWER_ORIGINS` in `config.js`. The ribbon M icon is `nextstep_icon.svg`.
 - Personal course: see `tower/README.md` for the install on the tower. The phone setting is On this device, then Personal course. Your own API key and OpenRouter are not wired up yet.

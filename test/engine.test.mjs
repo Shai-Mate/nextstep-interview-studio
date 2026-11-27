@@ -613,7 +613,15 @@ test('empty role and company are filled from the ad when it says them', () => {
   assert.equal(o.company, 'Juniper Lane Health');
   const none = PrepEngine.create({ job: 'Help wanted for afternoon dog walks in the west end, three days a week.' });
   assert.equal(none.role, 'New opportunity');
-  assert.equal(none.company, 'Company');
+  assert.equal(none.company, '');
+});
+
+test('an ad that names no company never shows "Company" as if it were one', () => {
+  const p = PrepEngine.create({ job: 'Store associate at a neighbourhood grocery. Stock shelves, help customers find things and run the till on weekends.' });
+  assert.equal(p.company, '');
+  const text = JSON.stringify([p.course, p.questions, p.questionInfo, p.quizItems, p.requirements]);
+  assert.ok(!/\bCompany\b/.test(text), 'no lesson, question or quiz item uses the placeholder');
+  assert.ok(!/\bat \.|\bat {2}|\bat ,/.test(text), 'no sentence reads "at ." or "at  "');
 });
 
 test('intake shapes the plan', () => {

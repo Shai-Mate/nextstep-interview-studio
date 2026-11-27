@@ -1,10 +1,10 @@
-# NextStep tower
+# Next Step tower
 
 A small service for one phone. It accepts `POST /generate` with a shared secret, runs `codex exec` with the ChatGPT login already on this machine, and returns the course JSON.
 
 It does not log the résumé or the job ad. It stores nothing. Install it only on the tower, and only on the tailnet.
 
-This folder is part of the NextStep repo. Run it from a clone. It uses Node's own libraries and `../course.js`. It does not need `npm install`.
+This folder is part of the Next Step repo. Run it from a clone. It uses Node's own libraries and `../course.js`. It does not need `npm install`.
 
 ## What the phone calls
 
@@ -100,7 +100,7 @@ The process runs `tailscale ip -4` and listens on that address only. `0.0.0.0`, 
 
 ## On the phone
 
-1. Open NextStep from the Home Screen icon, on the same tailnet (Tailscale connected).
+1. Open Next Step from the Home Screen icon, on the same tailnet (Tailscale connected).
 2. Tap **On this device**, then **Personal course**.
 3. Choose **My subscription**. Paste the `https://….ts.net` URL and the secret. Save.
 4. Start a job, then fill **About you**. The lessons should name that background.

@@ -3,6 +3,9 @@ const $ = (s) => document.querySelector(s);
 const KEY = 'nextstep.preparations.v1';
 /* interview.js keeps the mock interview's read-aloud choice under this key; Delete all data removes it too. */
 const CORE_PREFS_KEY = 'nextstep.prefs.v1';
+// Before v15 the engine saved the word "Company" when an ad did not name one. It is not a name, so it is
+// shown (and passed on) as no company. Saved preparations are not rewritten.
+const shownCompany = (p) => { const c = String((p && p.company) || '').trim(); return /^company$/i.test(c) ? '' : c; };
 function corePrefs() {
   try {
     const value = JSON.parse(localStorage.getItem(CORE_PREFS_KEY) || '{}');
@@ -504,8 +507,8 @@ let storageBlocked = false;
 let rawSaved = null;
 let keptRecords = [];
 const CORE_SAVE_MSG = {
-  blockedLoad: "This browser won't let NextStep save anything on this device. That happens in private browsing and some in-app browsers. You can still practise; export a backup before you leave.",
-  blocked: "Not saved: this browser won't let NextStep save on this device. Export a backup before you leave.",
+  blockedLoad: "This browser won't let Next Step save anything on this device. That happens in private browsing and some in-app browsers. You can still practise; export a backup before you leave.",
+  blocked: "Not saved: this browser won't let Next Step save on this device. Export a backup before you leave.",
   unreadableLoad: 'Your saved preparations could not be read. They have not been overwritten, and you can download them as-is on the Privacy page.',
   unreadable: 'Not saved, so your earlier saved data stays exactly as it was. Export a backup before you leave.',
   full: "Could not save: this browser's storage is full or unavailable. Export a backup before you leave."
@@ -833,7 +836,7 @@ const screens = {
   welcome() {
     if (!records.length) {
       return `<div class="screen welcome" data-screen="welcome">
-        <div class="brandbar"><span class="logo">NextStep</span><button type="button" class="pill" data-action="privacy">${I.lock}<span>On this device</span></button></div>
+        <div class="brandbar"><span class="logo">Next Step</span><button type="button" class="pill" data-action="privacy">${I.lock}<span>On this device</span></button></div>
         <div class="orb-stage"><div class="orb-anchor hero" data-orb data-env="1" data-s="1" data-up="166,102" data-down="101,280" data-energy="1"></div></div>
         <h1>Show up ready.</h1>
         <p class="italic">Sound like yourself.</p>
@@ -851,7 +854,7 @@ const screens = {
       </div>`;
     }
     return `<div class="screen welcome" data-screen="welcome">
-      <div class="brandbar"><span class="logo">NextStep</span><button type="button" class="pill" data-action="privacy">${I.lock}<span>On this device</span></button></div>
+      <div class="brandbar"><span class="logo">Next Step</span><button type="button" class="pill" data-action="privacy">${I.lock}<span>On this device</span></button></div>
       <div class="ask"><p class="italic lg">Pick up where you left off.</p><div class="orb-slot md"><div class="orb-anchor md" data-orb data-env=".6" data-s=".75" data-up="80,40" data-down="40,90" data-energy="${glow(records[0])}"></div></div></div>
       <p class="sub">${records.length === 1 ? 'Your preparation stays on this device.' : records.length + ' preparations, all on this device.'}</p>
       ${keptRecords.length ? `<p class="hint kept-note">${esc(coreKeptLine())}</p>` : ''}
@@ -859,7 +862,7 @@ const screens = {
         const st = stats(p);
         const pct = Math.round(st.ratio * 100);
         const next = p.course.find((c) => !c.done);
-        return `<article class="glass prep-card"><div class="prep-top"><div><p class="kicker">${esc(p.company)}</p><h2>${esc(p.role)}</h2></div><span class="prep-pct">${pct}%</span></div><p class="muted">${esc([coreStageLine(p), p.intake.time ? p.intake.time + ' a day' : ''].filter(Boolean).join(' · '))}</p>${bar(pct)}${(() => { const w = coreWhen(p); return w ? `<p class="when-line${w.days >= 0 && w.days <= 1 ? ' soon' : ''}">${CORE_CAL}<span>${esc(w.days < 0 ? 'Interview date passed. How did it go?' : w.line)}</span></p>` : ''; })()}<p class="next-up">${next ? 'Up next · ' + esc(next.title) : 'Every lesson done · keep practising'}</p><button type="button" class="primary" data-action="resume" data-id="${esc(p.id)}"><span>Resume preparation</span>${I.arrow}</button></article>`;
+        return `<article class="glass prep-card"><div class="prep-top"><div>${shownCompany(p) ? `<p class="kicker">${esc(shownCompany(p))}</p>` : ''}<h2>${esc(p.role)}</h2></div><span class="prep-pct">${pct}%</span></div><p class="muted">${esc([coreStageLine(p), p.intake.time ? p.intake.time + ' a day' : ''].filter(Boolean).join(' · '))}</p>${bar(pct)}${(() => { const w = coreWhen(p); return w ? `<p class="when-line${w.days >= 0 && w.days <= 1 ? ' soon' : ''}">${CORE_CAL}<span>${esc(w.days < 0 ? 'Interview date passed. How did it go?' : w.line)}</span></p>` : ''; })()}<p class="next-up">${next ? 'Up next · ' + esc(next.title) : 'Every lesson done · keep practising'}</p><button type="button" class="primary" data-action="resume" data-id="${esc(p.id)}"><span>Resume preparation</span>${I.arrow}</button></article>`;
       }).join('')}</div>
       <div class="spacer"></div>
       <button type="button" class="primary gap-top" data-action="start">New preparation</button>
@@ -900,7 +903,7 @@ const screens = {
       <h1 class="italic greet">${esc(greeting(now))}</h1>
       <p class="role-name">${esc(p.role)}</p>
       ${coreGenericBanner()}
-      ${(() => { const line = [p.company, coreStageLine(p)].filter(Boolean).join(' · '); return line ? `<p class="muted">${esc(line)}</p>` : ''; })()}
+      ${(() => { const line = [shownCompany(p), coreStageLine(p)].filter(Boolean).join(' · '); return line ? `<p class="muted">${esc(line)}</p>` : ''; })()}
       ${coreWhenHtml(p, w)}
       ${coreMinutesHtml(p)}
       ${corePaceSection(plan)}
@@ -1142,7 +1145,7 @@ const screens = {
       <div class="topbar">${iconBtn('day-back', 'Back', I.back)}<span class="label">Interview day</span></div>
       <h1>Interview day</h1>
       <p class="italic lg">${stories.length ? 'You’ve done the work.' : 'You know more than you think.'}</p>
-      <p class="sub">${esc(role)}${p.company ? ' · ' + esc(p.company) : ''}. Read this the night before, and again in the last ten minutes.</p>
+      <p class="sub">${esc(role)}${shownCompany(p) ? ' · ' + esc(shownCompany(p)) : ''}. Read this the night before, and again in the last ten minutes.</p>
       <section class="glass day-card" aria-labelledby="day-stories">
         <p class="kicker" id="day-stories">Your best stories</p>
         ${stories.length ? `<ol class="stories">${stories.map((st) => `<li><p class="story-q">${esc(coreAsk(st.question))}</p><p class="story-text">${esc(coreFirstWords(st.text, 25))}</p>${coreStarPips(st.star)}</li>`).join('')}</ol>
@@ -1410,7 +1413,7 @@ function bindImport() {
       if (f.size > 20 * 1024 * 1024) throw Error('this backup is over 20 MB.');
       let b;
       try { b = JSON.parse(await f.text()); } catch { throw Error('this file is not a readable backup.'); }
-      if (!b || b.schema !== 1 || !Array.isArray(b.preparations) || b.preparations.length > 500) throw Error('this is not a NextStep backup this version can open.');
+      if (!b || b.schema !== 1 || !Array.isArray(b.preparations) || b.preparations.length > 500) throw Error('this is not a Next Step backup this version can open.');
       const copies = b.preparations.map((p) => coreRestore(p));
       records.push(...copies);
       const ok = persist();
@@ -1466,7 +1469,7 @@ function bindScreen() {
     const p = active;
     const at = p ? records.indexOf(p) : -1;
     if (at < 0) return;
-    const name = [p.role, p.company].filter(Boolean).join(' at ') || 'this preparation';
+    const name = [p.role, shownCompany(p)].filter(Boolean).join(' at ') || 'this preparation';
     if (!confirm('Delete ' + name + ' from this device? Its notes and answers go too, and this cannot be undone. Export a backup first if you want to keep it.')) return;
     records.splice(at, 1);
     if (storageOK && !persist()) { records.splice(at, 0, p); return; }
@@ -1512,7 +1515,7 @@ function bindScreen() {
       active = null;
       draft = null;
       show('welcome');
-      notify(storageBlocked ? 'Cleared. Nothing from this visit was saved on this device.' : 'Everything NextStep saved on this device was deleted.');
+      notify(storageBlocked ? 'Cleared. Nothing from this visit was saved on this device.' : 'Everything Next Step saved on this device was deleted.');
     } catch { notify('Could not delete saved preparations.'); }
   });
   bindImport();
@@ -1615,7 +1618,7 @@ function coreAfterConnect() {
   if (active && active.job && String(active.job).trim().length >= 40) {
     draft = {
       role: active.role || '',
-      company: active.company || '',
+      company: shownCompany(active),
       job: active.job,
       url: active.url || '',
       intake: { ...(active.intake || {}) },
