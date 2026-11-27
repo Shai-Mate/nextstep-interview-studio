@@ -4,7 +4,7 @@
 (function (root) {
   'use strict';
 
-  const version = '15';
+  const version = '16';
 
   /* hadController: a worker was already running this page when it opened (an update, not the first install).
      event: 'installed' (a new worker is waiting) or 'controllerchange' (a new worker took over).
