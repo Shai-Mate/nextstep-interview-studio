@@ -326,7 +326,7 @@
     const p = prep || {};
     const about = p.aboutYou && p.aboutYou.text ? p.aboutYou.text : '';
     return {
-      company: clip(p.company, 120),
+      company: /^company$/i.test(clip(p.company, 120)) ? '' : clip(p.company, 120),
       role: clip(p.role, 120),
       stage: clip(p.intake && p.intake.stage, 40),
       ad: clip(p.job, 4000),
