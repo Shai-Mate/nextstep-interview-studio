@@ -429,6 +429,8 @@ pre { white-space: pre-wrap; word-break: break-word; font: inherit; font-size: 1
 .result.ok { color: var(--green); }
 .privacy-block { padding: 16px 0; box-shadow: inset 0 -1px 0 var(--line); }
 .privacy-block:last-of-type { box-shadow: none; }
+.privacy-group { font-size: 17px; letter-spacing: -.02em; margin-top: 28px; }
+.privacy-group + .lede { margin-top: 6px; color: var(--muted); }
 .privacy-block strong { display: block; font-size: 16px; font-weight: 600; letter-spacing: -.015em; }
 .privacy-block span { display: block; font-size: 14px; color: var(--muted); line-height: 1.45; margin-top: 4px; }
 .file { margin: 8px 0 16px; }

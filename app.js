@@ -1180,16 +1180,22 @@ const screens = {
       <h1>Private by design</h1>
       <p class="italic lg">Your words stay yours.</p>
       <div class="stack">
-        <div class="privacy-block"><strong>Answers stay on this phone</strong><span>Notes and practice answers stay in this browser. They are not uploaded, even when a personal course is written. People who can open this browser profile can read them.</span></div>
-        <div class="privacy-block"><strong>A job link is read for you</strong><span>When you paste a job link, that link and the text of the public page are sent to our server so the plan can be built. We do not keep them after the request. If the page cannot be read, you paste the ad instead, and that text stays on this phone until you choose a personal course.</span></div>
-        <div class="privacy-block"><strong>A personal course sends the ad and About you</strong><span>If you choose My subscription and tap Write my course, the job ad and the About you text go to the tower address saved on this phone. That request is not kept. The shared secret stays on this phone and is not in an exported backup. If you skip, or the tower is not set up, or the course does not come back clean, the lessons are built on this phone and About you is not sent.</span></div>
-        <div class="privacy-block"><strong>No account. No trackers.</strong><span>Nothing to sign up for, and no analytics. Preparations do not sync between devices. The practice grade is worked out on this phone. It is not a hiring verdict.</span></div>
-        <div class="privacy-block"><strong>Free</strong><span>No trial, no upgrade, no ads. The general lessons and the practice grade run on this phone. A personal course uses Codex on a tower you run yourself.</span></div>
+        <div class="privacy-block"><strong>Answers stay on this phone</strong><span>Notes and practice answers stay in this browser. They are not uploaded. People who can open this browser can read them.</span></div>
+        <div class="privacy-block"><strong>A job link is read for you</strong><span>When you paste a job link, that link and the text of the public page are sent to our server so the plan can be built. We do not keep them after the request. If the page cannot be read, you paste the ad instead, and that text stays on this phone.</span></div>
+        <div class="privacy-block"><strong>No account. No trackers.</strong><span>Nothing to sign up for, and no analytics. Preparations do not sync between phones. The lessons and the practice grade are worked out on this phone. The grade is not a hiring verdict.</span></div>
+        <div class="privacy-block"><strong>Free</strong><span>No trial, no upgrade, no ads.</span></div>
+        <div class="privacy-block"><strong>Feedback</strong><span>Sending feedback is not switched on yet. A note you write is saved on this phone and goes nowhere. Don't put private answers in it.</span></div>
+      </div>
+      <h2 class="privacy-group">Owner-only features</h2>
+      <p class="lede">These need a private server set up by the app's owner.</p>
+      <div class="stack">
+        <div class="privacy-block"><strong>A personal course sends the ad and About you</strong><span>When you tap Write my course, the job ad and the About you text go to the server address saved on this phone. That request is not kept. The shared secret stays on this phone and is not in an exported backup.</span></div>
+        <div class="privacy-block"><strong>A live practice interview</strong><span>With a personal course connected, what you say or type in the practice interview goes to that server for each turn. It is not kept there. The audio is not saved.</span></div>
       </div>
       <details class="fold"><summary>Also good to know</summary>
         <p class="prose">Clearing site data, private browsing, or changing browsers can lose your work. Export a backup and keep it private. An exported file contains personal answers. The shareable app package contains none.
 
-The hosting provider receives normal requests for the app files. A job link also goes to the page reader, which does not receive your answers. About you is sent only when you write a personal course, and only to the tower saved on this phone. Imports append as separate copies and never overwrite existing preparations. Only import a backup you trust.</p>
+The hosting provider receives normal requests for the app files. A job link also goes to the page reader, which does not receive your answers. About you is sent only when the owner writes a personal course, and only to the server saved on this phone. Imports append as separate copies and never overwrite existing preparations. Only import a backup you trust.</p>
       </details>
       <div class="spacer"></div>
       <button type="button" class="glass button" data-action="open-settings"><span class="copy"><strong>Personal course (owner only)</strong><span>Needs a private server set up by the app's owner</span></span>${I.chev}</button>

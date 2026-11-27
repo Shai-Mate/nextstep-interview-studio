@@ -61,19 +61,23 @@ With an interview date, the minutes still left in the lessons are split across t
 
 ## Privacy
 
-- Notes and practice answers are saved in this browser on your device. They are not uploaded, and they don't sync between devices. They are not sent when a personal course is written.
-- A job link, and the text of the public page, are sent to our extract server for that request only. We do not keep them. If you paste the ad instead, that text stays on your phone until you choose a personal course.
-- About you stays on the phone. It is sent only when you tap Write my course, together with the ad, to the tower address saved in Personal course. The tower does not keep that text. If you skip, or the tower is not set up, or the course fails the checks, the general lessons are built on the phone and About you is not sent.
-- No account, no analytics, no trackers. The practice grade runs on your phone with plain rules. The tower secret is not included in an exported backup.
+- Notes and practice answers are saved in this browser on this phone. They are not uploaded, and they don't sync between phones.
+- A job link, and the text of the public page, are sent to our extract server for that request only. We do not keep them. If you paste the ad instead, that text stays on this phone.
+- No account, no analytics, no trackers. The lessons and the practice grade run on this phone with plain rules.
 - GitHub Pages hosts the app files and sees ordinary requests for them, not your answers.
 - Back up or delete any time: in the app, tap **On this device** on the first screen (or **Privacy and your data** under Progress). A backup file contains your answers, so keep it private.
 - Clearing your browser's data for this site deletes your work, so export a backup first.
+
+Owner-only features need a private server (the tower) set up by the app's owner:
+
+- A personal course: About you stays on the phone. It is sent only when you tap Write my course, together with the ad, to the tower address saved in Personal course. The tower does not keep that text. The tower secret is not included in an exported backup.
+- A live practice interview: with the tower connected, each turn and the debrief go to the tower and are not kept there. Without it, the interview uses generic questions from the ad and stays on the phone.
 
 Read more: [How your data stays private](privacy.html).
 
 ## Feedback
 
-Tried it for a real interview? Something confusing, or a job it didn't understand well? [Open a GitHub issue](https://github.com/Shai-Mate/nextstep-interview-studio/issues/new). GitHub issues are public, so please don't paste private answers or personal details.
+Tap **Send feedback** in the app (On this device, or at the end of a practice interview). Sending is not switched on yet: for now the note is saved on the phone and goes nowhere, until the owner chooses where feedback goes. Please don't put private answers or personal details in it.
 
 Made by Prism.
 
